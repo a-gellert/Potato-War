@@ -172,29 +172,82 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty)
 	local aim_dx, aim_dy = dir, 0.5
 	local power = 400
 
-	-- 1. Melee knife check (< 48px)
-	if dist < 48 then
-		chosen_weapon_id = weapons.TYPES.KNIFE
-		aim_dx = dir
-		aim_dy = 0.2
-		power = 280
-	else
-		-- 2. Line of sight check for Rifle
-		local hit, hx, hy = terrain.raycast(bot.pos.x, bot.pos.y + 6, target.pos.x, target.pos.y + 6)
-		local clear_los = not hit or (math.abs(hx - target.pos.x) < 20 and math.abs(hy - target.pos.y) < 20)
+	local hit, hx, hy = terrain.raycast(bot.pos.x, bot.pos.y + 6, target.pos.x, target.pos.y + 6)
+	local clear_los = not hit or (math.abs(hx - target.pos.x) < 20 and math.abs(hy - target.pos.y) < 20)
 
-		if clear_los and math.random() > 0.35 then
+	-- Weapon selection based on situation
+	if dist < 48 then
+		-- Very close: knife or shotgun
+		if math.random() > 0.4 then
+			chosen_weapon_id = weapons.TYPES.KNIFE
+			aim_dx = dir
+			aim_dy = 0.1
+			power = 1
+		else
+			chosen_weapon_id = weapons.TYPES.SHOTGUN
+			-- Aim slightly upward for spread
+			aim_dx = dir * 0.9
+			aim_dy = 0.3
+			power = weapons.get(weapons.TYPES.SHOTGUN).max_power * 0.6
+		end
+	elseif dist < 120 and clear_los then
+		-- Close range with LOS: shotgun or burst
+		local roll = math.random()
+		if roll < 0.45 then
+			chosen_weapon_id = weapons.TYPES.SHOTGUN
+			local len = math.sqrt(dx * dx + dy * dy)
+			aim_dx = dx / len
+			aim_dy = dy / len + 0.05
+			power = weapons.get(weapons.TYPES.SHOTGUN).max_power * 0.7
+		else
+			chosen_weapon_id = weapons.TYPES.BURST
+			local burst_def = weapons.get(weapons.TYPES.BURST)
+			local drop_comp = 0.5 * constants.GRAVITY * burst_def.gravity_mult * math.pow(dist / (burst_def.speed or 900), 2)
+			local eff_dy = dy + drop_comp
+			local eff_len = math.sqrt(dx * dx + eff_dy * eff_dy)
+			aim_dx = dx / eff_len
+			aim_dy = eff_dy / eff_len
+			power = burst_def.max_power
+		end
+	elseif clear_los then
+		-- Medium/long range with LOS: rifle, burst, or bazooka
+		local roll = math.random()
+		if roll < 0.40 then
 			chosen_weapon_id = weapons.TYPES.RIFLE
 			local rifle_def = weapons.get(weapons.TYPES.RIFLE)
-			-- Slight elevation compensation for bullet drop
 			local drop_comp = 0.5 * constants.GRAVITY * rifle_def.gravity_mult * math.pow(dist / rifle_def.speed, 2)
 			local eff_dy = dy + drop_comp
 			local eff_len = math.sqrt(dx * dx + eff_dy * eff_dy)
 			aim_dx = dx / eff_len
 			aim_dy = eff_dy / eff_len
 			power = rifle_def.max_power
+		elseif roll < 0.65 then
+			chosen_weapon_id = weapons.TYPES.BURST
+			local burst_def = weapons.get(weapons.TYPES.BURST)
+			local drop_comp = 0.5 * constants.GRAVITY * burst_def.gravity_mult * math.pow(dist / (burst_def.speed or 900), 2)
+			local eff_dy = dy + drop_comp
+			local eff_len = math.sqrt(dx * dx + eff_dy * eff_dy)
+			aim_dx = dx / eff_len
+			aim_dy = eff_dy / eff_len
+			power = burst_def.max_power
 		else
-			-- 3. Ballistic Grenade lob
+			-- Bazooka lob
+			chosen_weapon_id = weapons.TYPES.BAZOOKA
+			aim_dx, aim_dy, power = solve_grenade_aim(bot.pos, target.pos, terrain)
+		end
+	else
+		-- No LOS: lob weapons
+		local roll = math.random()
+		if roll < 0.30 then
+			chosen_weapon_id = weapons.TYPES.MOLOTOV
+			aim_dx, aim_dy, power = solve_grenade_aim(bot.pos, target.pos, terrain)
+		elseif roll < 0.55 then
+			chosen_weapon_id = weapons.TYPES.BAZOOKA
+			aim_dx, aim_dy, power = solve_grenade_aim(bot.pos, target.pos, terrain)
+		elseif roll < 0.75 and dist > 200 then
+			chosen_weapon_id = weapons.TYPES.HOLY_GRENADE
+			aim_dx, aim_dy, power = solve_grenade_aim(bot.pos, target.pos, terrain)
+		else
 			chosen_weapon_id = weapons.TYPES.GRENADE
 			aim_dx, aim_dy, power = solve_grenade_aim(bot.pos, target.pos, terrain)
 		end

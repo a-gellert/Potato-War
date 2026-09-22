@@ -182,6 +182,16 @@ function M.get_ground_y(wx)
 	return constants.WATER_LEVEL
 end
 
+-- Check if a world position is solid terrain
+function M.is_solid(wx, wy)
+	local gx = math.floor(wx / M.scale)
+	local gy = math.floor(wy / M.scale)
+	if gx < 0 or gx >= M.width or gy < 0 or gy >= M.height then
+		return false
+	end
+	return M.grid[gy * M.width + gx + 1] == 1
+end
+
 -- Simple hash-based value noise (Lua 5.1 compatible, no bitwise ops)
 local function hash_val(x)
     x = math.floor(x)

@@ -14,12 +14,12 @@ go.property("weapon_type", hash("grenade"))
 go.property("owner_id", 0)
 
 function init(self)
-	local w_id = "grenade"
-	if self.weapon_type == hash("rifle") then
-		w_id = "rifle"
-	elseif self.weapon_type == hash("knife") then
-		w_id = "knife"
+	local WEAPON_HASHES = {}
+	for _, w in ipairs(weapons.LIST) do
+		WEAPON_HASHES[hash(w.id)] = w.id
 	end
+
+	local w_id = WEAPON_HASHES[self.weapon_type] or "grenade"
 
 	self.weapon = weapons.get(w_id)
 	self.pos = go.get_position()
@@ -31,12 +31,14 @@ function init(self)
 	-- Set sprite according to weapon
 	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
 
-	if w_id == "knife" then
-		go.set("#sprite", "scale", vmath.vector3(1.4, 1.4, 1.0))
-	elseif w_id == "rifle" then
-		go.set("#sprite", "scale", vmath.vector3(0.3, 0.3, 1.0))
-	else
-		go.set("#sprite", "scale", vmath.vector3(1.0, 1.0, 1.0))
+	-- Set scale
+	local s = self.weapon.projectile_scale or 1.0
+	go.set("#sprite", "scale", vmath.vector3(s, s, 1.0))
+
+	-- Set tint
+	local t = self.weapon.projectile_tint
+	if t then
+		go.set("#sprite", "tint", vmath.vector4(t[1], t[2], t[3], t[4]))
 	end
 end
 
@@ -44,29 +46,58 @@ local function detonate(self, hit_x, hit_y)
 	constants.log(">>> PROJECTILE DETONATING AT:", hit_x, hit_y, "weapon:", self.weapon.id)
 	self.is_active = false
 
-	-- Carve crater in terrain
-	msg.post("/terrain#terrain", "carve_crater", {
-		x = hit_x,
-		y = hit_y,
-		radius = self.weapon.blast_radius
-	})
+	if self.weapon.on_hit == "napalm" then
+		-- Small initial explosion
+		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
+		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
+		camera_controller.shake(self.weapon.blast_radius * 0.2, 0.2)
+		
+		-- Apply small initial blast damage
+		for _, p in ipairs(game_state.potatoes) do
+			if p.is_alive then
+				local dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
+				if dmg > 0 and p.url then
+					msg.post(p.url, "apply_damage", { damage = dmg })
+				end
+			end
+		end
+		
+		-- Spawn napalm fire patches
+		msg.post("/main#main", "spawn_napalm", {
+			x = hit_x,
+			y = hit_y,
+			count = self.weapon.napalm_count or 6,
+			spread = self.weapon.napalm_spread or 40,
+			burn_time = self.weapon.napalm_burn_time or 2.5,
+			radius = self.weapon.napalm_radius or 8,
+			dps = self.weapon.napalm_dps or 10,
+		})
+	else
+		-- Standard explosion
+		-- Carve crater in terrain
+		msg.post("/terrain#terrain", "carve_crater", {
+			x = hit_x,
+			y = hit_y,
+			radius = self.weapon.blast_radius
+		})
 
-	-- Spawn visual explosion
-	msg.post("/main#main", "spawn_explosion", {
-		x = hit_x,
-		y = hit_y,
-		radius = self.weapon.blast_radius
-	})
+		-- Spawn visual explosion
+		msg.post("/main#main", "spawn_explosion", {
+			x = hit_x,
+			y = hit_y,
+			radius = self.weapon.blast_radius
+		})
 
-	-- Screen shake proportional to weapon blast
-	camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
+		-- Screen shake proportional to weapon blast
+		camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
 
-	-- Apply damage and impulse to all living potatoes
-	for _, p in ipairs(game_state.potatoes) do
-		if p.is_alive then
-			local dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
-			if dmg > 0 and p.url then
-				msg.post(p.url, "apply_damage", { damage = dmg })
+		-- Apply damage and impulse to all living potatoes
+		for _, p in ipairs(game_state.potatoes) do
+			if p.is_alive then
+				local dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
+				if dmg > 0 and p.url then
+					msg.post(p.url, "apply_damage", { damage = dmg })
+				end
 			end
 		end
 	end

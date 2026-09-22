@@ -55,6 +55,26 @@ key_trigger {
   action: "weapon_3"
 }
 key_trigger {
+  input: KEY_4
+  action: "weapon_4"
+}
+key_trigger {
+  input: KEY_5
+  action: "weapon_5"
+}
+key_trigger {
+  input: KEY_6
+  action: "weapon_6"
+}
+key_trigger {
+  input: KEY_7
+  action: "weapon_7"
+}
+key_trigger {
+  input: KEY_8
+  action: "weapon_8"
+}
+key_trigger {
   input: KEY_ESC
   action: "escape"
 }

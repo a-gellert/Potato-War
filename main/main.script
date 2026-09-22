@@ -101,6 +101,7 @@ function init(self)
 	self.bot_thinking = false
 	self.bot_timer = 0
 	self.bot_plan = nil
+	self.burst_queue = {} -- { weapon_id, origin_x, origin_y, vel_x, vel_y, owner_id, shots_left, delay_timer }
 
 	-- Hook turn changed callback
 	game_state.on_turn_changed = function(active_team, active_potato)
@@ -161,6 +162,37 @@ function update(self, dt)
 		end
 	end
 	self.active_projectiles = alive_projectiles
+
+	-- 3.5 Process burst fire queue
+	if #self.burst_queue > 0 then
+		local bq = self.burst_queue[1]
+		bq.delay_timer = bq.delay_timer - dt
+		if bq.delay_timer <= 0 then
+			-- Fire next shot with slight random spread
+			local weapon = weapons.get(bq.weapon_id)
+			local spread = weapon.shot_spread or 0.06
+			local angle = math.atan2(bq.vel_y, bq.vel_x) + (math.random() - 0.5) * spread
+			local speed = math.sqrt(bq.vel_x * bq.vel_x + bq.vel_y * bq.vel_y)
+			local svx = math.cos(angle) * speed
+			local svy = math.sin(angle) * speed
+			
+			local pos = vmath.vector3(bq.origin_x, bq.origin_y, 0.2)
+			local proj_url = factory.create("#projectile_factory", pos, nil, {
+				vel_x = svx,
+				vel_y = svy,
+				weapon_type = hash(bq.weapon_id),
+				owner_id = bq.owner_id
+			})
+			table.insert(self.active_projectiles, proj_url)
+			
+			bq.shots_left = bq.shots_left - 1
+			if bq.shots_left <= 0 then
+				table.remove(self.burst_queue, 1)
+			else
+				bq.delay_timer = weapon.shot_delay or 0.12
+			end
+		end
+	end
 
 	-- 4. Bot AI execution
 	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.is_bot_turn() then
@@ -316,15 +348,16 @@ function on_input(self, action_id, action)
 			elseif action_id == hash("jump") and action.pressed then
 				physics_sim.jump_potato(potato)
 				return true
-			elseif action_id == hash("weapon_1") and action.pressed then
-				game_state.select_weapon(weapons.TYPES.GRENADE)
-				return true
-			elseif action_id == hash("weapon_2") and action.pressed then
-				game_state.select_weapon(weapons.TYPES.RIFLE)
-				return true
-			elseif action_id == hash("weapon_3") and action.pressed then
-				game_state.select_weapon(weapons.TYPES.KNIFE)
-				return true
+			end
+			-- Weapon selection via number keys
+			for i = 1, weapons.count() do
+				if action_id == hash("weapon_" .. i) and action.pressed then
+					local w = weapons.get_by_index(i)
+					if w then
+						game_state.select_weapon(w.id)
+					end
+					return true
+				end
 			end
 		end
 	end
@@ -370,20 +403,120 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("fire_weapon") then
-		local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
-		local proj_url = factory.create("#projectile_factory", pos, nil, {
-			vel_x = message.vel_x,
-			vel_y = message.vel_y,
-			weapon_type = hash(message.weapon_id or "grenade"),
-			owner_id = message.owner_id or 0
-		})
-		table.insert(self.active_projectiles, proj_url)
-		game_state.on_action_fired()
+		local weapon = weapons.get(message.weapon_id or "grenade")
+		
+		if weapon.fire_mode == "melee" then
+			-- Instant melee damage — no projectile
+			local potato = game_state.active_potato
+			if potato then
+				local facing = potato.facing or 1
+				local hit_x = potato.pos.x + facing * 20
+				local hit_y = potato.pos.y + 4
+				
+				-- Visual slash effect
+				msg.post(".", "spawn_explosion", { x = hit_x, y = hit_y, radius = 12 })
+				camera_controller.shake(8, 0.15)
+				
+				-- Apply damage to potatoes in melee range
+				for _, p in ipairs(game_state.potatoes) do
+					if p.is_alive and p.id ~= potato.id then
+						local dx = p.pos.x - hit_x
+						local dy = p.pos.y - hit_y
+						local dist = math.sqrt(dx * dx + dy * dy)
+						if dist < (weapon.melee_range or 42) then
+							local dmg = physics_sim.apply_blast(p, hit_x, hit_y, weapon.blast_radius, weapon.blast_force, weapon.max_damage)
+							if dmg > 0 and p.url then
+								msg.post(p.url, "apply_damage", { damage = dmg })
+							end
+						end
+					end
+				end
+			end
+			game_state.on_action_fired()
+			
+		elseif weapon.fire_mode == "spread" then
+			-- Spread: multiple projectiles simultaneously in a fan
+			local count = weapon.shot_count or 5
+			local total_spread = weapon.spread_angle or 0.35
+			local base_angle = math.atan2(message.vel_y, message.vel_x)
+			local speed = math.sqrt(message.vel_x * message.vel_x + message.vel_y * message.vel_y)
+			
+			for i = 1, count do
+				local frac = (i - 1) / math.max(1, count - 1) -- 0..1
+				local angle = base_angle + (frac - 0.5) * total_spread
+				local vx = math.cos(angle) * speed
+				local vy = math.sin(angle) * speed
+				local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
+				local proj_url = factory.create("#projectile_factory", pos, nil, {
+					vel_x = vx,
+					vel_y = vy,
+					weapon_type = hash(weapon.id),
+					owner_id = message.owner_id or 0
+				})
+				table.insert(self.active_projectiles, proj_url)
+			end
+			game_state.on_action_fired()
+			
+		elseif weapon.fire_mode == "multi_shot" then
+			-- Multi-shot burst: fire first shot immediately, queue the rest
+			local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
+			local proj_url = factory.create("#projectile_factory", pos, nil, {
+				vel_x = message.vel_x,
+				vel_y = message.vel_y,
+				weapon_type = hash(weapon.id),
+				owner_id = message.owner_id or 0
+			})
+			table.insert(self.active_projectiles, proj_url)
+			
+			-- Queue remaining shots
+			local remaining = (weapon.shot_count or 3) - 1
+			if remaining > 0 then
+				table.insert(self.burst_queue, {
+					weapon_id = weapon.id,
+					origin_x = message.origin_x,
+					origin_y = message.origin_y,
+					vel_x = message.vel_x,
+					vel_y = message.vel_y,
+					owner_id = message.owner_id or 0,
+					shots_left = remaining,
+					delay_timer = weapon.shot_delay or 0.12,
+				})
+			end
+			game_state.on_action_fired()
+			
+		else
+			-- Single projectile (default: grenade, rifle, molotov, bazooka, holy_grenade)
+			local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
+			local proj_url = factory.create("#projectile_factory", pos, nil, {
+				vel_x = message.vel_x,
+				vel_y = message.vel_y,
+				weapon_type = hash(weapon.id),
+				owner_id = message.owner_id or 0
+			})
+			table.insert(self.active_projectiles, proj_url)
+			game_state.on_action_fired()
+		end
 
 	elseif message_id == hash("spawn_explosion") then
 		local pos = vmath.vector3(message.x, message.y, 0.5)
 		factory.create("#explosion_factory", pos, nil, {
 			radius = message.radius or 30
 		})
+	elseif message_id == hash("spawn_napalm") then
+		local cx = message.x
+		local cy = message.y
+		local count = message.count or 6
+		local spread = message.spread or 40
+		for i = 1, count do
+			local ox = (math.random() - 0.5) * spread * 2
+			local oy = (math.random() - 0.5) * spread * 0.5 + 10
+			local pos = vmath.vector3(cx + ox, cy + oy, 0.4)
+			local np = factory.create("#napalm_factory", pos, nil, {
+				burn_time = message.burn_time or 2.5,
+				radius = message.radius or 8,
+				dps = message.dps or 10,
+			})
+			table.insert(self.active_projectiles, np) -- track for settling
+		end
 	end
 end

@@ -14,3 +14,7 @@ components {
   id: "explosion_factory"
   component: "/main/entities/explosion/explosion.factory"
 }
+components {
+  id: "napalm_factory"
+  component: "/main/entities/napalm/napalm.factory"
+}

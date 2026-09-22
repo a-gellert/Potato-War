@@ -6,15 +6,23 @@ local weapons = require("lua_modules.weapons")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
 
+local WEAPON_BUTTON_IDS = {}
+local WEAPON_TEXT_IDS = {}
+for i = 1, weapons.count() do
+	WEAPON_BUTTON_IDS[i] = "btn_wpn_" .. i
+	WEAPON_TEXT_IDS[i] = "txt_wpn_" .. i
+end
+
 local function update_weapon_selection(self, weapon_id)
-	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold/Active
+	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold
 	local def_color = vmath.vector4(0.22, 0.28, 0.35, 1.0) -- Normal
 
-	pcall(function()
-		gui.set_color(gui.get_node("btn_grenade"), weapon_id == "grenade" and sel_color or def_color)
-		gui.set_color(gui.get_node("btn_rifle"), weapon_id == "rifle" and sel_color or def_color)
-		gui.set_color(gui.get_node("btn_knife"), weapon_id == "knife" and sel_color or def_color)
-	end)
+	for i, w in ipairs(weapons.LIST) do
+		pcall(function()
+			local node = gui.get_node(WEAPON_BUTTON_IDS[i])
+			gui.set_color(node, w.id == weapon_id and sel_color or def_color)
+		end)
+	end
 end
 
 function init(self)
@@ -27,18 +35,17 @@ function init(self)
 	self.last_team = nil
 	self.last_weapon = nil
 
-	-- Register weapon buttons
-	self.ui:button("btn_grenade", function()
-		game_state.select_weapon(weapons.TYPES.GRENADE)
-	end)
-
-	self.ui:button("btn_rifle", function()
-		game_state.select_weapon(weapons.TYPES.RIFLE)
-	end)
-
-	self.ui:button("btn_knife", function()
-		game_state.select_weapon(weapons.TYPES.KNIFE)
-	end)
+	-- Register weapon buttons dynamically
+	for i, w in ipairs(weapons.LIST) do
+		local weapon_id = w.id
+		self.ui:button(WEAPON_BUTTON_IDS[i], function()
+			game_state.select_weapon(weapon_id)
+		end)
+		-- Set button text to key_label + short name
+		pcall(function()
+			gui.set_text(gui.get_node(WEAPON_TEXT_IDS[i]), w.key_label .. " " .. w.name)
+		end)
+	end
 
 	-- Register movement buttons for touch controls
 	self.ui:button("btn_left", function()
@@ -84,13 +91,12 @@ function update(self, dt)
 				gui.set_text(t_txt, tostring(seconds_left))
 				gui.set_scale(t_fill, vmath.vector3(fraction, 1.0, 1.0))
 
-				-- Alert colors when time is running out (<= 5 seconds)
 				if seconds_left <= 5 then
-					gui.set_color(t_bg, vmath.vector4(0.91, 0.30, 0.24, 1.0)) -- Red
+					gui.set_color(t_bg, vmath.vector4(0.91, 0.30, 0.24, 1.0))
 					gui.set_color(t_fill, vmath.vector4(0.91, 0.30, 0.24, 1.0))
 				else
-					gui.set_color(t_bg, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Gold
-					gui.set_color(t_fill, vmath.vector4(0.18, 0.80, 0.44, 1.0)) -- Green
+					gui.set_color(t_bg, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+					gui.set_color(t_fill, vmath.vector4(0.18, 0.80, 0.44, 1.0))
 				end
 			end)
 		end
@@ -136,4 +142,3 @@ function update(self, dt)
 		end)
 	end
 end
-

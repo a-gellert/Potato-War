@@ -1,0 +1,78 @@
+-- main/entities/napalm/napalm.script
+-- Burning fire patch: periodically damages nearby potatoes and carves terrain
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+local physics_sim = require("lua_modules.physics_sim")
+local game_state = require("lua_modules.game_state")
+local camera_controller = require("lua_modules.camera_controller")
+
+go.property("burn_time", 2.5)
+go.property("radius", 8)
+go.property("dps", 10)
+
+function init(self)
+	self.timer = self.burn_time
+	self.burn_tick = 0
+	self.carve_tick = 0
+
+	-- Fire-orange tint, pulsating
+	go.set("#sprite", "tint", vmath.vector4(1.0, 0.55, 0.1, 0.9))
+	go.animate("#sprite", "tint.w", go.PLAYBACK_LOOP_PINGPONG, 0.5, go.EASING_INOUTSINE, 0.3)
+
+	local s = self.radius / 12.0
+	go.set("#sprite", "scale", vmath.vector3(s, s, 1.0))
+	go.animate("#sprite", "scale", go.PLAYBACK_LOOP_PINGPONG,
+		vmath.vector3(s * 1.3, s * 1.3, 1.0), go.EASING_INOUTSINE, 0.4)
+end
+
+function update(self, dt)
+	self.timer = self.timer - dt
+	if self.timer <= 0 then
+		go.delete()
+		return
+	end
+
+	local pos = go.get_position()
+
+	-- Carve terrain every 0.4s
+	self.carve_tick = self.carve_tick + dt
+	if self.carve_tick >= 0.4 then
+		self.carve_tick = self.carve_tick - 0.4
+		msg.post("/terrain#terrain", "carve_crater", {
+			x = pos.x,
+			y = pos.y,
+			radius = self.radius * 0.6
+		})
+	end
+
+	-- Damage nearby potatoes every 0.5s
+	self.burn_tick = self.burn_tick + dt
+	if self.burn_tick >= 0.5 then
+		self.burn_tick = self.burn_tick - 0.5
+		local dmg = math.floor(self.dps * 0.5)
+		for _, p in ipairs(game_state.potatoes) do
+			if p.is_alive then
+				local dx = p.pos.x - pos.x
+				local dy = p.pos.y - pos.y
+				local dist = math.sqrt(dx * dx + dy * dy)
+				if dist < self.radius + constants.POTATO_RADIUS then
+					p.hp = math.max(0, p.hp - dmg)
+					if p.url then
+						msg.post(p.url, "apply_damage", { damage = dmg })
+					end
+					if p.hp <= 0 then
+						p.is_alive = false
+					end
+				end
+			end
+		end
+	end
+
+	-- Settle to ground (gravity)
+	local below_y = pos.y - 2
+	if not terrain_grid.is_solid(pos.x, below_y) and pos.y > constants.WATER_LEVEL + 4 then
+		pos.y = pos.y - 60 * dt
+		go.set_position(pos)
+	end
+end
