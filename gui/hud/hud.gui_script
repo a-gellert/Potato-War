@@ -1,10 +1,12 @@
 -- gui/hud/hud.gui_script
--- Controls HUD turn banner, 15-second countdown timer, weapon buttons, and movement
+-- Controls HUD turn banner, 15-second countdown timer, card selection popup, weapon buttons, and movement
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
+local player_profile = require("lua_modules.player_profile")
+local i18n = require("lua_modules.i18n")
 
 local WEAPON_BUTTON_IDS = {}
 local WEAPON_TEXT_IDS = {}
@@ -16,13 +18,58 @@ end
 local function update_weapon_selection(self, weapon_id)
 	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold
 	local def_color = vmath.vector4(0.22, 0.28, 0.35, 1.0) -- Normal
+	local lock_color = vmath.vector4(0.12, 0.14, 0.18, 0.45) -- Locked
 
 	for i, w in ipairs(weapons.LIST) do
 		pcall(function()
 			local node = gui.get_node(WEAPON_BUTTON_IDS[i])
-			gui.set_color(node, w.id == weapon_id and sel_color or def_color)
+			local is_unlocked = game_state.is_weapon_unlocked(w.id)
+			gui.set_enabled(node, is_unlocked)
+			if is_unlocked then
+				gui.set_color(node, w.id == weapon_id and sel_color or def_color)
+			else
+				gui.set_color(node, lock_color)
+			end
 		end)
 	end
+end
+
+local function update_weapon_labels(self)
+	local w_keys = { "weapon_grenade", "weapon_rifle", "weapon_knife" }
+	for i, w in ipairs(weapons.LIST) do
+		pcall(function()
+			local key = w_keys[i] or ("weapon_" .. w.id)
+			gui.set_text(gui.get_node(WEAPON_TEXT_IDS[i]), i18n.t(key))
+		end)
+	end
+end
+
+local function apply_card_ui(card_idx, card)
+	pcall(function()
+		local pfx = "card_" .. card_idx
+		local bg_node = gui.get_node(pfx .. "_bg")
+		local title_node = gui.get_node(pfx .. "_title")
+		local desc_node = gui.get_node(pfx .. "_desc")
+		local badge_bg = gui.get_node(pfx .. "_badge_bg")
+		local badge_txt = gui.get_node(pfx .. "_badge_txt")
+		local btn_txt = gui.get_node("txt_card_" .. card_idx)
+
+		local title = card.title or (i18n.current_lang == "ru" and "КАРТА" or "CARD")
+		local badge = card.badge or (i18n.current_lang == "ru" and "Оружие" or "Weapon")
+		local btn_lbl = card.btn_label or (i18n.current_lang == "ru" and "ВЫБРАТЬ" or "SELECT")
+
+		gui.set_text(title_node, title)
+		gui.set_text(desc_node, card.desc or "")
+		gui.set_text(badge_txt, badge)
+		gui.set_text(btn_txt, btn_lbl)
+
+		if card.bg_color then
+			gui.set_color(bg_node, vmath.vector4(card.bg_color[1], card.bg_color[2], card.bg_color[3], card.bg_color[4] or 1))
+		end
+		if card.accent_color then
+			gui.set_color(badge_bg, vmath.vector4(card.accent_color[1], card.accent_color[2], card.accent_color[3], 1))
+		end
+	end)
 end
 
 function init(self)
@@ -34,6 +81,7 @@ function init(self)
 	self.last_fraction = -1
 	self.last_team = nil
 	self.last_weapon = nil
+	self.last_points = -1
 
 	-- Register weapon buttons dynamically
 	for i, w in ipairs(weapons.LIST) do
@@ -41,11 +89,23 @@ function init(self)
 		self.ui:button(WEAPON_BUTTON_IDS[i], function()
 			game_state.select_weapon(weapon_id)
 		end)
-		-- Set button text to key_label + short name
-		pcall(function()
-			gui.set_text(gui.get_node(WEAPON_TEXT_IDS[i]), w.key_label .. " " .. w.name)
-		end)
 	end
+	update_weapon_labels(self)
+
+	-- Register card selection buttons
+	self.ui:button("btn_card_1", function()
+		pcall(function()
+			gui.set_enabled(gui.get_node("cards_overlay"), false)
+		end)
+		msg.post("/main#main", "select_card", { card_index = 1 })
+	end)
+
+	self.ui:button("btn_card_2", function()
+		pcall(function()
+			gui.set_enabled(gui.get_node("cards_overlay"), false)
+		end)
+		msg.post("/main#main", "select_card", { card_index = 2 })
+	end)
 
 	-- Register movement buttons for touch controls
 	self.ui:button("btn_left", function()
@@ -64,6 +124,19 @@ function init(self)
 		msg.post("/main#main", "show_menu")
 	end)
 
+	-- Update static labels
+	pcall(function()
+		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
+		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
+		gui.set_text(gui.get_node("txt_right"), i18n.t("touch_right"))
+		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+	end)
+
+	-- Cards overlay disabled by default
+	pcall(function()
+		gui.set_enabled(gui.get_node("cards_overlay"), false)
+	end)
+
 	update_weapon_selection(self, game_state.selected_weapon_id)
 end
 
@@ -75,6 +148,12 @@ function update(self, dt)
 	self.ui:update(dt)
 
 	if game_state.state ~= constants.STATE_MENU and game_state.state ~= constants.STATE_GAME_OVER then
+		-- Update weapon labels in case language changed
+		update_weapon_labels(self)
+		pcall(function()
+			gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+		end)
+
 		-- 1. Update Timer
 		local seconds_left = math.max(0, math.ceil(game_state.turn_timer))
 		local fraction = math.max(0, math.min(1.0, game_state.turn_timer / constants.TURN_DURATION))
@@ -110,35 +189,74 @@ function update(self, dt)
 				local bg = gui.get_node("banner_bg")
 
 				if game_state.active_team == constants.TEAM_BLUE then
-					gui.set_text(banner, "Ход: Картошка (Синие)")
+					gui.set_text(banner, i18n.t("turn_blue"))
 					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
 				else
 					if game_state.mode == constants.MODE_QUICK_PVP then
-						gui.set_text(banner, "Ход: Игрок 2 (Красные)")
+						gui.set_text(banner, i18n.t("turn_red_pvp"))
 					else
-						gui.set_text(banner, "Ход: Компьютер (Красные)")
+						gui.set_text(banner, i18n.t("turn_red_bot"))
 					end
 					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
 				end
 			end)
 		end
 
-		-- 3. Update Weapon Selection
+		-- 3. Update Weapon Selection & panel visibility
+		pcall(function()
+			local wp_node = gui.get_node("weapon_panel")
+			local is_player_turn = not game_state.is_bot_turn() and game_state.state == constants.STATE_TURN_ACTIVE
+			gui.set_enabled(wp_node, is_player_turn)
+		end)
+
 		if game_state.selected_weapon_id ~= self.last_weapon then
 			self.last_weapon = game_state.selected_weapon_id
 			update_weapon_selection(self, game_state.selected_weapon_id)
 		end
 
-		-- 4. Update Mode / Level Info
+		-- 4. Update Points & Mode Info
+		local pts = player_profile.get_points()
+		if pts ~= self.last_points then
+			self.last_points = pts
+			pcall(function()
+				local pts_lbl = (i18n.current_lang == "ru") and "Очки: " or "Points: "
+				gui.set_text(gui.get_node("points_text"), pts_lbl .. tostring(pts))
+			end)
+		end
+
 		pcall(function()
 			local mode_node = gui.get_node("mode_text")
 			if game_state.mode == constants.MODE_CAMPAIGN then
-				gui.set_text(mode_node, "Миссия " .. tostring(game_state.campaign_level or 1))
+				local p = game_state.active_potato
+				local hp_str = p and tostring(p.hp) or "100"
+				local arena_prefix = (i18n.current_lang == "ru") and "Арена " or "Arena "
+				gui.set_text(mode_node, arena_prefix .. tostring(game_state.campaign_level or 1) .. " (HP:" .. hp_str .. ")")
 			elseif game_state.mode == constants.MODE_QUICK_BOT then
-				gui.set_text(mode_node, "Бой vs Бот")
+				gui.set_text(mode_node, i18n.t("mode_bot"))
 			elseif game_state.mode == constants.MODE_QUICK_PVP then
-				gui.set_text(mode_node, "Игра 1 на 1")
+				gui.set_text(mode_node, i18n.t("mode_pvp"))
 			end
 		end)
 	end
 end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show_cards") then
+		pcall(function()
+			local overlay = gui.get_node("cards_overlay")
+			gui.set_enabled(overlay, true)
+
+			if message.card1 then
+				apply_card_ui(1, message.card1)
+			end
+			if message.card2 then
+				apply_card_ui(2, message.card2)
+			end
+		end)
+	elseif message_id == hash("hide_cards") then
+		pcall(function()
+			gui.set_enabled(gui.get_node("cards_overlay"), false)
+		end)
+	end
+end
+

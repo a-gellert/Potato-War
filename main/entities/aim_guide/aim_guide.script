@@ -43,6 +43,19 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 		msg.post(self.crosshair, "enable")
 		local last_pt = points[#points]
 		go.set_position(vmath.vector3(last_pt.x, last_pt.y, 0.35), self.crosshair)
+
+		-- Alert enemy potatoes if directly targeted during player turn
+		if not game_state.is_bot_turn() then
+			for _, p in ipairs(game_state.potatoes) do
+				if p.is_alive and p.team ~= game_state.active_team and p.url then
+					local pdx = p.pos.x - last_pt.x
+					local pdy = (p.pos.y + 4) - last_pt.y
+					if pdx * pdx + pdy * pdy < 36 * 36 then
+						msg.post(p.url, "alert_aimed")
+					end
+				end
+			end
+		end
 	elseif self.crosshair then
 		msg.post(self.crosshair, "disable")
 	end

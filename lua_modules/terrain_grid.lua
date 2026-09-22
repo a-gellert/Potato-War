@@ -182,6 +182,25 @@ function M.get_ground_y(wx)
 	return constants.WATER_LEVEL
 end
 
+-- Find smoothed ground Y position around given world X (filters out sawtooth/pixel jaggedness)
+function M.get_smooth_ground_y(wx, radius)
+	radius = radius or 6.0
+	local samples = 5
+	local step = (radius * 2) / (samples - 1)
+	local total_y = 0
+	local weight_sum = 0
+
+	for i = 0, samples - 1 do
+		local sample_x = (wx - radius) + i * step
+		local gy = M.get_ground_y(sample_x)
+		local w = (i == 2) and 4 or ((i == 1 or i == 3) and 2 or 1)
+		total_y = total_y + gy * w
+		weight_sum = weight_sum + w
+	end
+
+	return total_y / weight_sum
+end
+
 -- Check if a world position is solid terrain
 function M.is_solid(wx, wy)
 	local gx = math.floor(wx / M.scale)

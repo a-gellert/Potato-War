@@ -1,9 +1,10 @@
 -- gui/game_over/game_over.gui_script
--- Displays match victory/defeat screens and handles rematch/progression buttons
+-- Displays round victory with points & Next button, and defeat options
 
 local constants = require("lua_modules.constants")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
+local i18n = require("lua_modules.i18n")
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
@@ -14,13 +15,13 @@ function init(self)
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", {
 			mode = game_state.mode,
-			level = game_state.campaign_level
+			level = (game_state.mode == constants.MODE_CAMPAIGN) and 1 or game_state.campaign_level
 		})
 	end)
 
 	self.ui:button("btn_next_level", function()
 		msg.post(".", "disable")
-		local next_lvl = math.min(#game_state.CAMPAIGN_LEVELS, game_state.campaign_level + 1)
+		local next_lvl = game_state.campaign_level + 1
 		msg.post("/main#main", "start_match", {
 			mode = constants.MODE_CAMPAIGN,
 			level = next_lvl
@@ -49,8 +50,12 @@ function on_message(self, message_id, message, sender)
 		msg.post(".", "enable")
 
 		local winner = message.winner
+		local points = message.points or 0
+
 		local title_node = gui.get_node("title_text")
 		local sub_node = gui.get_node("subtitle_text")
+		local reward_bg = gui.get_node("reward_bg")
+		local reward_txt = gui.get_node("reward_text")
 		local rematch_btn = gui.get_node("btn_rematch")
 		local rematch_txt = gui.get_node("txt_rematch")
 		local next_btn = gui.get_node("btn_next_level")
@@ -58,41 +63,60 @@ function on_message(self, message_id, message, sender)
 		local menu_btn = gui.get_node("btn_menu")
 		local menu_txt = gui.get_node("txt_menu")
 
-		-- Explicitly set text for all buttons
-		gui.set_text(rematch_txt, "ПОВТОРИТЬ БОЙ")
-		gui.set_text(next_txt, "СЛЕДУЮЩАЯ МИССИЯ")
-		gui.set_text(menu_txt, "ГЛАВНОЕ МЕНЮ")
-
-		-- Ensure rematch and menu buttons and texts are enabled
-		gui.set_enabled(rematch_btn, true)
-		gui.set_enabled(rematch_txt, true)
-		gui.set_enabled(menu_btn, true)
-		gui.set_enabled(menu_txt, true)
+		local is_ru = (i18n.current_lang == "ru")
 
 		if winner == constants.TEAM_BLUE then
-			gui.set_text(title_node, "ПОБЕДА!")
+			-- VICTORY
+			gui.set_text(title_node, i18n.t("victory"))
 			gui.set_color(title_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			gui.set_text(sub_node, "Синяя команда картошек разгромила соперника!")
+			gui.set_text(sub_node, is_ru and "Раунд выигран!" or "Round won!")
+			gui.set_text(reward_txt, "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS"))
+			gui.set_text(next_txt, is_ru and "ДАЛЕЕ" or "NEXT")
 
-			if game_state.mode == constants.MODE_CAMPAIGN and game_state.campaign_level < #game_state.CAMPAIGN_LEVELS then
-				gui.set_enabled(next_btn, true)
-				gui.set_enabled(next_txt, true)
-			else
-				gui.set_enabled(next_btn, false)
-				gui.set_enabled(next_txt, false)
-			end
+			gui.set_enabled(reward_bg, true)
+			gui.set_enabled(reward_txt, true)
+			gui.set_enabled(next_btn, true)
+			gui.set_enabled(next_txt, true)
+
+			gui.set_enabled(rematch_btn, false)
+			gui.set_enabled(rematch_txt, false)
+			gui.set_enabled(menu_btn, false)
+			gui.set_enabled(menu_txt, false)
+
 		elseif winner == constants.TEAM_RED then
-			gui.set_text(title_node, "ПОРАЖЕНИЕ!")
+			-- DEFEAT
+			gui.set_text(title_node, i18n.t("defeat"))
 			gui.set_color(title_node, vmath.vector4(0.91, 0.30, 0.24, 1.0))
-			gui.set_text(sub_node, "Красные картошки одержали победу!")
+			gui.set_text(sub_node, is_ru and "Ваша картошка уничтожена." or "Your potato was destroyed.")
+			gui.set_text(rematch_txt, is_ru and "НАЧАТЬ ЗАНОВО" or "RESTART")
+			gui.set_text(menu_txt, i18n.t("btn_menu"))
+
+			gui.set_enabled(reward_bg, false)
+			gui.set_enabled(reward_txt, false)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
+
+			gui.set_enabled(rematch_btn, true)
+			gui.set_enabled(rematch_txt, true)
+			gui.set_enabled(menu_btn, true)
+			gui.set_enabled(menu_txt, true)
 		else
-			gui.set_text(title_node, "НИЧЬЯ!")
+			-- DRAW
+			gui.set_text(title_node, i18n.t("draw"))
 			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-			gui.set_text(sub_node, "Все картошки превратились в пюре!")
+			gui.set_text(sub_node, i18n.t("sub_draw"))
+			gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+			gui.set_text(menu_txt, i18n.t("btn_menu"))
+
+			gui.set_enabled(reward_bg, false)
+			gui.set_enabled(reward_txt, false)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
+
+			gui.set_enabled(rematch_btn, true)
+			gui.set_enabled(rematch_txt, true)
+			gui.set_enabled(menu_btn, true)
+			gui.set_enabled(menu_txt, true)
 		end
 	end
 end

@@ -1,14 +1,83 @@
 -- gui/main_menu/main_menu.gui_script
--- Handles main menu interactions and game mode selection for Potato War
+-- Handles main menu interactions, mode selection, language toggle, and Skin Shop
 
 local constants = require("lua_modules.constants")
 local ui_manager = require("lua_modules.ui_manager")
+local player_profile = require("lua_modules.player_profile")
+local i18n = require("lua_modules.i18n")
+
+local function update_points_display(self)
+	local pts = player_profile.get_points()
+	pcall(function()
+		local pts_lbl = (i18n.current_lang == "ru") and "Очки: " or "Points: "
+		local shop_pts_lbl = (i18n.current_lang == "ru") and "Ваши очки: " or "Your points: "
+		gui.set_text(gui.get_node("txt_total_points"), pts_lbl .. tostring(pts))
+		gui.set_text(gui.get_node("shop_points"), shop_pts_lbl .. tostring(pts))
+	end)
+end
+
+local function update_localized_menu(self)
+	pcall(function()
+		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
+		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
+		gui.set_text(gui.get_node("txt_campaign"), i18n.t("btn_campaign"))
+		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_quick_bot"))
+		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_quick_pvp"))
+		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
+		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
+
+		local shop_title = (i18n.current_lang == "ru") and "МАГАЗИН СКИНОВ" or "SKIN SHOP"
+		local txt_shop_btn = (i18n.current_lang == "ru") and "4. МАГАЗИН СКИНОВ" or "4. SKIN SHOP"
+		gui.set_text(gui.get_node("shop_title"), shop_title)
+		gui.set_text(gui.get_node("txt_shop"), txt_shop_btn)
+	end)
+	update_points_display(self)
+end
+
+local function update_shop(self)
+	update_points_display(self)
+
+	local skins = player_profile.SKINS
+	local equipped = player_profile.data.equipped_skin or "classic"
+	local points = player_profile.get_points()
+
+	for i = 1, 6 do
+		local skin = skins[i]
+		if skin then
+			pcall(function()
+				local btn_node = gui.get_node("btn_skin_" .. i)
+				local txt_node = gui.get_node("txt_skin_" .. i)
+				local is_unlocked = player_profile.is_skin_unlocked(skin.id)
+				local is_equipped = (skin.id == equipped)
+
+				if is_equipped then
+					gui.set_text(txt_node, (i18n.current_lang == "ru") and "НАДЕТО" or "EQUIPPED")
+					gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0)) -- Green
+				elseif is_unlocked then
+					gui.set_text(txt_node, (i18n.current_lang == "ru") and "ВЫБРАТЬ" or "EQUIP")
+					gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0)) -- Blue
+				else
+					if points >= skin.price then
+						local buy_lbl = (i18n.current_lang == "ru") and "КУПИТЬ (" or "BUY ("
+						gui.set_text(txt_node, buy_lbl .. skin.price .. ")")
+						gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0)) -- Gold
+					else
+						local lock_lbl = (i18n.current_lang == "ru") and "ЗАКРЫТО (" or "LOCKED ("
+						gui.set_text(txt_node, lock_lbl .. skin.price .. ")")
+						gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0)) -- Gray
+					end
+				end
+			end)
+		end
+	end
+end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(5)
 	self.ui = ui_manager.create(self)
 
+	-- Mode selection buttons
 	self.ui:button("btn_campaign", function()
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", { mode = constants.MODE_CAMPAIGN, level = 1 })
@@ -23,6 +92,52 @@ function init(self)
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", { mode = constants.MODE_QUICK_PVP })
 	end)
+
+	-- Language toggle button
+	self.ui:button("btn_lang", function()
+		i18n.toggle_lang()
+		update_localized_menu(self)
+		update_shop(self)
+	end)
+
+	-- Shop button
+	self.ui:button("btn_shop", function()
+		pcall(function()
+			gui.set_enabled(gui.get_node("shop_overlay"), true)
+		end)
+		update_shop(self)
+	end)
+
+	self.ui:button("btn_shop_back", function()
+		pcall(function()
+			gui.set_enabled(gui.get_node("shop_overlay"), false)
+		end)
+		update_points_display(self)
+	end)
+
+	-- Skin buttons (1 to 6)
+	local skins = player_profile.SKINS
+	for i = 1, 6 do
+		local idx = i
+		local skin = skins[idx]
+		if skin then
+			self.ui:button("btn_skin_" .. idx, function()
+				if player_profile.is_skin_unlocked(skin.id) then
+					player_profile.equip_skin(skin.id)
+				else
+					player_profile.buy_skin(skin.id)
+				end
+				update_shop(self)
+			end)
+		end
+	end
+
+	-- Shop overlay hidden by default
+	pcall(function()
+		gui.set_enabled(gui.get_node("shop_overlay"), false)
+	end)
+
+	update_localized_menu(self)
 end
 
 function on_input(self, action_id, action)
@@ -37,10 +152,9 @@ function on_message(self, message_id, message, sender)
 	if message_id == hash("show") then
 		msg.post(".", "enable")
 		pcall(function()
-			gui.set_text(gui.get_node("txt_campaign"), "1. КАМПАНИЯ (МИССИИ)")
-			gui.set_text(gui.get_node("txt_quick_bot"), "2. БЫСТРЫЙ БОЙ VS БОТ")
-			gui.set_text(gui.get_node("txt_quick_pvp"), "3. 2 ИГРОКА (ОДИН ЭКРАН)")
+			gui.set_enabled(gui.get_node("shop_overlay"), false)
 		end)
+		update_localized_menu(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
 	end

@@ -30,7 +30,7 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 440.0
+    y: 460.0
   }
   scale {
     x: 1.8
@@ -57,7 +57,7 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 395.0
+    y: 415.0
   }
   scale {
     x: 0.75
@@ -83,12 +83,114 @@ nodes {
 }
 nodes {
   position {
+    x: 120.0
+    y: 505.0
+  }
+  size {
+    x: 130.0
+    y: 38.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_lang"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  scale {
+    x: 0.55
+    y: 0.55
+  }
+  size {
+    x: 120.0
+    y: 30.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "ЯЗЫК: RU"
+  font: "system_font"
+  id: "txt_lang"
+  parent: "btn_lang"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 840.0
+    y: 505.0
+  }
+  size {
+    x: 180.0
+    y: 38.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "total_points_bg"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  scale {
+    x: 0.55
+    y: 0.55
+  }
+  size {
+    x: 170.0
+    y: 30.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "\320\236\321\207\320\272\320\270: 0"
+  font: "system_font"
+  id: "txt_total_points"
+  parent: "total_points_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
     x: 480.0
-    y: 320.0
+    y: 345.0
   }
   size {
     x: 320.0
-    y: 48.0
+    y: 44.0
   }
   color {
     x: 0.18
@@ -108,15 +210,15 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.6
-    y: 0.6
+    x: 0.55
+    y: 0.55
   }
   size {
     x: 280.0
     y: 30.0
   }
   type: TYPE_TEXT
-  text: "\320\232\320\220\320\234\320\237\320\220\320\235\320\230\320\257 (\320\234\320\270\321\201\321\201\320\270\320\270)"
+  text: "1. \320\232\320\220\320\234\320\237\320\220\320\235\320\230\320\257 (1 VS \320\221\320\236\320\242\320\253)"
   font: "system_font"
   id: "txt_campaign"
   parent: "btn_campaign"
@@ -127,11 +229,11 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 255.0
+    y: 290.0
   }
   size {
     x: 320.0
-    y: 48.0
+    y: 44.0
   }
   color {
     x: 0.82
@@ -151,15 +253,15 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.6
-    y: 0.6
+    x: 0.55
+    y: 0.55
   }
   size {
     x: 280.0
     y: 30.0
   }
   type: TYPE_TEXT
-  text: "\320\221\320\253\320\241\320\242\320\240\320\253\320\231 \320\221\320\236\320\231 VS \320\221\320\236\320\242"
+  text: "2. \320\221\320\253\320\241\320\242\320\240\320\253\320\231 \320\221\320\236\320\231 VS \320\221\320\236\320\242"
   font: "system_font"
   id: "txt_quick_bot"
   parent: "btn_quick_bot"
@@ -170,11 +272,11 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 190.0
+    y: 235.0
   }
   size {
     x: 320.0
-    y: 48.0
+    y: 44.0
   }
   color {
     x: 0.2
@@ -194,15 +296,15 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.6
-    y: 0.6
+    x: 0.55
+    y: 0.55
   }
   size {
     x: 280.0
     y: 30.0
   }
   type: TYPE_TEXT
-  text: "2 \320\230\320\223\320\240\320\236\320\232\320\220 (\320\236\320\224\320\230\320\235 \320\255\320\232\320\240\320\220\320\235)"
+  text: "3. 2 \320\230\320\223\320\240\320\236\320\232\320\220 (\320\236\320\224\320\230\320\235 \320\255\320\232\320\240\320\220\320\235)"
   font: "system_font"
   id: "txt_quick_pvp"
   parent: "btn_quick_pvp"
@@ -213,14 +315,62 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 90.0
-  }
-  scale {
-    x: 0.5
-    y: 0.5
+    y: 180.0
   }
   size {
-    x: 680.0
+    x: 320.0
+    y: 44.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_shop"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.55
+    y: 0.55
+  }
+  size {
+    x: 280.0
+    y: 30.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "4. \320\234\320\220\320\223\320\220\320\227\320\230\320\235 \320\241\320\232\320\230\320\235\320\236\320\222"
+  font: "system_font"
+  id: "txt_shop"
+  parent: "btn_shop"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 80.0
+  }
+  scale {
+    x: 0.48
+    y: 0.48
+  }
+  size {
+    x: 700.0
     y: 60.0
   }
   color {
@@ -229,8 +379,7 @@ nodes {
     z: 0.8
   }
   type: TYPE_TEXT
-  text: "\320\243\320\277\321\200\320\260\320\262\320\273\320\265\320\275\320\270\320\265: A / D \342\200\224 \321\205\320\276\320\264\321\214\320\261\320\260 | W / \320\237\321\200\320\276\320\261\320\265\320\273 \342\200\224 \320\277\321\200\321\213\320\266\320\276\320\272 | 1, 2, 3 \342\200\224 \320\262\321\213\320\261\320\276\321\200 \320\276\321\200\321\203\320\266\320\270\321\217\n"
-  "\320\241\321\202\321\200\320\265\320\273\321\214\320\261\320\260 (Angry Birds): \320\267\320\260\320\266\320\274\320\270\321\202\320\265 \320\272\320\260\321\200\321\202\320\276\321\210\320\272\321\203 \320\274\321\213\321\210\320\272\320\276\320\271, \320\277\320\276\321\202\321\217\320\275\320\270\321\202\320\265 \320\275\320\260\320\267\320\260\320\264 \320\270 \320\276\321\202\320\277\321\203\321\201\321\202\320\270\321\202\320\265!"
+  text: "\320\243\320\277\321\200\320\260\320\262\320\273\320\265\320\275\320\270\320\265: A / D \342\200\224 \321\205\320\276\320\264\321\214\320\261\320\260 | W / \320\237\321\200\320\276\320\261\320\265\320\273 \342\200\224 \320\277\321\200\321\213\320\266\320\276\320\272\n\320\241\321\202\321\200\320\265\320\273\321\214\320\261\320\260: \320\262\321\213\320\261\320\265\321\200\320\270\321\202\320\265 1 \320\270\320\267 2 \320\272\320\260\321\200\321\202\320\276\321\207\320\265\320\272, \320\277\320\276\321\202\321\217\320\275\320\270\321\202\320\265 \320\272\320\260\321\200\321\202\320\276\321\210\320\272\321\203 \320\270 \321\201\321\202\321\200\320\265\320\273\321\214\320\271\321\202\320\265!"
   font: "system_font"
   id: "hint_text"
   yanchor: YANCHOR_BOTTOM
@@ -238,5 +387,881 @@ nodes {
   outline_alpha: 0.0
   shadow_alpha: 0.0
   text_leading: 1.2
+}
+nodes {
+  position {
+    x: 480.0
+    y: 270.0
+  }
+  size {
+    x: 960.0
+    y: 540.0
+  }
+  color {
+    x: 0.06
+    y: 0.09
+    z: 0.14
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "shop_overlay"
+  inherit_alpha: true
+  alpha: 0.96
+}
+nodes {
+  position {
+    x: 0.0
+    y: 220.0
+  }
+  scale {
+    x: 1.1
+    y: 1.1
+  }
+  size {
+    x: 350.0
+    y: 35.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "\320\234\320\220\320\223\320\220\320\227\320\230\320\235 \320\241\320\232\320\230\320\235\320\236\320\222"
+  font: "system_font"
+  id: "shop_title"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 185.0
+  }
+  scale {
+    x: 0.6
+    y: 0.6
+  }
+  size {
+    x: 350.0
+    y: 25.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "\320\222\320\260\321\210\320\270 \320\276\321\207\320\272\320\270: 0"
+  font: "system_font"
+  id: "shop_points"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 1: Classic
+nodes {
+  position {
+    x: -260.0
+    y: 85.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_1"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "\320\236\320\261\321\213\321\207\320\275\321\213\320\231 \320\221\320\276\320\265\321\206"
+  font: "system_font"
+  id: "skin_name_1"
+  parent: "skin_bg_1"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "\320\221\320\265\321\201\320\277\320\273\320\260\321\202\320\275\320\276"
+  font: "system_font"
+  id: "skin_desc_1"
+  parent: "skin_bg_1"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.18
+    y: 0.5
+    z: 0.82
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_1"
+  parent: "skin_bg_1"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\222\320\253\320\221\320\240\320\220\320\242\320\254"
+  font: "system_font"
+  id: "txt_skin_1"
+  parent: "btn_skin_1"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 2: Gold
+nodes {
+  position {
+    x: 0.0
+    y: 85.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_2"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "\320\227\320\276\320\273\320\276\321\202\320\276\320\271 \320\241\320\260\320\274\320\276\321\200\320\276\320\264\320\276\320\272"
+  font: "system_font"
+  id: "skin_name_2"
+  parent: "skin_bg_2"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "150 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_2"
+  parent: "skin_bg_2"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_2"
+  parent: "skin_bg_2"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (150)"
+  font: "system_font"
+  id: "txt_skin_2"
+  parent: "btn_skin_2"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 3: Ninja
+nodes {
+  position {
+    x: 260.0
+    y: 85.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_3"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 0.65
+    y: 0.7
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\260\321\200\321\202\320\276\321\210\320\272\320\260-\320\235\320\270\320\275\320\264\320\267\321\217"
+  font: "system_font"
+  id: "skin_name_3"
+  parent: "skin_bg_3"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "250 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_3"
+  parent: "skin_bg_3"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_3"
+  parent: "skin_bg_3"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (250)"
+  font: "system_font"
+  id: "txt_skin_3"
+  parent: "btn_skin_3"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 4: Cyber
+nodes {
+  position {
+    x: -260.0
+    y: -65.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_4"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 0.3
+    y: 0.9
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\270\320\261\320\276\321\200\320\263 MK-II"
+  font: "system_font"
+  id: "skin_name_4"
+  parent: "skin_bg_4"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "400 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_4"
+  parent: "skin_bg_4"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_4"
+  parent: "skin_bg_4"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (400)"
+  font: "system_font"
+  id: "txt_skin_4"
+  parent: "btn_skin_4"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 5: King
+nodes {
+  position {
+    x: 0.0
+    y: -65.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_5"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 0.85
+    y: 0.4
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\276\321\200\320\276\320\273\321\214 \320\237\321\216\321\200\320\265"
+  font: "system_font"
+  id: "skin_name_5"
+  parent: "skin_bg_5"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "600 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_5"
+  parent: "skin_bg_5"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_5"
+  parent: "skin_bg_5"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (600)"
+  font: "system_font"
+  id: "txt_skin_5"
+  parent: "btn_skin_5"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Skin 6: Magma
+nodes {
+  position {
+    x: 260.0
+    y: -65.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_6"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: 0.0
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 1.0
+    y: 0.45
+    z: 0.15
+  }
+  type: TYPE_TEXT
+  text: "\320\234\320\260\320\263\320\274\320\276\320\262\321\213\320\231 \320\242\320\270\321\202\320\260\320\275"
+  font: "system_font"
+  id: "skin_name_6"
+  parent: "skin_bg_6"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 210.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "900 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_6"
+  parent: "skin_bg_6"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_6"
+  parent: "skin_bg_6"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (900)"
+  font: "system_font"
+  id: "txt_skin_6"
+  parent: "btn_skin_6"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+
+# Back button
+nodes {
+  position {
+    x: 0.0
+    y: -215.0
+  }
+  size {
+    x: 240.0
+    y: 42.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_shop_back"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.55
+    y: 0.55
+  }
+  size {
+    x: 200.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\235\320\220\320\227\320\220\320\224 \320\222 \320\234\320\225\320\235\320\256"
+  font: "system_font"
+  id: "txt_shop_back"
+  parent: "btn_shop_back"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
 }
 material: "/builtins/materials/gui.material"

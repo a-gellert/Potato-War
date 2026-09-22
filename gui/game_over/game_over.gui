@@ -25,7 +25,7 @@ nodes {
   texture: "game/white_pixel"
   id: "overlay"
   inherit_alpha: true
-  alpha: 0.85
+  alpha: 0.88
 }
 nodes {
   position {
@@ -41,9 +41,9 @@ nodes {
     y: 40.0
   }
   color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
+    x: 0.18
+    y: 0.80
+    z: 0.44
   }
   type: TYPE_TEXT
   text: "\320\237\320\236\320\221\320\225\320\224\320\220!"
@@ -59,11 +59,11 @@ nodes {
     y: 330.0
   }
   scale {
-    x: 0.9
-    y: 0.9
+    x: 0.65
+    y: 0.65
   }
   size {
-    x: 350.0
+    x: 450.0
     y: 30.0
   }
   color {
@@ -72,7 +72,7 @@ nodes {
     z: 0.9
   }
   type: TYPE_TEXT
-  text: "\320\241\320\270\320\275\321\217\321\217 \320\272\320\276\320\274\320\260\320\275\320\264\320\260 \320\272\320\260\321\200\321\202\320\276\321\210\320\265\320\272 \321\200\320\260\320\267\320\263\321\200\320\276\320\274\320\270\320\273\320\260 \321\201\320\276\320\277\320\265\321\200\320\275\320\270\320\272\320\260!"
+  text: "\320\222\321\200\320\260\320\266\320\265\321\201\320\272\320\270\320\265 \320\261\320\276\321\202\321\213 \320\277\320\276\320\262\320\265\321\200\320\266\320\265\320\275\321\213!"
   font: "system_font"
   id: "subtitle_text"
   inherit_alpha: true
@@ -82,16 +82,108 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 240.0
+    y: 270.0
+  }
+  size {
+    x: 380.0
+    y: 52.0
+  }
+  color {
+    x: 0.12
+    y: 0.18
+    z: 0.25
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "reward_bg"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.9
+}
+nodes {
+  scale {
+    x: 0.8
+    y: 0.8
+  }
+  size {
+    x: 420.0
+    y: 40.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "+150 \320\236\320\247\320\232\320\236\320\222"
+  font: "system_font"
+  id: "reward_text"
+  parent: "reward_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 185.0
   }
   size {
     x: 280.0
-    y: 46.0
+    y: 52.0
   }
   color {
     x: 0.18
+    y: 0.8
+    z: 0.44
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_next_level"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.65
     y: 0.65
-    z: 0.4
+  }
+  size {
+    x: 240.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\224\320\220\320\233\320\225\320\225"
+  font: "system_font"
+  id: "txt_next_level"
+  parent: "btn_next_level"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 195.0
+  }
+  size {
+    x: 280.0
+    y: 48.0
+  }
+  color {
+    x: 0.82
+    y: 0.3
+    z: 0.25
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -106,8 +198,8 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.5
-    y: 0.5
+    x: 0.55
+    y: 0.55
   }
   size {
     x: 240.0
@@ -125,59 +217,16 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 175.0
+    y: 130.0
   }
   size {
     x: 280.0
-    y: 46.0
+    y: 48.0
   }
   color {
-    x: 0.18
-    y: 0.5
-    z: 0.82
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_next_level"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  scale {
-    x: 0.5
-    y: 0.5
-  }
-  size {
-    x: 240.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\241\320\233\320\225\320\224\320\243\320\256\320\251\320\220\320\257 \320\234\320\230\320\241\320\241\320\230\320\257"
-  font: "system_font"
-  id: "txt_next_level"
-  parent: "btn_next_level"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 480.0
-    y: 110.0
-  }
-  size {
-    x: 280.0
-    y: 46.0
-  }
-  color {
-    x: 0.45
-    y: 0.48
-    z: 0.52
+    x: 0.35
+    y: 0.38
+    z: 0.45
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -192,8 +241,8 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.5
-    y: 0.5
+    x: 0.55
+    y: 0.55
   }
   size {
     x: 240.0

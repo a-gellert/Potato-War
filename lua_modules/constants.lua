@@ -17,7 +17,7 @@ M.TERRAIN_SCALE = 2.0 -- 1 terrain cell = 2x2 world pixels
 
 -- Turn & Match rules
 M.TURN_DURATION = 15.0 -- 15 seconds per turn
-M.SETTLE_TIMEOUT = 4.0 -- Max time to wait for physics to settle after shot
+M.SETTLE_TIMEOUT = 2.5 -- Fast physics settle timeout for Poki pacing
 
 -- Physics
 M.GRAVITY = 460.0
@@ -48,6 +48,7 @@ M.MODE_QUICK_PVP = "quick_pvp"
 -- Game States
 M.STATE_MENU = "menu"
 M.STATE_INTRO = "intro"
+M.STATE_CARD_SELECT = "card_select"
 M.STATE_TURN_ACTIVE = "turn_active"
 M.STATE_ACTION = "action"
 M.STATE_SETTLING = "settling"

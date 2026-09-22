@@ -78,7 +78,7 @@ M.LIST = {
 		on_hit        = "explode",
 		melee_range   = 42,
 		blast_radius  = 30,
-		max_damage    = 60,
+		max_damage    = 20,
 		blast_force   = 450,
 		-- not used for projectile, but needed by bot_ai / physics_sim compatibility
 		gravity_mult  = 0.0,
@@ -113,7 +113,7 @@ M.LIST = {
 		napalm_count     = 6,
 		napalm_spread    = 40,
 		napalm_burn_time = 2.5,
-		napalm_radius    = 8,
+		napalm_radius    = 10,
 		napalm_dps       = 10,
 		projectile_sprite = "grenade",
 		projectile_scale  = 0.8,
