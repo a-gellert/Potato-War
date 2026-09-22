@@ -1,0 +1,3 @@
+prototype: "/main/entities/aim_guide/dot.go"
+load_dynamically: false
+dynamic_prototype: false

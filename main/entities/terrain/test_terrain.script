@@ -1,0 +1,7 @@
+function init(self)
+    print('=== TEST SPRITE PROPERTIES ===')
+    local ok1, val1 = pcall(function() return go.get('#sprite', 'texture') end)
+    print('texture:', ok1, val1)
+    local ok2, val2 = pcall(function() return go.get('#sprite', 'image') end)
+    print('image:', ok2, val2)
+end

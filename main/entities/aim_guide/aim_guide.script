@@ -1,0 +1,179 @@
+-- main/entities/aim_guide/aim_guide.script
+-- Angry Birds style slingshot drag-and-release aiming and trajectory visualization
+
+local constants = require("lua_modules.constants")
+local weapons = require("lua_modules.weapons")
+local physics_sim = require("lua_modules.physics_sim")
+local terrain_grid = require("lua_modules.terrain_grid")
+local game_state = require("lua_modules.game_state")
+
+local MAX_DOTS = 14
+
+local function hide_guide(self)
+	if self.crosshair then
+		msg.post(self.crosshair, "disable")
+	end
+	if self.dots then
+		for i = 1, MAX_DOTS do
+			if self.dots[i] then
+				msg.post(self.dots[i], "disable")
+			end
+		end
+	end
+end
+
+local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
+	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS)
+
+	for i = 1, MAX_DOTS do
+		local dot_url = self.dots[i]
+		if dot_url then
+			if i <= #points then
+				msg.post(dot_url, "enable")
+				go.set_position(vmath.vector3(points[i].x, points[i].y, 0.3), dot_url)
+				local s = 0.28 * (1.0 - (i / (MAX_DOTS + 4)))
+				go.set_scale(vmath.vector3(s, s, 1.0), dot_url)
+			else
+				msg.post(dot_url, "disable")
+			end
+		end
+	end
+
+	if #points > 0 and self.crosshair then
+		msg.post(self.crosshair, "enable")
+		local last_pt = points[#points]
+		go.set_position(vmath.vector3(last_pt.x, last_pt.y, 0.35), self.crosshair)
+	elseif self.crosshair then
+		msg.post(self.crosshair, "disable")
+	end
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	self.dragging = false
+	self.drag_start = vmath.vector3(0, 0, 0)
+	self.last_vx = 0
+	self.last_vy = 0
+
+	-- Spawn trajectory dot game objects
+	self.dots = {}
+	for i = 1, MAX_DOTS do
+		local d = factory.create("#dot_factory", vmath.vector3(-100, -100, 0.3))
+		msg.post(d, "disable")
+		self.dots[i] = d
+	end
+
+	-- Spawn crosshair game object
+	self.crosshair = factory.create("#crosshair_factory", vmath.vector3(-100, -100, 0.35))
+	msg.post(self.crosshair, "disable")
+end
+
+function final(self)
+	if self.crosshair then
+		pcall(go.delete, self.crosshair)
+	end
+	if self.dots then
+		for _, d in ipairs(self.dots) do
+			pcall(go.delete, d)
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	-- Only allow input when active turn and not bot
+	if game_state.state ~= constants.STATE_TURN_ACTIVE then
+		if self.dragging then
+			self.dragging = false
+			hide_guide(self)
+		end
+		return false
+	end
+
+	if game_state.is_bot_turn() then
+		return false
+	end
+
+	local potato = game_state.active_potato
+	if not potato or not potato.is_alive then
+		return false
+	end
+
+	local weapon = weapons.get(game_state.selected_weapon_id)
+
+	if action_id == hash("touch") then
+		if action.pressed then
+			self.dragging = true
+			self.drag_start = vmath.vector3(action.x, action.y, 0)
+
+		elseif self.dragging and not action.released then
+			-- Angry Birds slingshot: pull back to aim forward
+			local pull_x = self.drag_start.x - action.x
+			local pull_y = self.drag_start.y - action.y
+			local len = math.sqrt(pull_x * pull_x + pull_y * pull_y)
+
+			if len > 8 then
+				local dir_x = pull_x / len
+				local dir_y = pull_y / len
+				local power = math.min(weapon.max_power, len * weapon.power_scale)
+
+				local vx = dir_x * power
+				local vy = dir_y * power
+				self.last_vx = vx
+				self.last_vy = vy
+
+				-- Turn potato towards firing direction
+				local facing_dir = (pull_x >= 0) and 1 or -1
+				potato.facing = facing_dir
+				if potato.url then
+					msg.post(potato.url, "set_facing", { facing = facing_dir })
+				end
+
+				show_trajectory(self, potato.pos.x, potato.pos.y + 8, vx, vy, weapon)
+			else
+				hide_guide(self)
+			end
+
+		elseif action.released and self.dragging then
+			self.dragging = false
+			local pull_x = self.drag_start.x - action.x
+			local pull_y = self.drag_start.y - action.y
+			local len = math.sqrt(pull_x * pull_x + pull_y * pull_y)
+
+			hide_guide(self)
+
+			if len > 16 then
+				-- Fire weapon!
+				msg.post("/main#main", "fire_weapon", {
+					origin_x = potato.pos.x,
+					origin_y = potato.pos.y + 8,
+					vel_x = self.last_vx,
+					vel_y = self.last_vy,
+					weapon_id = weapon.id,
+					owner_id = potato.id
+				})
+			end
+		end
+		return true
+	end
+
+	return false
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("bot_aim_preview") then
+		local potato = game_state.active_potato
+		if potato and potato.is_alive then
+			local weapon = weapons.get(message.weapon_id)
+			show_trajectory(self, potato.pos.x, potato.pos.y + 8, message.vx, message.vy, weapon)
+			local facing_dir = (message.vx >= 0) and 1 or -1
+			potato.facing = facing_dir
+			if potato.url then
+				msg.post(potato.url, "set_facing", { facing = facing_dir })
+			end
+		end
+
+	elseif message_id == hash("hide_aim") then
+		self.dragging = false
+		hide_guide(self)
+	end
+end

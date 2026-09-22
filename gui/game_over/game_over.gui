@@ -1,0 +1,211 @@
+script: "/gui/game_over/game_over.gui_script"
+fonts {
+  name: "system_font"
+  font: "/druid/fonts/druid_text_bold.font"
+}
+textures {
+  name: "game"
+  texture: "/main/assets/game.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 270.0
+  }
+  size {
+    x: 960.0
+    y: 540.0
+  }
+  color {
+    x: 0.04
+    y: 0.06
+    z: 0.1
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "overlay"
+  inherit_alpha: true
+  alpha: 0.85
+}
+nodes {
+  position {
+    x: 480.0
+    y: 380.0
+  }
+  scale {
+    x: 1.8
+    y: 1.8
+  }
+  size {
+    x: 350.0
+    y: 40.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "\320\237\320\236\320\221\320\225\320\224\320\220!"
+  font: "system_font"
+  id: "title_text"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 330.0
+  }
+  scale {
+    x: 0.9
+    y: 0.9
+  }
+  size {
+    x: 350.0
+    y: 30.0
+  }
+  color {
+    x: 0.85
+    y: 0.88
+    z: 0.9
+  }
+  type: TYPE_TEXT
+  text: "\320\241\320\270\320\275\321\217\321\217 \320\272\320\276\320\274\320\260\320\275\320\264\320\260 \320\272\320\260\321\200\321\202\320\276\321\210\320\265\320\272 \321\200\320\260\320\267\320\263\321\200\320\276\320\274\320\270\320\273\320\260 \321\201\320\276\320\277\320\265\321\200\320\275\320\270\320\272\320\260!"
+  font: "system_font"
+  id: "subtitle_text"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 240.0
+  }
+  size {
+    x: 280.0
+    y: 46.0
+  }
+  color {
+    x: 0.18
+    y: 0.65
+    z: 0.4
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_rematch"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 240.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\237\320\236\320\222\320\242\320\236\320\240\320\230\320\242\320\254 \320\221\320\236\320\231"
+  font: "system_font"
+  id: "txt_rematch"
+  parent: "btn_rematch"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 175.0
+  }
+  size {
+    x: 280.0
+    y: 46.0
+  }
+  color {
+    x: 0.18
+    y: 0.5
+    z: 0.82
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_next_level"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 240.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\241\320\233\320\225\320\224\320\243\320\256\320\251\320\220\320\257 \320\234\320\230\320\241\320\241\320\230\320\257"
+  font: "system_font"
+  id: "txt_next_level"
+  parent: "btn_next_level"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 110.0
+  }
+  size {
+    x: 280.0
+    y: 46.0
+  }
+  color {
+    x: 0.45
+    y: 0.48
+    z: 0.52
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_menu"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 240.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\223\320\233\320\220\320\222\320\235\320\236\320\225 \320\234\320\225\320\235\320\256"
+  font: "system_font"
+  id: "txt_menu"
+  parent: "btn_menu"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+material: "/builtins/materials/gui.material"

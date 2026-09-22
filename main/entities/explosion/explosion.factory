@@ -1,0 +1,2 @@
+prototype: "/main/entities/explosion/explosion.go"
+load_dynamically: false

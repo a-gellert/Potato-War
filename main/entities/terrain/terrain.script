@@ -1,0 +1,178 @@
+-- main/entities/terrain/terrain.script
+-- Manages destructible terrain texture updates and water animations for Potato War
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+
+local TEXTURE_PATH = "/dynamic_terrain.texturec"
+local ATLAS_PATH = "/dynamic_terrain.texturesetc"
+
+local function fill_full_stream(self)
+	local w = self.w
+	local h = self.h
+	local stream = self.stream
+
+	local idx = 1
+	for gy = 0, h - 1 do
+		local row = gy * w
+		for gx = 0, w - 1 do
+			local solid = (terrain_grid.grid[row + gx + 1] == 1)
+			if solid then
+				-- Schematic white terrain texture
+				stream[idx] = 255     -- R
+				stream[idx + 1] = 255 -- G
+				stream[idx + 2] = 255 -- B
+				stream[idx + 3] = 255 -- A
+			else
+				stream[idx] = 0
+				stream[idx + 1] = 0
+				stream[idx + 2] = 0
+				stream[idx + 3] = 0
+			end
+			idx = idx + 4
+		end
+	end
+end
+
+local function update_full_texture(self)
+	fill_full_stream(self)
+	if self.is_initialized then
+		pcall(function()
+			resource.set_texture(TEXTURE_PATH, {
+				x = 0,
+				y = 0,
+				width = self.w,
+				height = self.h,
+				type = graphics.TEXTURE_TYPE_2D,
+				format = graphics.TEXTURE_FORMAT_RGBA
+			}, self.tex_buffer)
+		end)
+	end
+end
+
+function init(self)
+	constants.log(">>> TERRAIN INIT STARTED")
+	self.w = constants.TERRAIN_WIDTH
+	self.h = constants.TERRAIN_HEIGHT
+	self.is_initialized = false
+
+	-- Cartoon sky tint
+	go.set("#sky", "tint", vmath.vector4(0.48, 0.72, 0.94, 1.0))
+
+	-- Water shimmer animation
+	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.15, go.EASING_INOUTSINE, 1.8)
+
+	-- Create pixel buffer for terrain
+	self.tex_buffer = buffer.create(self.w * self.h, {
+		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+	})
+	self.stream = buffer.get_stream(self.tex_buffer, hash("rgba"))
+
+	-- Generate initial terrain
+	terrain_grid.init(self.w, self.h, constants.TERRAIN_SCALE)
+	terrain_grid.generate("hills")
+	fill_full_stream(self)
+
+	-- Create dynamic texture
+	local t_params = {
+		width = self.w,
+		height = self.h,
+		type = graphics.TEXTURE_TYPE_2D,
+		format = graphics.TEXTURE_FORMAT_RGBA,
+		num_mip_maps = 1
+	}
+	local ok_t, tex_res = pcall(resource.create_texture, TEXTURE_PATH, t_params, self.tex_buffer)
+
+	-- Create dynamic atlas pointing to dynamic texture
+	local atlas_params = {
+		texture = TEXTURE_PATH,
+		animations = {
+			{
+				id = "terrain",
+				width = self.w,
+				height = self.h,
+				frames = { 1 }
+			}
+		},
+		geometries = {
+			{
+				id = "terrain",
+				width = self.w,
+				height = self.h,
+				pivot_x = 0.5,
+				pivot_y = 0.5,
+				vertices = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
+				uvs = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
+				indices = { 0, 1, 2,  0, 2, 3 }
+			}
+		}
+	}
+	local ok_a, atlas_res = pcall(resource.create_atlas, ATLAS_PATH, atlas_params)
+
+	if ok_a and atlas_res then
+		self.atlas_id = atlas_res
+		go.set("#sprite", "image", atlas_res)
+		sprite.play_flipbook("#sprite", "terrain")
+		self.is_initialized = true
+		constants.log(">>> TERRAIN INIT FINISHED WITH DYNAMIC ATLAS SUCCESS!")
+	else
+		constants.log(">>> TERRAIN ATLAS ERROR:", ok_a, tostring(atlas_res), ok_t, tostring(tex_res))
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("generate_terrain") then
+		local preset = message.preset or "hills"
+		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset)
+		terrain_grid.generate(preset)
+		update_full_texture(self)
+
+	elseif message_id == hash("carve_crater") then
+		local cx = message.x or 0
+		local cy = message.y or 0
+		local r = message.radius or 30
+		constants.log(">>> TERRAIN ON_MESSAGE CARVE_CRATER at:", cx, cy, "r:", r)
+
+		local min_gx, min_gy, max_gx, max_gy, cleared = terrain_grid.carve_circle(cx, cy, r)
+		if cleared > 0 and self.is_initialized then
+			local sub_w = max_gx - min_gx + 1
+			local sub_h = max_gy - min_gy + 1
+
+			local sub_buf = buffer.create(sub_w * sub_h, {
+				{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+			})
+			local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
+
+			local s_idx = 1
+			for gy = min_gy, max_gy do
+				local row = gy * self.w
+				for gx = min_gx, max_gx do
+					local solid = (terrain_grid.grid[row + gx + 1] == 1)
+					if solid then
+						sub_stream[s_idx] = 255
+						sub_stream[s_idx + 1] = 255
+						sub_stream[s_idx + 2] = 255
+						sub_stream[s_idx + 3] = 255
+					else
+						sub_stream[s_idx] = 0
+						sub_stream[s_idx + 1] = 0
+						sub_stream[s_idx + 2] = 0
+						sub_stream[s_idx + 3] = 0
+					end
+					s_idx = s_idx + 4
+				end
+			end
+
+			pcall(function()
+				resource.set_texture(TEXTURE_PATH, {
+					x = min_gx,
+					y = min_gy,
+					width = sub_w,
+					height = sub_h,
+					type = graphics.TEXTURE_TYPE_2D,
+					format = graphics.TEXTURE_FORMAT_RGBA
+				}, sub_buf)
+			end)
+		end
+	end
+end

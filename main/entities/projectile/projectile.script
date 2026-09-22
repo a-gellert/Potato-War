@@ -1,0 +1,99 @@
+-- main/entities/projectile/projectile.script
+-- Simulates projectile flight, bounce, detonation, and damage application
+
+local constants = require("lua_modules.constants")
+local weapons = require("lua_modules.weapons")
+local physics_sim = require("lua_modules.physics_sim")
+local terrain_grid = require("lua_modules.terrain_grid")
+local camera_controller = require("lua_modules.camera_controller")
+local game_state = require("lua_modules.game_state")
+
+go.property("vel_x", 0)
+go.property("vel_y", 0)
+go.property("weapon_type", hash("grenade"))
+go.property("owner_id", 0)
+
+function init(self)
+	local w_id = "grenade"
+	if self.weapon_type == hash("rifle") then
+		w_id = "rifle"
+	elseif self.weapon_type == hash("knife") then
+		w_id = "knife"
+	end
+
+	self.weapon = weapons.get(w_id)
+	self.pos = go.get_position()
+	self.vel = vmath.vector3(self.vel_x, self.vel_y, 0)
+	self.fuse_timer = self.weapon.fuse_time
+	self.bounces = 0
+	self.is_active = true
+
+	-- Set sprite according to weapon
+	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
+
+	if w_id == "knife" then
+		go.set("#sprite", "scale", vmath.vector3(1.4, 1.4, 1.0))
+	elseif w_id == "rifle" then
+		go.set("#sprite", "scale", vmath.vector3(0.3, 0.3, 1.0))
+	else
+		go.set("#sprite", "scale", vmath.vector3(1.0, 1.0, 1.0))
+	end
+end
+
+local function detonate(self, hit_x, hit_y)
+	constants.log(">>> PROJECTILE DETONATING AT:", hit_x, hit_y, "weapon:", self.weapon.id)
+	self.is_active = false
+
+	-- Carve crater in terrain
+	msg.post("/terrain#terrain", "carve_crater", {
+		x = hit_x,
+		y = hit_y,
+		radius = self.weapon.blast_radius
+	})
+
+	-- Spawn visual explosion
+	msg.post("/main#main", "spawn_explosion", {
+		x = hit_x,
+		y = hit_y,
+		radius = self.weapon.blast_radius
+	})
+
+	-- Screen shake proportional to weapon blast
+	camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
+
+	-- Apply damage and impulse to all living potatoes
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive then
+			local dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
+			if dmg > 0 and p.url then
+				msg.post(p.url, "apply_damage", { damage = dmg })
+			end
+		end
+	end
+
+	go.delete()
+end
+
+function update(self, dt)
+	if not self.is_active then
+		return
+	end
+
+	local status, hx, hy = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes)
+
+	-- Update camera tracking to follow this projectile
+	camera_controller.follow(self.pos.x, self.pos.y)
+
+	if status == "explode" then
+		detonate(self, hx, hy)
+	elseif status == "water" then
+		self.is_active = false
+		camera_controller.shake(4, 0.2)
+		go.delete()
+	else
+		-- Update game object transform
+		go.set_position(self.pos)
+		local angle = math.atan2(self.vel.y, self.vel.x)
+		go.set_rotation(vmath.quat_rotation_z(angle))
+	end
+end

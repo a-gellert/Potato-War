@@ -1,0 +1,48 @@
+-- gui/main_menu/main_menu.gui_script
+-- Handles main menu interactions and game mode selection for Potato War
+
+local constants = require("lua_modules.constants")
+local ui_manager = require("lua_modules.ui_manager")
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	gui.set_render_order(5)
+	self.ui = ui_manager.create(self)
+
+	self.ui:button("btn_campaign", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_match", { mode = constants.MODE_CAMPAIGN, level = 1 })
+	end)
+
+	self.ui:button("btn_quick_bot", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_match", { mode = constants.MODE_QUICK_BOT })
+	end)
+
+	self.ui:button("btn_quick_pvp", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_match", { mode = constants.MODE_QUICK_PVP })
+	end)
+end
+
+function on_input(self, action_id, action)
+	return self.ui:on_input(action_id, action)
+end
+
+function update(self, dt)
+	self.ui:update(dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show") then
+		msg.post(".", "enable")
+		pcall(function()
+			gui.set_text(gui.get_node("txt_campaign"), "1. КАМПАНИЯ (МИССИИ)")
+			gui.set_text(gui.get_node("txt_quick_bot"), "2. БЫСТРЫЙ БОЙ VS БОТ")
+			gui.set_text(gui.get_node("txt_quick_pvp"), "3. 2 ИГРОКА (ОДИН ЭКРАН)")
+		end)
+	elseif message_id == hash("hide") then
+		msg.post(".", "disable")
+	end
+end
+

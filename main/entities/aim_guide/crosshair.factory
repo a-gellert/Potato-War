@@ -1,0 +1,3 @@
+prototype: "/main/entities/aim_guide/crosshair.go"
+load_dynamically: false
+dynamic_prototype: false

@@ -1,0 +1,545 @@
+script: "/gui/hud/hud.gui_script"
+fonts {
+  name: "system_font"
+  font: "/druid/fonts/druid_text_bold.font"
+}
+textures {
+  name: "game"
+  texture: "/main/assets/game.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 512.0
+  }
+  size {
+    x: 420.0
+    y: 44.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "banner_bg"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  position {
+    x: -40.0
+  }
+  scale {
+    x: 0.7
+    y: 0.7
+  }
+  size {
+    x: 280.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\245\320\276\320\264: \320\232\320\260\321\200\321\202\320\276\321\210\320\272\320\260 (\320\241\320\270\320\275\320\270\320\265)"
+  font: "system_font"
+  id: "banner_text"
+  parent: "banner_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 160.0
+  }
+  size {
+    x: 55.0
+    y: 34.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "timer_bg"
+  parent: "banner_bg"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.9
+    y: 0.9
+  }
+  size {
+    x: 40.0
+    y: 26.0
+  }
+  color {
+    x: 0.8
+  }
+  type: TYPE_TEXT
+  text: "15"
+  font: "system_font"
+  id: "timer_text"
+  parent: "timer_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 484.0
+  }
+  size {
+    x: 420.0
+    y: 6.0
+  }
+  color {
+    x: 0.08
+    y: 0.1
+    z: 0.12
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "timer_bar_bg"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  alpha: 0.9
+}
+nodes {
+  position {
+    x: -210.0
+  }
+  size {
+    x: 420.0
+    y: 6.0
+  }
+  color {
+    x: 0.18
+    y: 0.8
+    z: 0.44
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "timer_bar_fill"
+  pivot: PIVOT_W
+  parent: "timer_bar_bg"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 480.0
+    y: 40.0
+  }
+  size {
+    x: 380.0
+    y: 56.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "weapon_panel"
+  yanchor: YANCHOR_BOTTOM
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  position {
+    x: -120.0
+  }
+  size {
+    x: 110.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_grenade"
+  parent: "weapon_panel"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.4
+    y: 0.4
+  }
+  size {
+    x: 100.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "1: \320\223\320\240\320\220\320\235\320\220\320\242\320\220"
+  font: "system_font"
+  id: "txt_grenade"
+  parent: "btn_grenade"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  size {
+    x: 110.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_rifle"
+  parent: "weapon_panel"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.4
+    y: 0.4
+  }
+  size {
+    x: 100.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "2: \320\222\320\230\320\235\320\242\320\236\320\222\320\232\320\220"
+  font: "system_font"
+  id: "txt_rifle"
+  parent: "btn_rifle"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 120.0
+  }
+  size {
+    x: 110.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_knife"
+  parent: "weapon_panel"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.4
+    y: 0.4
+  }
+  size {
+    x: 100.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "3: \320\235\320\236\320\226"
+  font: "system_font"
+  id: "txt_knife"
+  parent: "btn_knife"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 100.0
+    y: 40.0
+  }
+  size {
+    x: 156.0
+    y: 52.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "touch_controls"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  position {
+    x: -50.0
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_left"
+  parent: "touch_controls"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 1.1
+    y: 1.1
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "<"
+  font: "system_font"
+  id: "txt_left"
+  parent: "btn_left"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_jump"
+  parent: "touch_controls"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "W"
+  font: "system_font"
+  id: "txt_jump"
+  parent: "btn_jump"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 50.0
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_right"
+  parent: "touch_controls"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 1.1
+    y: 1.1
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: ">"
+  font: "system_font"
+  id: "txt_right"
+  parent: "btn_right"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 890.0
+    y: 512.0
+  }
+  size {
+    x: 110.0
+    y: 40.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_pause"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  scale {
+    x: 0.4
+    y: 0.4
+  }
+  size {
+    x: 100.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\234\320\225\320\235\320\256 [ESC]"
+  font: "system_font"
+  id: "txt_pause"
+  parent: "btn_pause"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 95.0
+    y: 512.0
+  }
+  size {
+    x: 150.0
+    y: 40.0
+  }
+  color {
+    x: 0.12
+    y: 0.15
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "mode_bg"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.85
+}
+nodes {
+  scale {
+    x: 0.75
+    y: 0.75
+  }
+  size {
+    x: 140.0
+    y: 30.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "\320\234\320\270\321\201\321\201\320\270\321\217 1"
+  font: "system_font"
+  id: "mode_text"
+  parent: "mode_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+material: "/builtins/materials/gui.material"

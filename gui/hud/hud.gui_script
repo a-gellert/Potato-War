@@ -1,0 +1,139 @@
+-- gui/hud/hud.gui_script
+-- Controls HUD turn banner, 15-second countdown timer, weapon buttons, and movement
+
+local constants = require("lua_modules.constants")
+local weapons = require("lua_modules.weapons")
+local game_state = require("lua_modules.game_state")
+local ui_manager = require("lua_modules.ui_manager")
+
+local function update_weapon_selection(self, weapon_id)
+	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold/Active
+	local def_color = vmath.vector4(0.22, 0.28, 0.35, 1.0) -- Normal
+
+	pcall(function()
+		gui.set_color(gui.get_node("btn_grenade"), weapon_id == "grenade" and sel_color or def_color)
+		gui.set_color(gui.get_node("btn_rifle"), weapon_id == "rifle" and sel_color or def_color)
+		gui.set_color(gui.get_node("btn_knife"), weapon_id == "knife" and sel_color or def_color)
+	end)
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	gui.set_render_order(2)
+	self.ui = ui_manager.create(self)
+
+	self.last_seconds = -1
+	self.last_fraction = -1
+	self.last_team = nil
+	self.last_weapon = nil
+
+	-- Register weapon buttons
+	self.ui:button("btn_grenade", function()
+		game_state.select_weapon(weapons.TYPES.GRENADE)
+	end)
+
+	self.ui:button("btn_rifle", function()
+		game_state.select_weapon(weapons.TYPES.RIFLE)
+	end)
+
+	self.ui:button("btn_knife", function()
+		game_state.select_weapon(weapons.TYPES.KNIFE)
+	end)
+
+	-- Register movement buttons for touch controls
+	self.ui:button("btn_left", function()
+		msg.post("/main#main", "player_move", { dir = -1 })
+	end)
+
+	self.ui:button("btn_right", function()
+		msg.post("/main#main", "player_move", { dir = 1 })
+	end)
+
+	self.ui:button("btn_jump", function()
+		msg.post("/main#main", "player_jump")
+	end)
+
+	self.ui:button("btn_pause", function()
+		msg.post("/main#main", "show_menu")
+	end)
+
+	update_weapon_selection(self, game_state.selected_weapon_id)
+end
+
+function on_input(self, action_id, action)
+	return self.ui:on_input(action_id, action)
+end
+
+function update(self, dt)
+	self.ui:update(dt)
+
+	if game_state.state ~= constants.STATE_MENU and game_state.state ~= constants.STATE_GAME_OVER then
+		-- 1. Update Timer
+		local seconds_left = math.max(0, math.ceil(game_state.turn_timer))
+		local fraction = math.max(0, math.min(1.0, game_state.turn_timer / constants.TURN_DURATION))
+
+		if seconds_left ~= self.last_seconds or math.abs(fraction - (self.last_fraction or 0)) > 0.01 then
+			self.last_seconds = seconds_left
+			self.last_fraction = fraction
+
+			pcall(function()
+				local t_txt = gui.get_node("timer_text")
+				local t_fill = gui.get_node("timer_bar_fill")
+				local t_bg = gui.get_node("timer_bg")
+
+				gui.set_text(t_txt, tostring(seconds_left))
+				gui.set_scale(t_fill, vmath.vector3(fraction, 1.0, 1.0))
+
+				-- Alert colors when time is running out (<= 5 seconds)
+				if seconds_left <= 5 then
+					gui.set_color(t_bg, vmath.vector4(0.91, 0.30, 0.24, 1.0)) -- Red
+					gui.set_color(t_fill, vmath.vector4(0.91, 0.30, 0.24, 1.0))
+				else
+					gui.set_color(t_bg, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Gold
+					gui.set_color(t_fill, vmath.vector4(0.18, 0.80, 0.44, 1.0)) -- Green
+				end
+			end)
+		end
+
+		-- 2. Update Turn Banner
+		if game_state.active_team ~= self.last_team then
+			self.last_team = game_state.active_team
+
+			pcall(function()
+				local banner = gui.get_node("banner_text")
+				local bg = gui.get_node("banner_bg")
+
+				if game_state.active_team == constants.TEAM_BLUE then
+					gui.set_text(banner, "Ход: Картошка (Синие)")
+					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
+				else
+					if game_state.mode == constants.MODE_QUICK_PVP then
+						gui.set_text(banner, "Ход: Игрок 2 (Красные)")
+					else
+						gui.set_text(banner, "Ход: Компьютер (Красные)")
+					end
+					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
+				end
+			end)
+		end
+
+		-- 3. Update Weapon Selection
+		if game_state.selected_weapon_id ~= self.last_weapon then
+			self.last_weapon = game_state.selected_weapon_id
+			update_weapon_selection(self, game_state.selected_weapon_id)
+		end
+
+		-- 4. Update Mode / Level Info
+		pcall(function()
+			local mode_node = gui.get_node("mode_text")
+			if game_state.mode == constants.MODE_CAMPAIGN then
+				gui.set_text(mode_node, "Миссия " .. tostring(game_state.campaign_level or 1))
+			elseif game_state.mode == constants.MODE_QUICK_BOT then
+				gui.set_text(mode_node, "Бой vs Бот")
+			elseif game_state.mode == constants.MODE_QUICK_PVP then
+				gui.set_text(mode_node, "Игра 1 на 1")
+			end
+		end)
+	end
+end
+

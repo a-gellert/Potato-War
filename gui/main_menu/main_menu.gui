@@ -1,0 +1,242 @@
+script: "/gui/main_menu/main_menu.gui_script"
+fonts {
+  name: "system_font"
+  font: "/druid/fonts/druid_text_bold.font"
+}
+textures {
+  name: "game"
+  texture: "/main/assets/game.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 270.0
+  }
+  size {
+    x: 960.0
+    y: 540.0
+  }
+  color {
+    x: 0.05
+    y: 0.08
+    z: 0.12
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "overlay"
+  inherit_alpha: true
+  alpha: 0.88
+}
+nodes {
+  position {
+    x: 480.0
+    y: 440.0
+  }
+  scale {
+    x: 1.8
+    y: 1.8
+  }
+  size {
+    x: 350.0
+    y: 40.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "POTATO WAR"
+  font: "system_font"
+  id: "title_text"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 395.0
+  }
+  scale {
+    x: 0.75
+    y: 0.75
+  }
+  size {
+    x: 350.0
+    y: 30.0
+  }
+  color {
+    x: 0.85
+    y: 0.88
+    z: 0.9
+  }
+  type: TYPE_TEXT
+  text: "\320\221\320\270\321\202\320\262\320\260 \320\232\320\260\321\200\321\202\320\276\321\210\320\265\320\272 \342\200\224 \320\237\320\276\321\210\320\260\320\263\320\276\320\262\320\260\321\217 \320\260\321\200\321\202\320\270\320\273\320\273\320\265\321\200\320\270\321\217"
+  font: "system_font"
+  id: "subtitle_text"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 320.0
+  }
+  size {
+    x: 320.0
+    y: 48.0
+  }
+  color {
+    x: 0.18
+    y: 0.5
+    z: 0.82
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_campaign"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.6
+    y: 0.6
+  }
+  size {
+    x: 280.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\220\320\234\320\237\320\220\320\235\320\230\320\257 (\320\234\320\270\321\201\321\201\320\270\320\270)"
+  font: "system_font"
+  id: "txt_campaign"
+  parent: "btn_campaign"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 255.0
+  }
+  size {
+    x: 320.0
+    y: 48.0
+  }
+  color {
+    x: 0.82
+    y: 0.3
+    z: 0.25
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_quick_bot"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.6
+    y: 0.6
+  }
+  size {
+    x: 280.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "\320\221\320\253\320\241\320\242\320\240\320\253\320\231 \320\221\320\236\320\231 VS \320\221\320\236\320\242"
+  font: "system_font"
+  id: "txt_quick_bot"
+  parent: "btn_quick_bot"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 190.0
+  }
+  size {
+    x: 320.0
+    y: 48.0
+  }
+  color {
+    x: 0.2
+    y: 0.65
+    z: 0.4
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_quick_pvp"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.6
+    y: 0.6
+  }
+  size {
+    x: 280.0
+    y: 30.0
+  }
+  type: TYPE_TEXT
+  text: "2 \320\230\320\223\320\240\320\236\320\232\320\220 (\320\236\320\224\320\230\320\235 \320\255\320\232\320\240\320\220\320\235)"
+  font: "system_font"
+  id: "txt_quick_pvp"
+  parent: "btn_quick_pvp"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 90.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 680.0
+    y: 60.0
+  }
+  color {
+    x: 0.7
+    y: 0.75
+    z: 0.8
+  }
+  type: TYPE_TEXT
+  text: "\320\243\320\277\321\200\320\260\320\262\320\273\320\265\320\275\320\270\320\265: A / D \342\200\224 \321\205\320\276\320\264\321\214\320\261\320\260 | W / \320\237\321\200\320\276\320\261\320\265\320\273 \342\200\224 \320\277\321\200\321\213\320\266\320\276\320\272 | 1, 2, 3 \342\200\224 \320\262\321\213\320\261\320\276\321\200 \320\276\321\200\321\203\320\266\320\270\321\217\n"
+  "\320\241\321\202\321\200\320\265\320\273\321\214\320\261\320\260 (Angry Birds): \320\267\320\260\320\266\320\274\320\270\321\202\320\265 \320\272\320\260\321\200\321\202\320\276\321\210\320\272\321\203 \320\274\321\213\321\210\320\272\320\276\320\271, \320\277\320\276\321\202\321\217\320\275\320\270\321\202\320\265 \320\275\320\260\320\267\320\260\320\264 \320\270 \320\276\321\202\320\277\321\203\321\201\321\202\320\270\321\202\320\265!"
+  font: "system_font"
+  id: "hint_text"
+  yanchor: YANCHOR_BOTTOM
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+  text_leading: 1.2
+}
+material: "/builtins/materials/gui.material"

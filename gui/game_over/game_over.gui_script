@@ -1,0 +1,99 @@
+-- gui/game_over/game_over.gui_script
+-- Displays match victory/defeat screens and handles rematch/progression buttons
+
+local constants = require("lua_modules.constants")
+local game_state = require("lua_modules.game_state")
+local ui_manager = require("lua_modules.ui_manager")
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	gui.set_render_order(10)
+	self.ui = ui_manager.create(self)
+
+	self.ui:button("btn_rematch", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_match", {
+			mode = game_state.mode,
+			level = game_state.campaign_level
+		})
+	end)
+
+	self.ui:button("btn_next_level", function()
+		msg.post(".", "disable")
+		local next_lvl = math.min(#game_state.CAMPAIGN_LEVELS, game_state.campaign_level + 1)
+		msg.post("/main#main", "start_match", {
+			mode = constants.MODE_CAMPAIGN,
+			level = next_lvl
+		})
+	end)
+
+	self.ui:button("btn_menu", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "show_menu")
+	end)
+
+	-- Hidden by default
+	msg.post(".", "disable")
+end
+
+function on_input(self, action_id, action)
+	return self.ui:on_input(action_id, action)
+end
+
+function update(self, dt)
+	self.ui:update(dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show_result") then
+		msg.post(".", "enable")
+
+		local winner = message.winner
+		local title_node = gui.get_node("title_text")
+		local sub_node = gui.get_node("subtitle_text")
+		local rematch_btn = gui.get_node("btn_rematch")
+		local rematch_txt = gui.get_node("txt_rematch")
+		local next_btn = gui.get_node("btn_next_level")
+		local next_txt = gui.get_node("txt_next_level")
+		local menu_btn = gui.get_node("btn_menu")
+		local menu_txt = gui.get_node("txt_menu")
+
+		-- Explicitly set text for all buttons
+		gui.set_text(rematch_txt, "ПОВТОРИТЬ БОЙ")
+		gui.set_text(next_txt, "СЛЕДУЮЩАЯ МИССИЯ")
+		gui.set_text(menu_txt, "ГЛАВНОЕ МЕНЮ")
+
+		-- Ensure rematch and menu buttons and texts are enabled
+		gui.set_enabled(rematch_btn, true)
+		gui.set_enabled(rematch_txt, true)
+		gui.set_enabled(menu_btn, true)
+		gui.set_enabled(menu_txt, true)
+
+		if winner == constants.TEAM_BLUE then
+			gui.set_text(title_node, "ПОБЕДА!")
+			gui.set_color(title_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
+			gui.set_text(sub_node, "Синяя команда картошек разгромила соперника!")
+
+			if game_state.mode == constants.MODE_CAMPAIGN and game_state.campaign_level < #game_state.CAMPAIGN_LEVELS then
+				gui.set_enabled(next_btn, true)
+				gui.set_enabled(next_txt, true)
+			else
+				gui.set_enabled(next_btn, false)
+				gui.set_enabled(next_txt, false)
+			end
+		elseif winner == constants.TEAM_RED then
+			gui.set_text(title_node, "ПОРАЖЕНИЕ!")
+			gui.set_color(title_node, vmath.vector4(0.91, 0.30, 0.24, 1.0))
+			gui.set_text(sub_node, "Красные картошки одержали победу!")
+			gui.set_enabled(next_btn, false)
+			gui.set_enabled(next_txt, false)
+		else
+			gui.set_text(title_node, "НИЧЬЯ!")
+			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+			gui.set_text(sub_node, "Все картошки превратились в пюре!")
+			gui.set_enabled(next_btn, false)
+			gui.set_enabled(next_txt, false)
+		end
+	end
+end
+

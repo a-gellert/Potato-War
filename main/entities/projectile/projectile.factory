@@ -1,0 +1,2 @@
+prototype: "/main/entities/projectile/projectile.go"
+load_dynamically: false

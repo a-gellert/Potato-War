@@ -1,0 +1,389 @@
+-- main/main.script
+-- Central game orchestrator, factory spawner, physics loop, and AI driver for Potato War
+
+local constants = require("lua_modules.constants")
+local weapons = require("lua_modules.weapons")
+local terrain_grid = require("lua_modules.terrain_grid")
+local physics_sim = require("lua_modules.physics_sim")
+local bot_ai = require("lua_modules.bot_ai")
+local game_state = require("lua_modules.game_state")
+local camera_controller = require("lua_modules.camera_controller")
+
+local function clear_match_entities(self)
+	for _, p in ipairs(self.spawned_potatoes) do
+		pcall(function()
+			go.delete(p.url)
+		end)
+	end
+	self.spawned_potatoes = {}
+	game_state.potatoes = {}
+	self.active_projectiles = {}
+end
+
+local function spawn_potato(self, x, team, potato_id)
+	local gy = terrain_grid.get_ground_y(x)
+	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
+	local pos = vmath.vector3(x, spawn_y, 0.1)
+	constants.log(">>> SPAWNING POTATO:", potato_id, "team:", team, "x:", x, "y:", spawn_y)
+
+	local initial_facing = (team == constants.TEAM_BLUE) and 1 or -1
+
+	local url = factory.create("#potato_factory", pos, nil, {
+		team = team,
+		potato_id = potato_id,
+		hp = 100,
+		max_hp = 100,
+		facing = initial_facing
+	})
+
+	local record = {
+		id = potato_id,
+		team = team,
+		pos = vmath.vector3(pos.x, pos.y, 0.1),
+		vel = vmath.vector3(0, 0, 0),
+		hp = 100,
+		max_hp = 100,
+		radius = constants.POTATO_RADIUS,
+		facing = initial_facing,
+		is_alive = true,
+		is_grounded = false,
+		url = url
+	}
+
+	msg.post(url, "set_facing", { facing = initial_facing })
+	msg.post(url, "set_weapon", { weapon_id = "grenade" })
+
+	table.insert(self.spawned_potatoes, record)
+	table.insert(game_state.potatoes, record)
+	return record
+end
+
+local function start_game_match(self, mode, level)
+	clear_match_entities(self)
+	game_state.start_match(mode, level)
+
+	local config = game_state.get_current_config()
+
+	-- Generate terrain according to match configuration
+	msg.post("/terrain#terrain", "generate_terrain", { preset = config.terrain_preset })
+
+	-- Spawn Blue Potatoes
+	local blue_count = config.blue_count or 2
+	local step_blue = (360 - 120) / math.max(1, blue_count)
+	for i = 1, blue_count do
+		local x = 120 + (i - 0.5) * step_blue + (math.random() - 0.5) * 20
+		spawn_potato(self, x, constants.TEAM_BLUE, i)
+	end
+
+	-- Spawn Red Potatoes
+	local red_count = config.red_count or 2
+	local step_red = (840 - 600) / math.max(1, red_count)
+	for i = 1, red_count do
+		local x = 600 + (i - 0.5) * step_red + (math.random() - 0.5) * 20
+		spawn_potato(self, x, constants.TEAM_RED, blue_count + i)
+	end
+
+	-- Reset camera to center
+	camera_controller.follow(constants.WORLD_WIDTH * 0.5, constants.WORLD_HEIGHT * 0.5, true)
+
+	-- Update GUI visibility
+	msg.post("/gui_menu", "disable")
+	msg.post("/gui_game_over", "disable")
+	msg.post("/gui_hud", "enable")
+end
+
+function init(self)
+	constants.log(">>> MAIN SCRIPT INIT STARTED")
+	msg.post(".", "acquire_input_focus")
+
+	self.spawned_potatoes = {}
+	self.active_projectiles = {}
+	self.bot_thinking = false
+	self.bot_timer = 0
+	self.bot_plan = nil
+
+	-- Hook turn changed callback
+	game_state.on_turn_changed = function(active_team, active_potato)
+		for _, p in ipairs(game_state.potatoes) do
+			if p.url then
+				local is_act = (p == active_potato)
+				msg.post(p.url, "set_active", { active = is_act })
+				if is_act then
+					msg.post(p.url, "set_weapon", { weapon_id = game_state.selected_weapon_id })
+					msg.post(p.url, "set_facing", { facing = p.facing or 1 })
+				end
+			end
+		end
+	end
+
+	-- Hook weapon changed callback
+	game_state.on_weapon_changed = function(weapon_id)
+		if game_state.active_potato and game_state.active_potato.url then
+			msg.post(game_state.active_potato.url, "set_weapon", { weapon_id = weapon_id })
+		end
+	end
+
+	-- Hook game over callback
+	game_state.on_game_over = function(winner_team)
+		msg.post("/aim_guide#aim_guide", "hide_aim")
+		msg.post("/gui_game_over", "enable")
+		msg.post("/gui_game_over#gui", "show_result", { winner = winner_team })
+	end
+
+	-- Show menu at launch
+	msg.post("/gui_hud", "disable")
+	msg.post("/gui_game_over", "disable")
+	msg.post("/gui_menu", "enable")
+end
+
+function update(self, dt)
+	-- 1. Camera update
+	camera_controller.update(dt)
+
+	-- 2. Potato physics & animation update
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive then
+			local result = physics_sim.update_potato(p, dt, terrain_grid)
+			if result == "drowned" and p.url then
+				msg.post(p.url, "drowned")
+				camera_controller.shake(5, 0.2)
+			elseif p.url then
+				go.set_position(p.pos, p.url)
+			end
+		end
+	end
+
+	-- 3. Filter finished projectiles
+	local alive_projectiles = {}
+	for _, proj_url in ipairs(self.active_projectiles) do
+		if pcall(function() return go.get_position(proj_url) end) then
+			table.insert(alive_projectiles, proj_url)
+		end
+	end
+	self.active_projectiles = alive_projectiles
+
+	-- 4. Bot AI execution
+	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.is_bot_turn() then
+		local bot = game_state.active_potato
+		if bot and bot.is_alive then
+			if not self.bot_thinking then
+				-- Initialize bot turn
+				self.bot_thinking = true
+				local config = game_state.get_current_config()
+				self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, config.bot_difficulty)
+				self.bot_phase = "move"
+				self.bot_move_steps_done = 0
+				self.bot_move_timer = 0
+				self.bot_move_jumped = false
+				self.bot_timer = 0
+
+				if self.bot_plan then
+					game_state.select_weapon(self.bot_plan.weapon_id)
+					if self.bot_plan.movement and self.bot_plan.movement.steps > 0 then
+						bot.facing = self.bot_plan.movement.dir
+						if bot.url then
+							msg.post(bot.url, "set_facing", { facing = bot.facing })
+						end
+					else
+						bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
+						if bot.url then
+							msg.post(bot.url, "set_facing", { facing = bot.facing })
+						end
+					end
+				end
+			elseif self.bot_plan then
+				if self.bot_phase == "move" then
+					-- Movement phase
+					local move = self.bot_plan.movement
+					if move and move.steps > 0 and self.bot_move_steps_done < move.steps then
+						self.bot_move_timer = self.bot_move_timer + dt
+						-- Walk every frame
+						if move.dir ~= 0 then
+							physics_sim.walk_potato(bot, move.dir, dt, terrain_grid)
+							bot.facing = move.dir
+							if bot.url then
+								msg.post(bot.url, "set_facing", { facing = move.dir })
+							end
+						end
+						-- Count steps based on time (~0.08s per step)
+						if self.bot_move_timer >= 0.08 then
+							self.bot_move_timer = self.bot_move_timer - 0.08
+							self.bot_move_steps_done = self.bot_move_steps_done + 1
+						end
+						-- Jump mid-movement
+						if move.should_jump and not self.bot_move_jumped and self.bot_move_steps_done >= math.floor(move.steps * 0.4) then
+							physics_sim.jump_potato(bot)
+							self.bot_move_jumped = true
+						end
+						-- Update position on game object
+						if bot.url then
+							go.set_position(bot.pos, bot.url)
+						end
+					else
+						-- Movement done, recalculate aim from new position
+						local config = game_state.get_current_config()
+						self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, config.bot_difficulty)
+						if self.bot_plan then
+							self.bot_plan.movement = { dir = 0, steps = 0, should_jump = false }
+							game_state.select_weapon(self.bot_plan.weapon_id)
+							bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
+							if bot.url then
+								msg.post(bot.url, "set_facing", { facing = bot.facing })
+							end
+						end
+						self.bot_phase = "aim"
+						self.bot_timer = self.bot_plan and self.bot_plan.think_delay or 1.0
+					end
+
+				elseif self.bot_phase == "aim" then
+					-- Aiming/thinking phase
+					self.bot_timer = self.bot_timer - dt
+
+					-- Show aiming preview 0.5s before shot
+					if self.bot_timer < 0.5 and self.bot_timer + dt >= 0.5 then
+						local vx = self.bot_plan.aim_dx * self.bot_plan.power
+						local vy = self.bot_plan.aim_dy * self.bot_plan.power
+						bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
+						if bot.url then
+							msg.post(bot.url, "set_facing", { facing = bot.facing })
+						end
+						msg.post("/aim_guide#aim_guide", "bot_aim_preview", {
+							vx = vx,
+							vy = vy,
+							weapon_id = self.bot_plan.weapon_id
+						})
+					end
+
+					-- Fire!
+					if self.bot_timer <= 0 then
+						self.bot_phase = "shoot"
+						self.bot_thinking = false
+						local vx = self.bot_plan.aim_dx * self.bot_plan.power
+						local vy = self.bot_plan.aim_dy * self.bot_plan.power
+						msg.post("/aim_guide#aim_guide", "hide_aim")
+
+						msg.post(".", "fire_weapon", {
+							origin_x = bot.pos.x,
+							origin_y = bot.pos.y + 8,
+							vel_x = vx,
+							vel_y = vy,
+							weapon_id = self.bot_plan.weapon_id,
+							owner_id = bot.id
+						})
+						self.bot_plan = nil
+					end
+				end
+			else
+				-- No valid plan, skip turn
+				self.bot_thinking = false
+				game_state.on_action_fired()
+			end
+		end
+	else
+		self.bot_thinking = false
+		self.bot_plan = nil
+		self.bot_phase = nil
+	end
+
+	-- 5. Camera follow active potato during aiming
+	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato then
+		camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
+	end
+
+	-- 6. Update match timer and turn progression
+	game_state.update(dt, #self.active_projectiles)
+end
+
+function on_input(self, action_id, action)
+	-- Keyboard controls for active potato
+	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
+		local potato = game_state.active_potato
+		if potato and potato.is_alive then
+			if action_id == hash("left") then
+				physics_sim.walk_potato(potato, -1, 0.035, terrain_grid)
+				potato.facing = -1
+				if potato.url then
+					msg.post(potato.url, "set_facing", { facing = -1 })
+				end
+				return true
+			elseif action_id == hash("right") then
+				physics_sim.walk_potato(potato, 1, 0.035, terrain_grid)
+				potato.facing = 1
+				if potato.url then
+					msg.post(potato.url, "set_facing", { facing = 1 })
+				end
+				return true
+			elseif action_id == hash("jump") and action.pressed then
+				physics_sim.jump_potato(potato)
+				return true
+			elseif action_id == hash("weapon_1") and action.pressed then
+				game_state.select_weapon(weapons.TYPES.GRENADE)
+				return true
+			elseif action_id == hash("weapon_2") and action.pressed then
+				game_state.select_weapon(weapons.TYPES.RIFLE)
+				return true
+			elseif action_id == hash("weapon_3") and action.pressed then
+				game_state.select_weapon(weapons.TYPES.KNIFE)
+				return true
+			end
+		end
+	end
+
+	if action_id == hash("escape") and action.pressed then
+		msg.post(".", "show_menu")
+		return true
+	end
+
+	return false
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("start_match") then
+		start_game_match(self, message.mode, message.level)
+
+	elseif message_id == hash("show_menu") then
+		msg.post("/aim_guide#aim_guide", "hide_aim")
+		msg.post("/gui_hud", "disable")
+		msg.post("/gui_game_over", "disable")
+		msg.post("/gui_menu", "enable")
+		game_state.set_state(constants.STATE_MENU)
+
+	elseif message_id == hash("player_move") then
+		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
+			local potato = game_state.active_potato
+			if potato and potato.is_alive then
+				local dir = message.dir or 1
+				physics_sim.walk_potato(potato, dir, 0.08, terrain_grid)
+				potato.facing = dir
+				if potato.url then
+					msg.post(potato.url, "set_facing", { facing = dir })
+				end
+			end
+		end
+
+	elseif message_id == hash("player_jump") then
+		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
+			local potato = game_state.active_potato
+			if potato and potato.is_alive then
+				physics_sim.jump_potato(potato)
+			end
+		end
+
+	elseif message_id == hash("fire_weapon") then
+		local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
+		local proj_url = factory.create("#projectile_factory", pos, nil, {
+			vel_x = message.vel_x,
+			vel_y = message.vel_y,
+			weapon_type = hash(message.weapon_id or "grenade"),
+			owner_id = message.owner_id or 0
+		})
+		table.insert(self.active_projectiles, proj_url)
+		game_state.on_action_fired()
+
+	elseif message_id == hash("spawn_explosion") then
+		local pos = vmath.vector3(message.x, message.y, 0.5)
+		factory.create("#explosion_factory", pos, nil, {
+			radius = message.radius or 30
+		})
+	end
+end
