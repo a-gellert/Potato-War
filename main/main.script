@@ -10,6 +10,7 @@ local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
+local achievements = require("lua_modules.achievements")
 
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
@@ -24,6 +25,25 @@ end
 
 local function spawn_potato(self, x, team, potato_id, initial_hp)
 	local gy = terrain_grid.get_smooth_ground_y(x, 6.0)
+	-- If initial x falls into water gap/chasm, find nearest solid ground
+	if gy < constants.WATER_LEVEL + 20 then
+		for offset = 15, 90, 12 do
+			local test_l = math.max(constants.POTATO_RADIUS + 20, x - offset)
+			local test_r = math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20, x + offset)
+			local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0)
+			local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0)
+			if gy_l > constants.WATER_LEVEL + 20 then
+				x = test_l
+				gy = gy_l
+				break
+			elseif gy_r > constants.WATER_LEVEL + 20 then
+				x = test_r
+				gy = gy_r
+				break
+			end
+		end
+	end
+
 	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
 	local pos = vmath.vector3(x, spawn_y, 0.1)
 	constants.log(">>> SPAWNING POTATO:", potato_id, "team:", team, "x:", x, "y:", spawn_y, "hp:", initial_hp)
@@ -71,12 +91,16 @@ end
 
 local function start_game_match(self, mode, level)
 	clear_match_entities(self)
+	achievements.reset_match()
 	game_state.start_match(mode, level)
 
 	local config = game_state.get_current_config()
 
 	-- Generate terrain according to match configuration
-	msg.post("/terrain#terrain", "generate_terrain", { preset = config.terrain_preset })
+	msg.post("/terrain#terrain", "generate_terrain", {
+		preset = config.terrain_preset,
+		biome = config.biome
+	})
 
 	-- Spawn Blue Potatoes
 	local blue_count = config.blue_count or 2
@@ -88,12 +112,13 @@ local function start_game_match(self, mode, level)
 		spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp)
 	end
 
-	-- Spawn Red Potatoes
+	-- Spawn Red Potatoes (Fast 60 HP duel on Level 1!)
 	local red_count = config.red_count or 2
 	local step_red = (840 - 600) / math.max(1, red_count)
+	local enemy_hp = (mode == constants.MODE_CAMPAIGN and (level or 1) == 1) and 60 or 100
 	for i = 1, red_count do
 		local x = 600 + (i - 0.5) * step_red + (math.random() - 0.5) * 20
-		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, 100)
+		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp)
 	end
 
 	-- Reset camera to center
@@ -119,6 +144,7 @@ function init(self)
 
 	-- Hook turn changed callback
 	game_state.on_turn_changed = function(active_team, active_potato)
+		achievements.on_turn_start(active_team)
 		for _, p in ipairs(game_state.potatoes) do
 			if p.url then
 				local is_act = (p == active_potato)
@@ -147,9 +173,21 @@ function init(self)
 	game_state.on_game_over = function(winner_team, points_earned, hp_healed, current_hp, next_hp)
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		msg.post("/gui_game_over", "enable")
+
+		local player_hp = current_hp or (game_state.potatoes[1] and game_state.potatoes[1].hp) or 100
+		local ach_list, ach_bonus = achievements.evaluate_match_end(winner_team, player_hp)
+		local total_pts = points_earned + ach_bonus
+
+		if ach_bonus > 0 then
+			player_profile.add_points(ach_bonus)
+		end
+
 		msg.post("/gui_game_over#gui", "show_result", {
 			winner = winner_team,
-			points = points_earned,
+			points = total_pts,
+			base_points = points_earned,
+			achieve_bonus = ach_bonus,
+			achievements = ach_list,
 			hp_healed = hp_healed,
 			current_hp = current_hp,
 			next_hp = next_hp,
@@ -174,6 +212,16 @@ function update(self, dt)
 			if result == "drowned" and p.url then
 				msg.post(p.url, "drowned")
 				camera_controller.shake(5, 0.2)
+				if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
+					local ach = achievements.on_drown(p, game_state.active_team)
+					if ach then
+						msg.post("/gui_hud#gui", "show_achievement_toast", {
+							icon = ach.icon,
+							title = ach.title,
+							points = ach.points
+						})
+					end
+				end
 			else
 				if not was_grounded and p.is_grounded and p.url then
 					msg.post(p.url, "on_land")

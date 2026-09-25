@@ -1,5 +1,5 @@
 -- lua_modules/physics_sim.lua
--- Discrete Physics, Ballistics, and Collision Simulation for Potato War
+-- Discrete Physics, Ballistics, and Collision Simulation for Potato War (with multi-level & ceiling support)
 
 local constants = require("lua_modules.constants")
 
@@ -52,17 +52,17 @@ function M.update_potato(p, dt, terrain)
 		-- Airborne state
 		new_y = p.pos.y + p.vel.y * dt
 
-		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0)
+		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0, p.pos.y + 6.0)
 		local target_standing_y = ground_y + check_radius
 
 		-- Check landing on ground
-		if p.vel.y <= 0 and new_y <= (target_standing_y + 2.0) then
+		if p.vel.y <= 0 and new_y <= (target_standing_y + 2.0) and p.pos.y >= (ground_y - 4.0) then
 			new_y = target_standing_y
 			p.vel.y = 0
 			p.vel.x = p.vel.x * 0.4
 			p.is_grounded = true
 		else
-			-- Check side/head collision with solid terrain while airborne
+			-- Check side/head/ceiling collision with solid terrain while airborne
 			local hit, nx, ny = terrain.check_circle_collision(new_x, new_y, check_radius)
 			if hit then
 				local dot = p.vel.x * nx + p.vel.y * ny
@@ -71,15 +71,19 @@ function M.update_potato(p, dt, terrain)
 					p.vel.y = (p.vel.y - dot * ny) * 0.4
 				end
 				if ny > 0.55 and p.vel.y <= 0 then
+					-- Landed on terrain shelf
 					p.is_grounded = true
 					p.vel.y = 0
 					new_y = target_standing_y
+				elseif ny < -0.45 and p.vel.y > 0 then
+					-- Bonked head against ceiling or bridge underside!
+					p.vel.y = -math.abs(p.vel.y) * 0.5
 				end
 			end
 		end
 	else
 		-- Grounded state
-		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0)
+		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0, p.pos.y + 12.0)
 		local target_standing_y = ground_y + check_radius
 
 		-- If potato got upward vertical impulse (e.g. explosion blast or jump), become airborne
@@ -94,7 +98,6 @@ function M.update_potato(p, dt, terrain)
 				new_y = p.pos.y + p.vel.y * dt
 			else
 				-- Stable ground resting / slope following:
-				-- Perfectly lock vertical height to smoothed ground surface without micro-vibrations
 				new_y = target_standing_y
 				p.vel.y = 0
 			end
@@ -120,8 +123,8 @@ function M.walk_potato(p, dir, dt, terrain)
 		return
 	end
 
-	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 6.0)
-	local target_gy = terrain.get_smooth_ground_y(target_x, 6.0)
+	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 6.0, p.pos.y + 12.0)
+	local target_gy = terrain.get_smooth_ground_y(target_x, 6.0, p.pos.y + 12.0)
 
 	-- Check slope step-up limit (cannot climb walls steeper than 12px step)
 	if (target_gy - curr_gy) > 12.0 then
@@ -159,14 +162,12 @@ function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damag
 	local dy = p.pos.y - blast_y
 	local dist = math.sqrt(dx * dx + dy * dy)
 
-	-- Effective radius accounts for potato body radius so hits near feet/edges deal proper damage
 	local effective_radius = blast_radius + constants.POTATO_RADIUS * 0.85
 
 	if dist < effective_radius then
 		local factor = math.max(0.15, 1.0 - (dist / effective_radius))
 		local dmg = math.max(5, math.floor(max_damage * factor))
 
-		-- Normalized impulse vector with upward lift bias
 		local len = math.max(0.01, dist)
 		local dir_x = dx / len
 		local dir_y = (dy + 10) / (len + 10)
@@ -202,7 +203,6 @@ local function check_segment_circle(x0, y0, x1, y1, cx, cy, radius)
 		return false
 	end
 
-	-- Project circle center onto segment
 	local t = ((cx - x0) * dx + (cy - y0) * dy) / len2
 	t = math.max(0, math.min(1, t))
 
@@ -243,9 +243,8 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 			end
 		end
 
-		local gy = terrain.get_smooth_ground_y(proj.pos.x, 3.0)
+		local gy = terrain.get_smooth_ground_y(proj.pos.x, 3.0, proj.pos.y + 6.0)
 		local ground_target_y = gy + 4.0
-		-- If ground beneath was destroyed, resume falling
 		if (proj.pos.y - ground_target_y) > 6.0 then
 			proj.is_resting = false
 			proj.vel.y = -20.0
@@ -318,7 +317,7 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 				proj.is_resting = true
 				proj.vel.x = 0
 				proj.vel.y = 0
-				local gy = terrain.get_smooth_ground_y(proj.pos.x, 3.0)
+				local gy = terrain.get_smooth_ground_y(proj.pos.x, 3.0, proj.pos.y + 6.0)
 				proj.pos.y = gy + 4.0
 			end
 			return "bounce", thx, thy
@@ -403,9 +402,8 @@ function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potato
 		end
 
 		if is_resting then
-			local gy = terrain.get_smooth_ground_y(curr_x, 3.0)
+			local gy = terrain.get_smooth_ground_y(curr_x, 3.0, curr_y + 6.0)
 			curr_y = gy + 4.0
-			-- continue resting until fuse expires
 		else
 			vy = vy - grav * dt
 			local next_x = curr_x + vx * dt

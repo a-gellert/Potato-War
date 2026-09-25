@@ -13,45 +13,50 @@ local M = {}
 M.CAMPAIGN_LEVELS = {
 	{
 		id = 1,
-		name = "Арена 1: Быстрая Дуэль",
-		desc = "Быстрая дуэль 1 на 1. Выберите карточку и разгромите соперника!",
-		terrain_preset = "flat",
+		name = "Арена 1: Зеленые Холмы",
+		desc = "Быстрая дуэль 1 на 1 среди цветущих лугов!",
+		terrain_preset = "hills",
+		biome = "grass",
 		blue_count = 1,
 		red_count = 1,
 		bot_difficulty = "easy",
 	},
 	{
 		id = 2,
-		name = "Арена 2: Парящие Острова",
-		desc = "Быстрый бой 1 на 1 над водой.",
-		terrain_preset = "islands",
+		name = "Арена 2: Ледяной Архипелаг",
+		desc = "Дуэль на парящих в воздухе ледяных островах!",
+		terrain_preset = "floating_islands",
+		biome = "arctic",
 		blue_count = 1,
 		red_count = 1,
 		bot_difficulty = "normal",
 	},
 	{
 		id = 3,
-		name = "Арена 3: Каньон Огня",
-		desc = "Дуэль 1 на 1 на высокой местности.",
-		terrain_preset = "canyon",
+		name = "Арена 3: Каньон и Каменный Мост",
+		desc = "Сражение на гигантской каменной арке над пустынным ущельем.",
+		terrain_preset = "canyon_bridge",
+		biome = "desert",
 		blue_count = 1,
 		red_count = 1,
 		bot_difficulty = "normal",
 	},
 	{
 		id = 4,
-		name = "Арена 4: Бункерный Рубеж",
-		desc = "1 против 2 ботов в укрытиях.",
-		terrain_preset = "bunkers",
+		name = "Арена 4: Лавовые Катакомбы",
+		desc = "1 против 2 ботов в закрытой пещере с потолком и лавой!",
+		terrain_preset = "cavern",
+		biome = "volcano",
 		blue_count = 1,
 		red_count = 2,
 		bot_difficulty = "hard",
 	},
 	{
 		id = 5,
-		name = "Арена 5: Цитадель",
-		desc = "Финальный штурм: 1 против 2 метких ботов!",
-		terrain_preset = "hills",
+		name = "Арена 5: Инопланетная Цитадель",
+		desc = "Финальный штурм: 1 против 2 ботов в изрезанной кавернами цитадели!",
+		terrain_preset = "swiss_cheese",
+		biome = "alien",
 		blue_count = 1,
 		red_count = 2,
 		bot_difficulty = "hard",
@@ -299,29 +304,54 @@ function M.get_current_config()
 			return M.CAMPAIGN_LEVELS[M.campaign_level]
 		else
 			-- Infinite / high arenas
-			local presets = { "hills", "islands", "bunkers", "canyon" }
+			local presets = { "hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "islands", "bunkers" }
+			local biomes = { "grass", "arctic", "desert", "volcano", "alien", "grass", "desert" }
+			local idx = ((M.campaign_level - 1) % #presets) + 1
 			return {
 				id = M.campaign_level,
 				name = "Арена " .. tostring(M.campaign_level) .. ": Экстрим",
 				desc = "1 против волны элитных ботов!",
-				terrain_preset = presets[((M.campaign_level - 1) % #presets) + 1],
+				terrain_preset = presets[idx],
+				biome = biomes[idx],
 				blue_count = 1,
 				red_count = math.min(3, 1 + math.floor(M.campaign_level / 2)),
 				bot_difficulty = "hard",
 			}
 		end
 	elseif M.mode == constants.MODE_QUICK_PVP then
+		local pool = {
+			{ preset = "hills", biome = "grass" },
+			{ preset = "floating_islands", biome = "arctic" },
+			{ preset = "canyon_bridge", biome = "desert" },
+			{ preset = "cavern", biome = "volcano" },
+			{ preset = "swiss_cheese", biome = "alien" },
+			{ preset = "islands", biome = "grass" },
+			{ preset = "bunkers", biome = "desert" },
+		}
+		local pick = pool[math.random(1, #pool)]
 		return {
 			name = "Быстрый бой: 2 Игрока",
-			terrain_preset = "hills",
+			terrain_preset = pick.preset,
+			biome = pick.biome,
 			blue_count = 2,
 			red_count = 2,
 			bot_difficulty = "none",
 		}
 	else -- constants.MODE_QUICK_BOT
+		local pool = {
+			{ preset = "hills", biome = "grass" },
+			{ preset = "floating_islands", biome = "arctic" },
+			{ preset = "canyon_bridge", biome = "desert" },
+			{ preset = "cavern", biome = "volcano" },
+			{ preset = "swiss_cheese", biome = "alien" },
+			{ preset = "islands", biome = "grass" },
+			{ preset = "bunkers", biome = "desert" },
+		}
+		local pick = pool[math.random(1, #pool)]
 		return {
 			name = "Быстрый бой vs Компьютер",
-			terrain_preset = ({"hills", "islands", "bunkers", "canyon"})[math.random(1, 4)],
+			terrain_preset = pick.preset,
+			biome = pick.biome,
 			blue_count = 2,
 			red_count = 2,
 			bot_difficulty = "normal",

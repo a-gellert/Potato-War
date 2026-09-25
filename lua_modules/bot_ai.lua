@@ -54,14 +54,14 @@ function M.analyze_situation(bot, enemies, terrain)
 	}
 
 	local curr_x = bot.pos.x
-	local curr_y = terrain.get_smooth_ground_y(curr_x, 4.0)
+	local curr_y = terrain.get_smooth_ground_y(curr_x, 4.0, bot.pos.y + 12.0)
 
 	-- A. Scan terrain profile left and right (up to 55px)
 	local max_left_y = curr_y
 	local dist_l = 20
 	for d = 8, 56, 8 do
 		local lx = math.max(constants.POTATO_RADIUS, curr_x - d)
-		local gy = terrain.get_smooth_ground_y(lx, 4.0)
+		local gy = terrain.get_smooth_ground_y(lx, 4.0, bot.pos.y + 16.0)
 		if gy > max_left_y then
 			max_left_y = gy
 			dist_l = d
@@ -72,7 +72,7 @@ function M.analyze_situation(bot, enemies, terrain)
 	local dist_r = 20
 	for d = 8, 56, 8 do
 		local rx = math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS, curr_x + d)
-		local gy = terrain.get_smooth_ground_y(rx, 4.0)
+		local gy = terrain.get_smooth_ground_y(rx, 4.0, bot.pos.y + 16.0)
 		if gy > max_right_y then
 			max_right_y = gy
 			dist_r = d
@@ -121,8 +121,8 @@ function M.analyze_situation(bot, enemies, terrain)
 	end
 
 	-- C. Cliff and water hazard check
-	local ground_l = terrain.get_smooth_ground_y(curr_x - 35, 4.0)
-	local ground_r = terrain.get_smooth_ground_y(curr_x + 35, 4.0)
+	local ground_l = terrain.get_smooth_ground_y(curr_x - 35, 4.0, bot.pos.y + 12.0)
+	local ground_r = terrain.get_smooth_ground_y(curr_x + 35, 4.0, bot.pos.y + 12.0)
 	sit.cliff_left = (curr_y - ground_l) > 28.0
 	sit.cliff_right = (curr_y - ground_r) > 28.0
 	sit.near_water = (curr_y < constants.WATER_LEVEL + 42.0)

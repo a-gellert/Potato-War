@@ -82,11 +82,11 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 270.0
+    y: 265.0
   }
   size {
-    x: 380.0
-    y: 52.0
+    x: 460.0
+    y: 72.0
   }
   color {
     x: 0.12
@@ -106,13 +106,17 @@ nodes {
   alpha: 0.9
 }
 nodes {
+  position {
+    x: 0.0
+    y: 13.0
+  }
   scale {
-    x: 0.8
-    y: 0.8
+    x: 0.65
+    y: 0.65
   }
   size {
-    x: 420.0
-    y: 40.0
+    x: 480.0
+    y: 32.0
   }
   color {
     x: 1.0
@@ -130,8 +134,35 @@ nodes {
 }
 nodes {
   position {
+    x: 0.0
+    y: -14.0
+  }
+  scale {
+    x: 0.44
+    y: 0.44
+  }
+  size {
+    x: 720.0
+    y: 28.0
+  }
+  color {
+    x: 0.35
+    y: 0.95
+    z: 0.65
+  }
+  type: TYPE_TEXT
+  text: ""
+  font: "system_font"
+  id: "achieve_text"
+  parent: "reward_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
     x: 480.0
-    y: 185.0
+    y: 175.0
   }
   size {
     x: 280.0

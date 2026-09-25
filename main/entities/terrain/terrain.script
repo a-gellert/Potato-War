@@ -1,5 +1,5 @@
 -- main/entities/terrain/terrain.script
--- Manages destructible terrain texture updates and water animations for Potato War
+-- Manages destructible terrain texture updates, dynamic biomes, and environment themes for Potato War
 
 local constants = require("lua_modules.constants")
 local terrain_grid = require("lua_modules.terrain_grid")
@@ -7,7 +7,30 @@ local terrain_grid = require("lua_modules.terrain_grid")
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
 
-local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, preset)
+local BIOME_THEMES = {
+	grass = {
+		sky = vmath.vector4(0.48, 0.72, 0.94, 1.0),
+		water = vmath.vector4(0.20, 0.55, 0.88, 0.95),
+	},
+	desert = {
+		sky = vmath.vector4(0.94, 0.72, 0.48, 1.0),
+		water = vmath.vector4(0.18, 0.75, 0.72, 0.95),
+	},
+	arctic = {
+		sky = vmath.vector4(0.65, 0.78, 0.94, 1.0),
+		water = vmath.vector4(0.12, 0.32, 0.65, 0.95),
+	},
+	volcano = {
+		sky = vmath.vector4(0.42, 0.16, 0.12, 1.0),
+		water = vmath.vector4(0.98, 0.35, 0.08, 0.95),
+	},
+	alien = {
+		sky = vmath.vector4(0.22, 0.12, 0.36, 1.0),
+		water = vmath.vector4(0.15, 0.85, 0.45, 0.95),
+	},
+}
+
+local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 	local row = gy * w
 	local solid = (grid[row + gx + 1] == 1)
 	if not solid then
@@ -28,71 +51,183 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, preset)
 		end
 	end
 
-	if depth == 0 then
-		-- Top lush grass blade with natural variation
-		local v = ((gx * 37) % 7) * 4 - 12
-		stream[idx] = math.max(50, math.min(110, 76 + v))
-		stream[idx + 1] = math.max(160, math.min(235, 196 + v * 2))
-		stream[idx + 2] = math.max(30, math.min(75, 48 + v))
-		stream[idx + 3] = 255
-	elseif depth == 1 then
-		-- Mid grass layer
-		stream[idx] = 64
-		stream[idx + 1] = 172
-		stream[idx + 2] = 38
-		stream[idx + 3] = 255
-	elseif depth == 2 then
-		-- Sub-turf root zone
-		stream[idx] = 96
-		stream[idx + 1] = 138
-		stream[idx + 2] = 36
-		stream[idx + 3] = 255
-	elseif depth == 3 then
-		-- Upper soil transition
-		stream[idx] = 122
-		stream[idx + 1] = 98
-		stream[idx + 2] = 48
-		stream[idx + 3] = 255
+	local r, g, b = 100, 100, 100
+
+	if biome == "desert" then
+		-- DESERT & SANDSTONE BIOME
+		if depth == 0 then
+			local v = ((gx * 37) % 7) * 4 - 12
+			r = math.max(180, math.min(255, 238 + v))
+			g = math.max(150, math.min(235, 205 + v))
+			b = math.max(80, math.min(160, 115 + v))
+		elseif depth == 1 then
+			r = 222
+			g = 175
+			b = 92
+		elseif depth == 2 then
+			r = 202
+			g = 142
+			b = 75
+		elseif depth == 3 then
+			r = 182
+			g = 112
+			b = 62
+		else
+			local strata = math.sin((gy + math.sin(gx * 0.06) * 5) * 0.18) * 22
+			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+			r = math.max(50, math.min(240, 172 + strata + grain))
+			g = math.max(30, math.min(170, 92 + strata * 0.5 + grain * 0.5))
+			b = math.max(20, math.min(120, 52 + strata * 0.3 + grain * 0.3))
+
+			-- Darker slate pebble specks
+			if ((gx * 47 + gy * 83) % 91) <= 1 then
+				r = 110; g = 70; b = 45
+			end
+		end
+
+	elseif biome == "arctic" then
+		-- ARCTIC ICE & SNOW BIOME
+		if depth == 0 then
+			local v = ((gx * 31) % 7) * 3 - 9
+			r = math.max(220, math.min(255, 245 + v))
+			g = math.max(235, math.min(255, 250 + v))
+			b = 255
+		elseif depth == 1 then
+			r = 210
+			g = 230
+			b = 248
+		elseif depth == 2 then
+			r = 162
+			g = 202
+			b = 232
+		elseif depth == 3 then
+			r = 118
+			g = 168
+			b = 210
+		else
+			local strata = math.sin((gy + math.cos(gx * 0.04) * 8) * 0.14) * 18
+			local grain = ((gx * 19 + gy * 29) % 11) * 2 - 10
+			r = math.max(30, math.min(160, 72 + strata * 0.4 + grain))
+			g = math.max(60, math.min(200, 118 + strata * 0.7 + grain))
+			b = math.max(90, math.min(240, 168 + strata + grain))
+
+			-- Glistening ice crystal specks
+			if ((gx * 43 + gy * 79) % 89) <= 1 then
+				r = 240; g = 250; b = 255
+			end
+		end
+
+	elseif biome == "volcano" then
+		-- VOLCANIC INFERNO & BASALT BIOME
+		if depth == 0 then
+			local ember = ((gx * 41) % 13) <= 2
+			if ember then
+				r = 245; g = 95; b = 20 -- Glowing ember tip!
+			else
+				local v = ((gx * 29) % 7) * 4 - 12
+				r = math.max(45, math.min(110, 72 + v))
+				g = math.max(35, math.min(85, 52 + v))
+				b = math.max(35, math.min(85, 52 + v))
+			end
+		elseif depth == 1 then
+			r = 58; g = 42; b = 44
+		elseif depth == 2 then
+			r = 48; g = 34; b = 36
+		elseif depth == 3 then
+			r = 40; g = 28; b = 30
+		else
+			local magma = math.sin((gy * 0.12 + math.sin(gx * 0.08) * 3))
+			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+			if magma > 0.82 then
+				-- Molten magma vein glowing deep inside rock
+				r = 230; g = 75; b = 18
+			else
+				local base = 42 + grain
+				r = math.max(25, math.min(110, base + 10))
+				g = math.max(20, math.min(80, base))
+				b = math.max(20, math.min(80, base + 2))
+			end
+
+			-- Red hot speckles
+			if ((gx * 53 + gy * 71) % 97) <= 1 then
+				r = 220; g = 50; b = 15
+			end
+		end
+
+	elseif biome == "alien" then
+		-- ALIEN CRYSTAL & NEON SPORE BIOME
+		if depth == 0 then
+			local v = ((gx * 37) % 7) * 4 - 12
+			r = math.max(160, math.min(255, 218 + v))
+			g = math.max(40, math.min(110, 68 + v))
+			b = math.max(170, math.min(255, 225 + v))
+		elseif depth == 1 then
+			r = 168; g = 48; b = 178
+		elseif depth == 2 then
+			r = 120; g = 36; b = 142
+		elseif depth == 3 then
+			r = 82; g = 30; b = 115
+		else
+			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.16) * 16
+			local grain = ((gx * 19 + gy * 37) % 11) * 2 - 10
+			r = math.max(25, math.min(140, 52 + strata * 0.4 + grain))
+			g = math.max(15, math.min(110, 28 + strata * 0.3 + grain))
+			b = math.max(40, math.min(180, 85 + strata * 0.8 + grain))
+
+			-- Glowing neon cyan crystal specks
+			if ((gx * 47 + gy * 83) % 79) <= 1 then
+				r = 35; g = 235; b = 215
+			end
+		end
+
 	else
-		-- Geological sedimentary strata & rich earth
-		local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.15) * 16
-		local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+		-- DEFAULT: GRASS / MEADOW BIOME
+		if depth == 0 then
+			local v = ((gx * 37) % 7) * 4 - 12
+			r = math.max(50, math.min(110, 76 + v))
+			g = math.max(160, math.min(235, 196 + v * 2))
+			b = math.max(30, math.min(75, 48 + v))
+		elseif depth == 1 then
+			r = 64; g = 172; b = 38
+		elseif depth == 2 then
+			r = 96; g = 138; b = 36
+		elseif depth == 3 then
+			r = 122; g = 98; b = 48
+		else
+			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.15) * 16
+			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+			r = math.max(40, math.min(220, 138 + strata + grain))
+			g = math.max(30, math.min(180, 88 + strata * 0.7 + grain))
+			b = math.max(20, math.min(140, 52 + strata * 0.4 + grain * 0.5))
 
-		local r = math.max(40, math.min(220, 138 + strata + grain))
-		local g = math.max(30, math.min(180, 88 + strata * 0.7 + grain))
-		local b = math.max(20, math.min(140, 52 + strata * 0.4 + grain * 0.5))
+			-- Deep bedrock transition near water
+			if gy < 36 then
+				local factor = math.min(1.0, math.max(0.0, (36 - gy) / 25.0))
+				r = r * (1.0 - factor) + 78 * factor
+				g = g * (1.0 - factor) + 74 * factor
+				b = b * (1.0 - factor) + 72 * factor
+			end
 
-		-- Deep bedrock transition near water
-		if gy < 36 then
-			local factor = math.min(1.0, math.max(0.0, (36 - gy) / 25.0))
-			r = r * (1.0 - factor) + 78 * factor
-			g = g * (1.0 - factor) + 74 * factor
-			b = b * (1.0 - factor) + 72 * factor
+			if ((gx * 47 + gy * 83) % 97) <= 1 then
+				r = 175; g = 170; b = 165
+			end
 		end
-
-		-- Occasional pebbles / stone specks
-		local pebble = (gx * 47 + gy * 83) % 97
-		if pebble <= 1 then
-			r = 175
-			g = 170
-			b = 165
-		end
-
-		-- Edge darkening around crater cuts
-		local is_exposed = (gx > 0 and grid[row + gx] == 0)
-			or (gx < w - 1 and grid[row + gx + 2] == 0)
-			or (gy > 0 and grid[(gy - 1) * w + gx + 1] == 0)
-		if is_exposed then
-			r = r * 0.75
-			g = g * 0.75
-			b = b * 0.75
-		end
-
-		stream[idx] = math.floor(r)
-		stream[idx + 1] = math.floor(g)
-		stream[idx + 2] = math.floor(b)
-		stream[idx + 3] = 255
 	end
+
+	-- Edge darkening around crater cuts
+	local is_exposed = (gx > 0 and grid[row + gx] == 0)
+		or (gx < w - 1 and grid[row + gx + 2] == 0)
+		or (gy > 0 and grid[(gy - 1) * w + gx + 1] == 0)
+	if is_exposed then
+		r = r * 0.75
+		g = g * 0.75
+		b = b * 0.75
+	end
+
+	stream[idx] = math.floor(r)
+	stream[idx + 1] = math.floor(g)
+	stream[idx + 2] = math.floor(b)
+	stream[idx + 3] = 255
 end
 
 local function fill_full_stream(self)
@@ -100,15 +235,27 @@ local function fill_full_stream(self)
 	local h = self.h
 	local stream = self.stream
 	local grid = terrain_grid.grid
-	local preset = self.current_preset or "hills"
+	local biome = self.current_biome or "grass"
 
 	local idx = 1
 	for gy = 0, h - 1 do
 		for gx = 0, w - 1 do
-			write_terrain_pixel(stream, idx, gx, gy, w, h, grid, preset)
+			write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 			idx = idx + 4
 		end
 	end
+end
+
+local function apply_biome_environment(self, biome)
+	self.current_biome = biome or "grass"
+	local theme = BIOME_THEMES[self.current_biome] or BIOME_THEMES.grass
+
+	pcall(function()
+		go.set("#sky", "tint", theme.sky)
+	end)
+	pcall(function()
+		go.set("#water", "tint", theme.water)
+	end)
 end
 
 local function update_full_texture(self)
@@ -132,12 +279,14 @@ function init(self)
 	self.w = constants.TERRAIN_WIDTH
 	self.h = constants.TERRAIN_HEIGHT
 	self.is_initialized = false
-
-	-- Cartoon sky tint
-	go.set("#sky", "tint", vmath.vector4(0.48, 0.72, 0.94, 1.0))
+	self.current_biome = "grass"
+	self.current_preset = "hills"
 
 	-- Water shimmer animation
 	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.15, go.EASING_INOUTSINE, 1.8)
+
+	-- Apply initial environment
+	apply_biome_environment(self, "grass")
 
 	-- Create pixel buffer for terrain
 	self.tex_buffer = buffer.create(self.w * self.h, {
@@ -200,8 +349,26 @@ end
 function on_message(self, message_id, message, sender)
 	if message_id == hash("generate_terrain") then
 		local preset = message.preset or "hills"
+		local biome = message.biome
+		if not biome then
+			-- Match default biome to preset if not specified
+			if preset == "canyon" or preset == "canyon_bridge" or preset == "bunkers" then
+				biome = "desert"
+			elseif preset == "floating_islands" then
+				biome = "arctic"
+			elseif preset == "cavern" then
+				biome = "volcano"
+			elseif preset == "swiss_cheese" then
+				biome = "alien"
+			else
+				biome = "grass"
+			end
+		end
+
 		self.current_preset = preset
-		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset)
+		self.current_biome = biome
+		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome)
+		apply_biome_environment(self, biome)
 		terrain_grid.generate(preset)
 		update_full_texture(self)
 
@@ -223,10 +390,10 @@ function on_message(self, message_id, message, sender)
 
 			local s_idx = 1
 			local grid = terrain_grid.grid
-			local preset = self.current_preset or "hills"
+			local biome = self.current_biome or "grass"
 			for gy = min_gy, max_gy do
 				for gx = min_gx, max_gx do
-					write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, preset)
+					write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, biome)
 					s_idx = s_idx + 4
 				end
 			end

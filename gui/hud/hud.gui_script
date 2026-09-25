@@ -407,5 +407,28 @@ function on_message(self, message_id, message, sender)
 				pcall(gui.delete_node, txt_node)
 			end)
 		end)
+	elseif message_id == hash("show_achievement_toast") then
+		pcall(function()
+			local panel = gui.get_node("toast_panel")
+			local txt = gui.get_node("toast_text")
+			local pts = message.points or 50
+			local pts_str = (i18n.current_lang == "ru") and (" +" .. tostring(pts) .. " очков!") or (" +" .. tostring(pts) .. " pts!")
+			local icon = message.icon or "🏆"
+			local title = message.title or ""
+			gui.set_text(txt, icon .. " " .. title .. pts_str)
+			gui.set_enabled(panel, true)
+
+			gui.cancel_animation(panel, gui.PROP_POSITION)
+			gui.cancel_animation(panel, gui.PROP_SCALE)
+			gui.set_position(panel, vmath.vector3(480, 520, 0))
+			gui.set_scale(panel, vmath.vector3(0.85, 0.85, 1.0))
+
+			gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, 460, 0), gui.EASING_OUTBACK, 0.35)
+			gui.animate(panel, gui.PROP_SCALE, vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBACK, 0.35, 0, function()
+				gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, 530, 0), gui.EASING_INQUAD, 0.35, 1.8, function()
+					gui.set_enabled(panel, false)
+				end)
+			end)
+		end)
 	end
 end

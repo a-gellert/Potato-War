@@ -7,6 +7,7 @@ local physics_sim = require("lua_modules.physics_sim")
 local terrain_grid = require("lua_modules.terrain_grid")
 local camera_controller = require("lua_modules.camera_controller")
 local game_state = require("lua_modules.game_state")
+local achievements = require("lua_modules.achievements")
 
 go.property("vel_x", 0)
 go.property("vel_y", 0)
@@ -23,6 +24,8 @@ function init(self)
 
 	self.weapon = weapons.get(w_id)
 	self.pos = go.get_position()
+	self.origin_x = self.pos.x
+	self.origin_y = self.pos.y
 	self.vel = vmath.vector3(self.vel_x, self.vel_y, 0)
 	self.fuse_timer = self.weapon.fuse_time
 	self.bounces = 0
@@ -39,6 +42,30 @@ function init(self)
 	local t = self.weapon.projectile_tint
 	if t then
 		go.set("#sprite", "tint", vmath.vector4(t[1], t[2], t[3], t[4]))
+	end
+end
+
+local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
+	if dmg > 0 and p.url then
+		local was_full_hp = (p.hp >= (p.max_hp or 100))
+		local is_kill = (p.hp <= dmg)
+		local dist = math.abs(p.pos.x - self.origin_x)
+
+		msg.post(p.url, "apply_damage", { damage = dmg })
+		msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
+
+		if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
+			local triggered = achievements.on_player_hit_enemy(dist, was_full_hp, dmg, is_kill)
+			for _, ach in ipairs(triggered) do
+				msg.post("/gui_hud#gui", "show_achievement_toast", {
+					icon = ach.icon,
+					title = ach.title,
+					points = ach.points
+				})
+			end
+		elseif p.team == constants.TEAM_BLUE then
+			achievements.on_player_damaged(dmg)
+		end
 	end
 end
 
@@ -65,10 +92,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				else
 					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
 				end
-				if dmg > 0 and p.url then
-					msg.post(p.url, "apply_damage", { damage = dmg })
-					msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
-				end
+				apply_potato_damage(self, p, dmg, hit_x, hit_y)
 			end
 		end
 		
@@ -116,10 +140,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				else
 					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
 				end
-				if dmg > 0 and p.url then
-					msg.post(p.url, "apply_damage", { damage = dmg })
-					msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
-				end
+				apply_potato_damage(self, p, dmg, hit_x, hit_y)
 			end
 		end
 

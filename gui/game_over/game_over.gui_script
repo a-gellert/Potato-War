@@ -65,12 +65,35 @@ function on_message(self, message_id, message, sender)
 
 		local is_ru = (i18n.current_lang == "ru")
 
+		local achieve_node = gui.get_node("achieve_text")
+		local ach_list = message.achievements or {}
+		local ach_bonus = message.achieve_bonus or 0
+
 		if winner == constants.TEAM_BLUE then
 			-- VICTORY
 			gui.set_text(title_node, i18n.t("victory"))
 			gui.set_color(title_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
 			gui.set_text(sub_node, is_ru and "Раунд выигран!" or "Round won!")
-			gui.set_text(reward_txt, "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS"))
+
+			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
+			if ach_bonus > 0 then
+				total_str = total_str .. (is_ru and (" (Бонус +" .. tostring(ach_bonus) .. ")") or (" (Bonus +" .. tostring(ach_bonus) .. ")"))
+			end
+			gui.set_text(reward_txt, total_str)
+
+			if #ach_list > 0 then
+				local badges_str = ""
+				for idx, a in ipairs(ach_list) do
+					local separator = (idx > 1) and " • " or ""
+					badges_str = badges_str .. separator .. (a.icon or "🏆") .. " " .. (a.title or "") .. " (+" .. tostring(a.points) .. ")"
+				end
+				gui.set_text(achieve_node, badges_str)
+				gui.set_enabled(achieve_node, true)
+			else
+				gui.set_text(achieve_node, is_ru and "Совет: Уничтожьте врага без урона или за 1 выстрел для бонуса!" or "Tip: Win with 0 damage or in 1 shot for bonus!")
+				gui.set_enabled(achieve_node, true)
+			end
+
 			gui.set_text(next_txt, is_ru and "ДАЛЕЕ" or "NEXT")
 
 			gui.set_enabled(reward_bg, true)
@@ -93,6 +116,7 @@ function on_message(self, message_id, message, sender)
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)
+			gui.set_enabled(achieve_node, false)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
 
@@ -110,6 +134,7 @@ function on_message(self, message_id, message, sender)
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)
+			gui.set_enabled(achieve_node, false)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
 

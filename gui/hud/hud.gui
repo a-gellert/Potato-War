@@ -1698,4 +1698,59 @@ nodes {
   alpha: 0.75
   enabled: false
 }
+nodes {
+  position {
+    x: 480.0
+    y: 460.0
+  }
+  size {
+    x: 320.0
+    y: 38.0
+  }
+  color {
+    x: 0.08
+    y: 0.12
+    z: 0.18
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "toast_panel"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+  enabled: false
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
+  scale {
+    x: 0.55
+    y: 0.55
+  }
+  size {
+    x: 520.0
+    y: 30.0
+  }
+  color {
+    x: 0.98
+    y: 0.82
+    z: 0.15
+  }
+  type: TYPE_TEXT
+  text: "\360\239\216\257 ONE SHOT! +50 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "toast_text"
+  parent: "toast_panel"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
 material: "/builtins/materials/gui.material"

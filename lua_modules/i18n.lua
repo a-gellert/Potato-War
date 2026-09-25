@@ -54,6 +54,8 @@ local dictionary = {
 		btn_rematch = "ПОВТОРИТЬ АРЕНУ",
 		btn_next_level = "СЛЕДУЮЩАЯ АРЕНА",
 		btn_menu = "ГЛАВНОЕ МЕНЮ",
+		achieve_bonus = "БОНУСЫ ЗА МАСТЕРСТВО:",
+		achieve_total = "ИТОГО:",
 	},
 	en = {
 		-- Main Menu
@@ -99,6 +101,8 @@ local dictionary = {
 		btn_rematch = "RETRY ARENA",
 		btn_next_level = "NEXT ARENA",
 		btn_menu = "MAIN MENU",
+		achieve_bonus = "SKILL BONUSES:",
+		achieve_total = "TOTAL:",
 	}
 }
 
