@@ -20,14 +20,13 @@ local function update_localized_menu(self)
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		gui.set_text(gui.get_node("txt_campaign"), i18n.t("btn_campaign"))
-		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_quick_bot"))
-		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_quick_pvp"))
+		local camp_lbl = (i18n.current_lang == "ru") and "В БОЙ! (КАМПАНИЯ)" or "TO BATTLE! (CAMPAIGN)"
+		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
 		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
 
 		local shop_title = (i18n.current_lang == "ru") and "МАГАЗИН СКИНОВ" or "SKIN SHOP"
-		local txt_shop_btn = (i18n.current_lang == "ru") and "4. МАГАЗИН СКИНОВ" or "4. SKIN SHOP"
+		local txt_shop_btn = (i18n.current_lang == "ru") and "МАГАЗИН СКИНОВ" or "SKIN SHOP"
 		gui.set_text(gui.get_node("shop_title"), shop_title)
 		gui.set_text(gui.get_node("txt_shop"), txt_shop_btn)
 	end)
@@ -77,20 +76,31 @@ function init(self)
 	gui.set_render_order(5)
 	self.ui = ui_manager.create(self)
 
-	-- Mode selection buttons
+	-- Hide all modes except Campaign
+	pcall(function()
+		gui.set_enabled(gui.get_node("btn_quick_bot"), false)
+		gui.set_enabled(gui.get_node("btn_quick_pvp"), false)
+
+		-- Central large Campaign button
+		local camp_btn = gui.get_node("btn_campaign")
+		gui.set_position(camp_btn, vmath.vector3(480, 290, 0))
+		gui.set_size(camp_btn, vmath.vector3(360, 56, 0))
+		gui.set_color(camp_btn, vmath.vector4(0.18, 0.72, 0.38, 1.0)) -- Vibrant Hero Green!
+
+		-- Centered Shop button below
+		local shop_btn = gui.get_node("btn_shop")
+		gui.set_position(shop_btn, vmath.vector3(480, 215, 0))
+		gui.set_size(shop_btn, vmath.vector3(360, 48, 0))
+
+		-- Controls hint below shop
+		local hint = gui.get_node("hint_text")
+		gui.set_position(hint, vmath.vector3(480, 135, 0))
+	end)
+
+	-- Mode selection button (Campaign)
 	self.ui:button("btn_campaign", function()
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", { mode = constants.MODE_CAMPAIGN, level = 1 })
-	end)
-
-	self.ui:button("btn_quick_bot", function()
-		msg.post(".", "disable")
-		msg.post("/main#main", "start_match", { mode = constants.MODE_QUICK_BOT })
-	end)
-
-	self.ui:button("btn_quick_pvp", function()
-		msg.post(".", "disable")
-		msg.post("/main#main", "start_match", { mode = constants.MODE_QUICK_PVP })
 	end)
 
 	-- Language toggle button

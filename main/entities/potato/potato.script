@@ -33,13 +33,13 @@ end
 
 local WEAPON_SPRITE_MAP = {
 	grenade = "grenade",
-	rifle = "rifle",
-	knife = "knife",
-	molotov = "grenade",
+	rifle = "skewer_rifle",
+	knife = "peeler",
+	molotov = "oil_bottle",
 	burst = "rifle",
-	bazooka = "grenade",
-	shotgun = "rifle",
-	holy_grenade = "grenade",
+	bazooka = "masher_bazooka",
+	shotgun = "grater",
+	holy_grenade = "holy_spud",
 }
 
 function init(self)
@@ -147,6 +147,25 @@ function on_message(self, message_id, message, sender)
 		go.set("#sprite", "tint", vmath.vector4(0.3, 2.0, 0.5, 1.0))
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_FORWARD, self.skin_tint, go.EASING_OUTQUAD, 0.4)
 
+	elseif message_id == hash("on_jump") then
+		if self.is_alive then
+			-- Vertical stretch on jump
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.8, 1.28, 1.0), go.EASING_OUTQUAD, 0.22)
+		end
+
+	elseif message_id == hash("on_land") then
+		if self.is_alive then
+			-- Juicy bounce squash on landing
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.28, 0.72, 1.0), go.EASING_OUTBOUNCE, 0.25)
+		end
+
+	elseif message_id == hash("on_recoil") then
+		if self.is_alive then
+			-- Weapon kick recoil
+			go.animate("#weapon_sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.55, 0.55, 1.0), go.EASING_OUTQUAD, 0.12)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.15, 0.9, 1.0), go.EASING_OUTQUAD, 0.14)
+		end
+
 	elseif message_id == hash("apply_damage") then
 		if not self.is_alive then
 			return
@@ -160,8 +179,9 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
 
-		-- Flash white on hit
-		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2, 2, 2, 1), go.EASING_OUTQUAD, 0.15, 0, function()
+		-- Flash white on hit and juicy impact squash
+		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.25, 0.78, 1.0), go.EASING_INOUTSINE, 0.18)
+		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
 			go.set("#sprite", "tint", self.skin_tint)
 		end)
 

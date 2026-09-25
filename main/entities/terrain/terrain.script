@@ -7,28 +7,105 @@ local terrain_grid = require("lua_modules.terrain_grid")
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
 
+local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, preset)
+	local row = gy * w
+	local solid = (grid[row + gx + 1] == 1)
+	if not solid then
+		stream[idx] = 0
+		stream[idx + 1] = 0
+		stream[idx + 2] = 0
+		stream[idx + 3] = 0
+		return
+	end
+
+	-- Depth from surface (check distance to air above)
+	local depth = 4
+	for d = 1, 3 do
+		local above_y = gy + d
+		if above_y >= h or grid[above_y * w + gx + 1] == 0 then
+			depth = d - 1
+			break
+		end
+	end
+
+	if depth == 0 then
+		-- Top lush grass blade with natural variation
+		local v = ((gx * 37) % 7) * 4 - 12
+		stream[idx] = math.max(50, math.min(110, 76 + v))
+		stream[idx + 1] = math.max(160, math.min(235, 196 + v * 2))
+		stream[idx + 2] = math.max(30, math.min(75, 48 + v))
+		stream[idx + 3] = 255
+	elseif depth == 1 then
+		-- Mid grass layer
+		stream[idx] = 64
+		stream[idx + 1] = 172
+		stream[idx + 2] = 38
+		stream[idx + 3] = 255
+	elseif depth == 2 then
+		-- Sub-turf root zone
+		stream[idx] = 96
+		stream[idx + 1] = 138
+		stream[idx + 2] = 36
+		stream[idx + 3] = 255
+	elseif depth == 3 then
+		-- Upper soil transition
+		stream[idx] = 122
+		stream[idx + 1] = 98
+		stream[idx + 2] = 48
+		stream[idx + 3] = 255
+	else
+		-- Geological sedimentary strata & rich earth
+		local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.15) * 16
+		local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+
+		local r = math.max(40, math.min(220, 138 + strata + grain))
+		local g = math.max(30, math.min(180, 88 + strata * 0.7 + grain))
+		local b = math.max(20, math.min(140, 52 + strata * 0.4 + grain * 0.5))
+
+		-- Deep bedrock transition near water
+		if gy < 36 then
+			local factor = math.min(1.0, math.max(0.0, (36 - gy) / 25.0))
+			r = r * (1.0 - factor) + 78 * factor
+			g = g * (1.0 - factor) + 74 * factor
+			b = b * (1.0 - factor) + 72 * factor
+		end
+
+		-- Occasional pebbles / stone specks
+		local pebble = (gx * 47 + gy * 83) % 97
+		if pebble <= 1 then
+			r = 175
+			g = 170
+			b = 165
+		end
+
+		-- Edge darkening around crater cuts
+		local is_exposed = (gx > 0 and grid[row + gx] == 0)
+			or (gx < w - 1 and grid[row + gx + 2] == 0)
+			or (gy > 0 and grid[(gy - 1) * w + gx + 1] == 0)
+		if is_exposed then
+			r = r * 0.75
+			g = g * 0.75
+			b = b * 0.75
+		end
+
+		stream[idx] = math.floor(r)
+		stream[idx + 1] = math.floor(g)
+		stream[idx + 2] = math.floor(b)
+		stream[idx + 3] = 255
+	end
+end
+
 local function fill_full_stream(self)
 	local w = self.w
 	local h = self.h
 	local stream = self.stream
+	local grid = terrain_grid.grid
+	local preset = self.current_preset or "hills"
 
 	local idx = 1
 	for gy = 0, h - 1 do
-		local row = gy * w
 		for gx = 0, w - 1 do
-			local solid = (terrain_grid.grid[row + gx + 1] == 1)
-			if solid then
-				-- Schematic white terrain texture
-				stream[idx] = 255     -- R
-				stream[idx + 1] = 255 -- G
-				stream[idx + 2] = 255 -- B
-				stream[idx + 3] = 255 -- A
-			else
-				stream[idx] = 0
-				stream[idx + 1] = 0
-				stream[idx + 2] = 0
-				stream[idx + 3] = 0
-			end
+			write_terrain_pixel(stream, idx, gx, gy, w, h, grid, preset)
 			idx = idx + 4
 		end
 	end
@@ -123,6 +200,7 @@ end
 function on_message(self, message_id, message, sender)
 	if message_id == hash("generate_terrain") then
 		local preset = message.preset or "hills"
+		self.current_preset = preset
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset)
 		terrain_grid.generate(preset)
 		update_full_texture(self)
@@ -144,21 +222,11 @@ function on_message(self, message_id, message, sender)
 			local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
 
 			local s_idx = 1
+			local grid = terrain_grid.grid
+			local preset = self.current_preset or "hills"
 			for gy = min_gy, max_gy do
-				local row = gy * self.w
 				for gx = min_gx, max_gx do
-					local solid = (terrain_grid.grid[row + gx + 1] == 1)
-					if solid then
-						sub_stream[s_idx] = 255
-						sub_stream[s_idx + 1] = 255
-						sub_stream[s_idx + 2] = 255
-						sub_stream[s_idx + 3] = 255
-					else
-						sub_stream[s_idx] = 0
-						sub_stream[s_idx + 1] = 0
-						sub_stream[s_idx + 2] = 0
-						sub_stream[s_idx + 3] = 0
-					end
+					write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, preset)
 					s_idx = s_idx + 4
 				end
 			end

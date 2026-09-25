@@ -8,44 +8,44 @@ local M = {}
 
 local LOCALIZED_CARD_DATA = {
 	grenade = {
-		ru = { title = "ГРАНАТА", badge = "Оружие", desc = "+1 Граната в арсенал\nОтскоки и взрыв", btn_label = "ВЗЯТЬ" },
-		en = { title = "GRENADE", badge = "Weapon", desc = "+1 Grenade to arsenal\nBouncing blast", btn_label = "TAKE" },
+		ru = { title = "ГОРЯЧАЯ КАРТОШКА", badge = "Клубень", desc = "Прыгучий горячий клубень!\nУрон: 50 | Радиус: 36", btn_label = "ВЗЯТЬ" },
+		en = { title = "HOT POTATO", badge = "Tuber", desc = "Bouncing hot spud bomb!\nDamage: 50 | Radius: 36", btn_label = "TAKE" },
 	},
 	rifle = {
-		ru = { title = "ВИНТОВКА", badge = "Точность", desc = "+1 Снайперка в арсенал\nМгновенный выстрел", btn_label = "ВЗЯТЬ" },
-		en = { title = "SNIPER RIFLE", badge = "Precision", desc = "+1 Sniper in arsenal\nInstant hit", btn_label = "TAKE" },
+		ru = { title = "ШАМПУР-СНАЙПЕР", badge = "Точность", desc = "Заостренная шпажка для канапе\nУрон: 45 | Дальний бой", btn_label = "ВЗЯТЬ" },
+		en = { title = "SKEWER SNIPER", badge = "Precision", desc = "Sharp bamboo skewer\nDamage: 45 | Long range", btn_label = "TAKE" },
 	},
 	knife = {
-		ru = { title = "БОЕВОЙ НОЖ", badge = "Ближний бой", desc = "+1 Нож в арсенал\nУдар в упор + отброс", btn_label = "ВЗЯТЬ" },
-		en = { title = "COMBAT KNIFE", badge = "Melee", desc = "+1 Knife in arsenal\nClose strike + knockback", btn_label = "TAKE" },
+		ru = { title = "КАРТОФЕЛЕЧИСТКА", badge = "Ближний бой", desc = "Срезает кожуру в упор!\nУрон: 60 + Отталкивание", btn_label = "ВЗЯТЬ" },
+		en = { title = "POTATO PEELER", badge = "Melee", desc = "Peels enemy in melee range!\nDamage: 60 + Knockback", btn_label = "TAKE" },
 	},
 	molotov = {
-		ru = { title = "МОЛОТОВ", badge = "Огонь", desc = "+1 Молотов в арсенал\nПоджигает область", btn_label = "ВЗЯТЬ" },
-		en = { title = "MOLOTOV", badge = "Fire", desc = "+1 Molotov in arsenal\nBurns target area", btn_label = "TAKE" },
+		ru = { title = "ФРИТЮРНОЕ МАСЛО", badge = "Фритюр", desc = "Бутылка с кипящим маслом\nУрон: 20 + Пепелище", btn_label = "ВЗЯТЬ" },
+		en = { title = "FRYING OIL", badge = "Deep Fry", desc = "Boiling oil bottle + fry pool\nDamage: 20 + Burn area", btn_label = "TAKE" },
 	},
 	burst = {
-		ru = { title = "АВТОМАТ", badge = "Очередь", desc = "+1 Автомат в арсенал\n3 выстрела подряд", btn_label = "ВЗЯТЬ" },
-		en = { title = "ASSAULT RIFLE", badge = "Burst", desc = "+1 Rifle in arsenal\n3 burst shots", btn_label = "TAKE" },
+		ru = { title = "ФРИ-АВТОМАТ", badge = "Очередь", desc = "3 быстрых выстрела фри подряд\nУрон: 3x30 = 90 суммарно", btn_label = "ВЗЯТЬ" },
+		en = { title = "FRY-O-MATIC", badge = "Burst", desc = "3 crispy french fry shots\nDamage: 3x30 = 90 total", btn_label = "TAKE" },
 	},
 	bazooka = {
-		ru = { title = "БАЗУКА", badge = "Тяжелое", desc = "+1 Базука в арсенал\nОгромный взрыв!", btn_label = "ВЗЯТЬ" },
-		en = { title = "BAZOOKA", badge = "Heavy", desc = "+1 Bazooka in arsenal\nHuge explosive crater!", btn_label = "TAKE" },
+		ru = { title = "ПЮРЕ-БАЗУКА", badge = "Толкушка", desc = "Мортира-толкушка: всё в пюре!\nУрон: 65 | Взрыв: 48", btn_label = "ВЗЯТЬ" },
+		en = { title = "MASH-ZOOKA", badge = "Heavy Masher", desc = "Heavy masher rocket: mashes all!\nDamage: 65 | Blast: 48", btn_label = "TAKE" },
 	},
 	shotgun = {
-		ru = { title = "ДРОБОВИК", badge = "Веер", desc = "+1 Дробовик в арсенал\n5 дробинок веером", btn_label = "ВЗЯТЬ" },
-		en = { title = "SHOTGUN", badge = "Spread", desc = "+1 Shotgun in arsenal\n5 pellets spread", btn_label = "TAKE" },
+		ru = { title = "КУХОННАЯ ТЁРКА", badge = "Чипсы", desc = "Веер острых картофельных чипсов!\nУрон: 5x22 = 110 макс.", btn_label = "ВЗЯТЬ" },
+		en = { title = "KITCHEN GRATER", badge = "Chips", desc = "5 sharp potato chip shards\nDamage: 5x22 = 110 max", btn_label = "TAKE" },
 	},
 	holy_grenade = {
-		ru = { title = "СВ. ГРАНАТА", badge = "Легендарное", desc = "+1 Св. Граната\nМаксимальный урон!", btn_label = "ВЗЯТЬ" },
-		en = { title = "HOLY GRENADE", badge = "Legendary", desc = "+1 Holy Grenade\nMax damage explosion!", btn_label = "TAKE" },
+		ru = { title = "ЗОЛОТОЙ КЛУБЕНЬ", badge = "Легендарное", desc = "Священная золотая картофелина!\nУрон: 80 | Радиус: 55", btn_label = "ВЗЯТЬ" },
+		en = { title = "HOLY SPUD", badge = "Legendary", desc = "Divine golden spud blast!\nDamage: 80 | Radius: 55", btn_label = "TAKE" },
 	},
 	heal_small = {
-		ru = { title = "АПТЕЧКА", badge = "Здоровье", desc = "+25 Здоровья картошке\nМгновенно!", btn_label = "ЛЕЧИТЬ" },
-		en = { title = "FIRST AID", badge = "Health", desc = "+25 HP to your potato\nInstantly!", btn_label = "HEAL" },
+		ru = { title = "СМЕТАНКА", badge = "Закуска", desc = "Ложка вкусной сметанки (+25 HP)\nи дает сделать выстрел!", btn_label = "ВЗЯТЬ" },
+		en = { title = "SOUR CREAM", badge = "Snack", desc = "A dollop of sour cream (+25 HP)\nand grants a shot!", btn_label = "TAKE" },
 	},
 	heal_large = {
-		ru = { title = "МЕДПАКЕТ+", badge = "Супер Здоровье", desc = "+40 Здоровья картошке\nМаксимальная помощь!", btn_label = "ЛЕЧИТЬ" },
-		en = { title = "MEDKIT+", badge = "Super Health", desc = "+40 HP to your potato\nMax healing boost!", btn_label = "HEAL" },
+		ru = { title = "ПАЧКА МАСЛА+", badge = "Деликатес", desc = "Кусок сливочного масла (+40 HP)\nи дает сделать выстрел!", btn_label = "ВЗЯТЬ" },
+		en = { title = "BUTTER BLOCK+", badge = "Delicacy", desc = "Creamy block of butter (+40 HP)\nand grants a shot!", btn_label = "TAKE" },
 	},
 }
 

@@ -67,6 +67,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				end
 				if dmg > 0 and p.url then
 					msg.post(p.url, "apply_damage", { damage = dmg })
+					msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
 				end
 			end
 		end
@@ -117,6 +118,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				end
 				if dmg > 0 and p.url then
 					msg.post(p.url, "apply_damage", { damage = dmg })
+					msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
 				end
 			end
 		end

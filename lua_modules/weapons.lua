@@ -19,12 +19,12 @@ M.TYPES = {
 }
 
 M.LIST = {
-	-- 1. Граната
+	-- 1. Горячая Картошка (Граната)
 	{
 		id            = "grenade",
-		name          = "Граната",
+		name          = "Горячая Картошка",
 		key_label     = "1",
-		desc          = "Баллистическая граната с отскоками и мощным кратером",
+		desc          = "Прыгучий горячий клубень с тикающим фитилем и мощным кратером",
 		fire_mode     = "single",
 		on_hit        = "explode",
 		-- projectile physics
@@ -45,12 +45,12 @@ M.LIST = {
 		projectile_tint   = {1, 1, 1, 1},
 	},
 
-	-- 2. Винтовка
+	-- 2. Шампур-Снайпер (Винтовка)
 	{
 		id            = "rifle",
-		name          = "Винтовка",
+		name          = "Шампур-Снайпер",
 		key_label     = "2",
-		desc          = "Высокоскоростная пуля для точечного урона",
+		desc          = "Заостренная бамбуковая шпажка — точечное пробитие насквозь",
 		fire_mode     = "single",
 		on_hit        = "explode",
 		gravity_mult  = 0.12,
@@ -63,22 +63,22 @@ M.LIST = {
 		blast_force   = 220,
 		max_power     = 950,
 		power_scale   = 4.8,
-		projectile_sprite = "circle",
-		projectile_scale  = 0.3,
-		projectile_tint   = {1, 1, 0.6, 1},
+		projectile_sprite = "skewer_rifle",
+		projectile_scale  = 0.85,
+		projectile_tint   = {1, 1, 1, 1},
 	},
 
-	-- 3. Нож (melee — мгновенный удар, без снаряда)
+	-- 3. Картофелечистка (Нож)
 	{
 		id            = "knife",
-		name          = "Нож",
+		name          = "Картофелечистка",
 		key_label     = "3",
-		desc          = "Мгновенный удар ближнего боя с мощным отталкиванием",
+		desc          = "Срезает кожуру в упор с диким кулинарным отталкиванием!",
 		fire_mode     = "melee",
 		on_hit        = "explode",
 		melee_range   = 42,
 		blast_radius  = 30,
-		max_damage    = 20,
+		max_damage    = 60,
 		blast_force   = 450,
 		-- not used for projectile, but needed by bot_ai / physics_sim compatibility
 		gravity_mult  = 0.0,
@@ -87,17 +87,17 @@ M.LIST = {
 		fuse_time     = 0.0,
 		max_power     = 1,
 		power_scale   = 1.0,
-		projectile_sprite = "knife",
+		projectile_sprite = "peeler",
 		projectile_scale  = 1.0,
 		projectile_tint   = {1, 1, 1, 1},
 	},
 
-	-- 4. Коктейль Молотова (наносит урон + разбрасывает напалм)
+	-- 4. Фритюрное масло (Молотов)
 	{
 		id            = "molotov",
-		name          = "Молотов",
+		name          = "Фритюрное масло",
 		key_label     = "4",
-		desc          = "Коктейль Молотова — поджигает территорию напалмом",
+		desc          = "Бутылка с кипящим маслом — заливает все шипящим фритюром",
 		fire_mode     = "single",
 		on_hit        = "napalm",
 		gravity_mult  = 1.0,
@@ -115,17 +115,17 @@ M.LIST = {
 		napalm_burn_time = 2.5,
 		napalm_radius    = 10,
 		napalm_dps       = 10,
-		projectile_sprite = "grenade",
-		projectile_scale  = 0.8,
-		projectile_tint   = {1.0, 0.5, 0.1, 1},
+		projectile_sprite = "oil_bottle",
+		projectile_scale  = 1.0,
+		projectile_tint   = {1, 1, 1, 1},
 	},
 
-	-- 5. Автомат (3 быстрых выстрела)
+	-- 5. Фри-автомат (Автомат)
 	{
 		id            = "burst",
-		name          = "Автомат",
+		name          = "Фри-автомат",
 		key_label     = "5",
-		desc          = "Три быстрых выстрела подряд",
+		desc          = "Три быстрых выстрела хрустящей картошкой фри подряд",
 		fire_mode     = "multi_shot",
 		on_hit        = "explode",
 		shot_count    = 3,
@@ -142,16 +142,16 @@ M.LIST = {
 		max_power     = 900,
 		power_scale   = 4.5,
 		projectile_sprite = "circle",
-		projectile_scale  = 0.25,
-		projectile_tint   = {1, 0.8, 0.3, 1},
+		projectile_scale  = 0.28,
+		projectile_tint   = {1, 0.85, 0.2, 1},
 	},
 
-	-- 6. Базука (тяжёлая ракета, огромный взрыв)
+	-- 6. Пюре-Базука (Базука)
 	{
 		id            = "bazooka",
-		name          = "Базука",
+		name          = "Пюре-Базука",
 		key_label     = "6",
-		desc          = "Тяжёлая ракета с огромным взрывом и кратером",
+		desc          = "Ракетница-толкушка: превращает зону удара и врагов в пюре!",
 		fire_mode     = "single",
 		on_hit        = "explode",
 		gravity_mult  = 0.4,
@@ -163,17 +163,17 @@ M.LIST = {
 		blast_force   = 400,
 		max_power     = 700,
 		power_scale   = 3.5,
-		projectile_sprite = "grenade",
-		projectile_scale  = 1.3,
-		projectile_tint   = {0.5, 0.5, 0.55, 1},
+		projectile_sprite = "masher_bazooka",
+		projectile_scale  = 1.1,
+		projectile_tint   = {1, 1, 1, 1},
 	},
 
-	-- 7. Дробовик (5 дробинок веером)
+	-- 7. Кухонная Тёрка (Дробовик)
 	{
 		id            = "shotgun",
-		name          = "Дробовик",
+		name          = "Кухонная Тёрка",
 		key_label     = "7",
-		desc          = "5 дробинок веером — смертельно вблизи",
+		desc          = "Веер острых картофельных чипсов — смертельно вблизи!",
 		fire_mode     = "spread",
 		on_hit        = "explode",
 		shot_count    = 5,
@@ -190,15 +190,15 @@ M.LIST = {
 		power_scale   = 4.0,
 		projectile_sprite = "circle",
 		projectile_scale  = 0.2,
-		projectile_tint   = {0.9, 0.9, 0.9, 1},
+		projectile_tint   = {0.95, 0.9, 0.7, 1},
 	},
 
-	-- 8. Святая граната (чудовищный взрыв)
+	-- 8. Золотой Клубень (Святая граната)
 	{
 		id            = "holy_grenade",
-		name          = "Св.Граната",
+		name          = "Золотой Клубень",
 		key_label     = "8",
-		desc          = "Святая граната — чудовищной мощности взрыв!",
+		desc          = "Священная золотая картофелина — божественный бабах!",
 		fire_mode     = "single",
 		on_hit        = "explode",
 		gravity_mult  = 1.0,
@@ -210,9 +210,9 @@ M.LIST = {
 		blast_force   = 500,
 		max_power     = 580,
 		power_scale   = 3.0,
-		projectile_sprite = "grenade",
-		projectile_scale  = 1.1,
-		projectile_tint   = {1.0, 0.85, 0.2, 1},
+		projectile_sprite = "holy_spud",
+		projectile_scale  = 1.0,
+		projectile_tint   = {1, 1, 1, 1},
 	},
 }
 

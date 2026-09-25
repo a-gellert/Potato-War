@@ -104,7 +104,7 @@ function M.poki_rewarded_break(callback)
 end
 
 -- Runtime state
-M.mode = constants.MODE_QUICK_BOT
+M.mode = constants.MODE_CAMPAIGN
 M.state = constants.STATE_MENU
 M.campaign_level = 1
 
@@ -171,7 +171,7 @@ end
 
 -- Start a new match
 function M.start_match(mode, campaign_lvl)
-	M.mode = mode or constants.MODE_QUICK_BOT
+	M.mode = mode or constants.MODE_CAMPAIGN
 	M.campaign_level = campaign_lvl or 1
 	M.potatoes = {}
 	M.active_team = constants.TEAM_BLUE
