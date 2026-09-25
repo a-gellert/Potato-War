@@ -134,8 +134,13 @@ function M.walk_potato(p, dir, dt, terrain)
 end
 
 -- Jump potato
-function M.jump_potato(p)
-	if p.is_alive and p.is_grounded then
+function M.jump_potato(p, allow_midair_count)
+	allow_midair_count = allow_midair_count or 1
+	if p.is_grounded then
+		p.air_jumps = 0
+	end
+	if p.is_alive and (p.is_grounded or (p.air_jumps or 0) < allow_midair_count) then
+		p.air_jumps = (p.air_jumps or 0) + 1
 		p.vel.y = constants.POTATO_JUMP_IMPULSE
 		p.vel.x = p.facing * 40.0
 		p.is_grounded = false

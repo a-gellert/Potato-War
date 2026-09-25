@@ -1,5 +1,5 @@
 -- gui/hud/hud.gui_script
--- Controls HUD turn banner, 15-second countdown timer, card selection popup, weapon buttons, and movement
+-- Controls HUD turn banner, 15-second countdown timer, start-of-level card drafting, weapon icons (1-8), and animated tutorial hint
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
@@ -7,38 +7,42 @@ local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
 local player_profile = require("lua_modules.player_profile")
 local i18n = require("lua_modules.i18n")
+local camera_controller = require("lua_modules.camera_controller")
 
 local WEAPON_BUTTON_IDS = {}
-local WEAPON_TEXT_IDS = {}
 for i = 1, weapons.count() do
 	WEAPON_BUTTON_IDS[i] = "btn_wpn_" .. i
-	WEAPON_TEXT_IDS[i] = "txt_wpn_" .. i
 end
 
 local function update_weapon_selection(self, weapon_id)
 	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold
-	local def_color = vmath.vector4(0.22, 0.28, 0.35, 1.0) -- Normal
-	local lock_color = vmath.vector4(0.12, 0.14, 0.18, 0.45) -- Locked
+	local def_color = vmath.vector4(0.20, 0.26, 0.34, 1.0) -- Normal available
+	local lock_color = vmath.vector4(0.10, 0.12, 0.15, 0.45) -- Empty / locked
 
 	for i, w in ipairs(weapons.LIST) do
 		pcall(function()
-			local node = gui.get_node(WEAPON_BUTTON_IDS[i])
+			local btn_node = gui.get_node(WEAPON_BUTTON_IDS[i])
+			local ammo_node = gui.get_node("ammo_wpn_" .. i)
+			local icon_node = gui.get_node("icon_wpn_" .. i)
+
+			local ammo = game_state.get_ammo(w.id)
 			local is_unlocked = game_state.is_weapon_unlocked(w.id)
-			gui.set_enabled(node, is_unlocked)
-			if is_unlocked then
-				gui.set_color(node, w.id == weapon_id and sel_color or def_color)
-			else
-				gui.set_color(node, lock_color)
-			end
-		end)
-	end
-end
 
-local function update_weapon_labels(self)
-	for i, w in ipairs(weapons.LIST) do
-		pcall(function()
-			local key = "weapon_" .. w.id
-			gui.set_text(gui.get_node(WEAPON_TEXT_IDS[i]), i18n.t(key))
+			if w.id == "grenade" then
+				gui.set_text(ammo_node, "INF")
+				gui.set_color(ammo_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+			else
+				gui.set_text(ammo_node, (ammo > 0) and ("x" .. ammo) or "0")
+				gui.set_color(ammo_node, (ammo > 0) and vmath.vector4(1, 1, 1, 1) or vmath.vector4(0.5, 0.5, 0.5, 0.5))
+			end
+
+			if is_unlocked then
+				gui.set_color(btn_node, w.id == weapon_id and sel_color or def_color)
+				gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
+			else
+				gui.set_color(btn_node, lock_color)
+				gui.set_color(icon_node, vmath.vector4(0.4, 0.4, 0.4, 0.35))
+			end
 		end)
 	end
 end
@@ -71,6 +75,18 @@ local function apply_card_ui(card_idx, card)
 	end)
 end
 
+local function hide_tutorial_hint(self)
+	self.tutorial_hand_done = true
+	pcall(function()
+		local h_node = gui.get_node("tutorial_hand")
+		if h_node then gui.set_enabled(h_node, false) end
+		local r_node = gui.get_node("tutorial_ripple")
+		if r_node then gui.set_enabled(r_node, false) end
+		local hint_node = gui.get_node("tutorial_hint")
+		if hint_node then gui.set_enabled(hint_node, false) end
+	end)
+end
+
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(2)
@@ -81,15 +97,25 @@ function init(self)
 	self.last_team = nil
 	self.last_weapon = nil
 	self.last_points = -1
+	self.tutorial_hand_done = false
+	self.tutorial_hand_timer = 0
+
+	-- Hide tutorial elements initially
+	pcall(function()
+		gui.set_enabled(gui.get_node("tutorial_hint"), false)
+		gui.set_enabled(gui.get_node("tutorial_hand"), false)
+		gui.set_enabled(gui.get_node("tutorial_ripple"), false)
+	end)
 
 	-- Register weapon buttons dynamically
 	for i, w in ipairs(weapons.LIST) do
 		local weapon_id = w.id
 		self.ui:button(WEAPON_BUTTON_IDS[i], function()
-			game_state.select_weapon(weapon_id)
+			if game_state.is_weapon_unlocked(weapon_id) then
+				game_state.select_weapon(weapon_id)
+			end
 		end)
 	end
-	update_weapon_labels(self)
 
 	-- Register card selection buttons
 	self.ui:button("btn_card_1", function()
@@ -131,6 +157,11 @@ function init(self)
 		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
 	end)
 
+	-- Hook ammo changes from game state
+	game_state.on_ammo_changed = function()
+		update_weapon_selection(self, game_state.selected_weapon_id)
+	end
+
 	-- Cards overlay disabled by default
 	pcall(function()
 		gui.set_enabled(gui.get_node("cards_overlay"), false)
@@ -147,8 +178,6 @@ function update(self, dt)
 	self.ui:update(dt)
 
 	if game_state.state ~= constants.STATE_MENU and game_state.state ~= constants.STATE_GAME_OVER then
-		-- Update weapon labels in case language changed
-		update_weapon_labels(self)
 		pcall(function()
 			gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
 		end)
@@ -179,7 +208,7 @@ function update(self, dt)
 			end)
 		end
 
-		-- 2. Update Turn Banner
+		-- 2. Update Turn Banner & check Turn 1 Tutorial Trigger
 		if game_state.active_team ~= self.last_team then
 			self.last_team = game_state.active_team
 
@@ -197,7 +226,94 @@ function update(self, dt)
 						gui.set_text(banner, i18n.t("turn_red_bot"))
 					end
 					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
+					hide_tutorial_hint(self)
 				end
+			end)
+		end
+
+		-- Animated tutorial hand: semi-transparent hand that presses and moves to the left over the active potato
+		local should_show_hand = not self.tutorial_hand_done
+			and game_state.state == constants.STATE_TURN_ACTIVE
+			and game_state.active_team == constants.TEAM_BLUE
+			and not game_state.is_aiming
+
+		if should_show_hand then
+			local p = game_state.active_potato
+			if p and p.is_alive then
+				self.tutorial_hand_timer = (self.tutorial_hand_timer or 0) + dt
+				local cycle = self.tutorial_hand_timer % 1.55
+
+				local cx = camera_controller.pos and camera_controller.pos.x or 480
+				local cy = camera_controller.pos and camera_controller.pos.y or 270
+				local sx = p.pos.x - (cx - 480)
+				local sy = p.pos.y - (cy - 270)
+
+				local alpha = 0
+				local scale = 0.62
+				local x_off = 11
+				local y_off = -17
+				local ripple_alpha = 0
+				local ripple_scale = 0.3
+
+				if cycle < 0.25 then
+					-- 1. Fade in & press down on potato
+					local t = cycle / 0.25
+					alpha = 0.75 * t
+					scale = 0.76 - 0.14 * t
+					ripple_alpha = 0.55 * (1.0 - t)
+					ripple_scale = 0.3 + 0.5 * t
+				elseif cycle < 1.00 then
+					-- 2. Drag to the left (slingshot pull-back)
+					local t = (cycle - 0.25) / 0.75
+					local eased = (t < 0.5) and (2 * t * t) or (-1 + (4 - 2 * t) * t)
+					alpha = 0.75
+					scale = 0.62
+					x_off = 11 - 70 * eased
+					y_off = -17 + 8 * math.sin(eased * math.pi)
+				elseif cycle < 1.30 then
+					-- 3. Release & fade out
+					local t = (cycle - 1.00) / 0.30
+					alpha = 0.75 * (1.0 - t)
+					scale = 0.62 + 0.14 * t
+					x_off = 11 - 70
+					y_off = -17
+				else
+					-- 4. Pause before repeating
+					alpha = 0
+				end
+
+				pcall(function()
+					local h_node = gui.get_node("tutorial_hand")
+					local r_node = gui.get_node("tutorial_ripple")
+
+					if alpha > 0.02 then
+						gui.set_enabled(h_node, true)
+						gui.set_position(h_node, vmath.vector3(sx + x_off, sy + y_off, 0))
+						gui.set_scale(h_node, vmath.vector3(scale, scale, 1))
+						gui.set_color(h_node, vmath.vector4(1, 1, 1, alpha))
+					else
+						gui.set_enabled(h_node, false)
+					end
+
+					if ripple_alpha > 0.02 then
+						gui.set_enabled(r_node, true)
+						gui.set_position(r_node, vmath.vector3(sx, sy, 0))
+						gui.set_scale(r_node, vmath.vector3(ripple_scale, ripple_scale, 1))
+						gui.set_color(r_node, vmath.vector4(1, 1, 1, ripple_alpha))
+					else
+						gui.set_enabled(r_node, false)
+					end
+				end)
+			else
+				pcall(function()
+					gui.set_enabled(gui.get_node("tutorial_hand"), false)
+					gui.set_enabled(gui.get_node("tutorial_ripple"), false)
+				end)
+			end
+		else
+			pcall(function()
+				gui.set_enabled(gui.get_node("tutorial_hand"), false)
+				gui.set_enabled(gui.get_node("tutorial_ripple"), false)
 			end)
 		end
 
@@ -240,9 +356,19 @@ function update(self, dt)
 end
 
 function on_message(self, message_id, message, sender)
-	if message_id == hash("show_cards") then
+	if message_id == hash("match_started") then
+		self.tutorial_hand_done = false
+		self.tutorial_hand_timer = 0
+	elseif message_id == hash("show_cards") then
+		self.tutorial_hand_done = false
+		self.tutorial_hand_timer = 0
 		pcall(function()
 			local overlay = gui.get_node("cards_overlay")
+			local title_node = gui.get_node("cards_title")
+			local sub_node = gui.get_node("cards_subtitle")
+
+			gui.set_text(title_node, i18n.t("cards_start_title"))
+			gui.set_text(sub_node, i18n.t("cards_start_subtitle"))
 			gui.set_enabled(overlay, true)
 
 			if message.card1 then
@@ -256,6 +382,8 @@ function on_message(self, message_id, message, sender)
 		pcall(function()
 			gui.set_enabled(gui.get_node("cards_overlay"), false)
 		end)
+	elseif message_id == hash("hide_tutorial") then
+		hide_tutorial_hint(self)
 	elseif message_id == hash("show_damage") then
 		pcall(function()
 			local x = message.x or 480
@@ -281,4 +409,3 @@ function on_message(self, message_id, message, sender)
 		end)
 	end
 end
-

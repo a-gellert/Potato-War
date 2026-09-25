@@ -5,6 +5,7 @@ local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local cards = require("lua_modules.cards")
 local player_profile = require("lua_modules.player_profile")
+local sound_manager = require("lua_modules.sound_manager")
 
 local M = {}
 
@@ -124,27 +125,95 @@ M.settle_timer = 0
 
 M.current_cards = nil -- { card1, card2 } during card select phase
 M.player_weapons = { "grenade" } -- Unlocked weapons inventory
+M.player_ammo = {
+	grenade = -1, -- Unlimited!
+	rifle = 0,
+	knife = 0,
+	molotov = 0,
+	burst = 0,
+	bazooka = 0,
+	shotgun = 0,
+	holy_grenade = 0,
+}
+M.player_perks = {
+	fire_bullets = false,
+	triple_jump = false,
+}
+
+function M.get_ammo(weapon_id)
+	if weapon_id == "grenade" then
+		return -1 -- Unlimited
+	end
+	if M.mode ~= constants.MODE_CAMPAIGN then
+		return weapons.get(weapon_id).default_ammo or 2
+	end
+	if not M.player_ammo then
+		M.player_ammo = { grenade = -1 }
+	end
+	return M.player_ammo[weapon_id] or 0
+end
+
+function M.add_ammo(weapon_id, count)
+	if not M.player_ammo then
+		M.player_ammo = { grenade = -1 }
+	end
+	M.player_ammo[weapon_id] = (M.player_ammo[weapon_id] or 0) + count
+	M.unlock_weapon(weapon_id)
+	if M.on_ammo_changed then
+		M.on_ammo_changed()
+	end
+end
+
+function M.consume_ammo(weapon_id)
+	if weapon_id == "grenade" then
+		return true
+	end
+	if M.mode == constants.MODE_CAMPAIGN then
+		if not M.player_ammo then M.player_ammo = { grenade = -1 } end
+		local cur = M.player_ammo[weapon_id] or 0
+		if cur > 0 then
+			M.player_ammo[weapon_id] = cur - 1
+			if M.player_ammo[weapon_id] <= 0 then
+				M.select_weapon("grenade")
+			end
+			if M.on_ammo_changed then
+				M.on_ammo_changed()
+			end
+			return true
+		else
+			M.select_weapon("grenade")
+			if M.on_ammo_changed then
+				M.on_ammo_changed()
+			end
+			return false
+		end
+	end
+	return true
+end
+
+function M.has_perk(perk_id)
+	if not M.player_perks then return false end
+	return M.player_perks[perk_id] == true
+end
 
 function M.is_weapon_unlocked(weapon_id)
+	if weapon_id == "grenade" then
+		return true
+	end
 	if M.mode ~= constants.MODE_CAMPAIGN then
 		return true
 	end
-	if not M.player_weapons then
-		M.player_weapons = { "grenade" }
-	end
-	for _, w_id in ipairs(M.player_weapons) do
-		if w_id == weapon_id then return true end
-	end
-	return false
+	return M.get_ammo(weapon_id) > 0
 end
 
 function M.unlock_weapon(weapon_id)
 	if not M.player_weapons then
 		M.player_weapons = { "grenade" }
 	end
-	if not M.is_weapon_unlocked(weapon_id) then
-		table.insert(M.player_weapons, weapon_id)
+	for _, w_id in ipairs(M.player_weapons) do
+		if w_id == weapon_id then return end
 	end
+	table.insert(M.player_weapons, weapon_id)
 end
 
 -- Callback hooks for UI / Main
@@ -152,6 +221,7 @@ M.on_state_changed = nil
 M.on_turn_changed = nil
 M.on_timer_updated = nil
 M.on_weapon_changed = nil
+M.on_ammo_changed = nil
 M.on_cards_offered = nil
 M.on_game_over = nil
 
@@ -163,6 +233,9 @@ function M.set_state(new_state)
 end
 
 function M.select_weapon(weapon_id)
+	if weapon_id ~= "grenade" and M.get_ammo(weapon_id) <= 0 then
+		return
+	end
 	M.selected_weapon_id = weapon_id
 	if M.on_weapon_changed then
 		M.on_weapon_changed(weapon_id)
@@ -187,10 +260,36 @@ function M.start_match(mode, campaign_lvl)
 	if M.mode == constants.MODE_CAMPAIGN and M.campaign_level == 1 then
 		player_profile.reset_campaign_hp()
 		M.player_weapons = { "grenade" }
+		M.player_ammo = {
+			grenade = -1,
+			rifle = 0,
+			knife = 0,
+			molotov = 0,
+			burst = 0,
+			bazooka = 0,
+			shotgun = 0,
+			holy_grenade = 0,
+		}
+		M.player_perks = {
+			fire_bullets = false,
+			triple_jump = false,
+		}
 	end
 
-	M.set_state(constants.STATE_INTRO)
 	M.poki_gameplay_start()
+
+	-- Offer bonus card selection at the beginning of each level in campaign mode!
+	if M.mode == constants.MODE_CAMPAIGN then
+		local p_hp = player_profile.get_campaign_hp() or 100
+		local c1, c2 = cards.draw_2_cards(p_hp, 100, M.campaign_level, M.player_perks)
+		M.current_cards = { c1, c2 }
+		M.set_state(constants.STATE_CARD_SELECT)
+		if M.on_cards_offered then
+			M.on_cards_offered(c1, c2)
+		end
+	else
+		M.set_state(constants.STATE_INTRO)
+	end
 end
 
 -- Get current match configuration
@@ -262,7 +361,7 @@ function M.pick_active_potato()
 	return M.active_potato
 end
 
--- Begin turn for current active team (handles card choices for player in campaign)
+-- Begin turn for current active team (no turn interruptions during match!)
 local function begin_current_turn()
 	M.pick_active_potato()
 	M.turn_timer = constants.TURN_DURATION
@@ -271,22 +370,19 @@ local function begin_current_turn()
 		M.on_turn_changed(M.active_team, M.active_potato)
 	end
 
-	-- If it's Player's turn (Blue) in Campaign mode, offer 2 cards!
-	if M.active_team == constants.TEAM_BLUE and M.mode == constants.MODE_CAMPAIGN and M.active_potato and M.active_potato.is_alive then
-		local c1, c2 = cards.draw_2_cards(M.active_potato.hp, M.active_potato.max_hp)
-		M.current_cards = { c1, c2 }
-		M.set_state(constants.STATE_CARD_SELECT)
-		if M.on_cards_offered then
-			M.on_cards_offered(c1, c2)
+	-- Ensure selected weapon is valid and has ammo
+	if M.active_team == constants.TEAM_BLUE then
+		if M.selected_weapon_id ~= weapons.TYPES.GRENADE and M.get_ammo(M.selected_weapon_id) <= 0 then
+			M.select_weapon(weapons.TYPES.GRENADE)
 		end
 	else
-		M.current_cards = nil
 		M.selected_weapon_id = weapons.TYPES.GRENADE
-		M.set_state(constants.STATE_TURN_ACTIVE)
 	end
+
+	M.set_state(constants.STATE_TURN_ACTIVE)
 end
 
--- Called when player selects one of the 2 cards
+-- Called when player selects one of the bonus cards at level start
 function M.select_card(card_index)
 	if M.state ~= constants.STATE_CARD_SELECT or not M.current_cards then
 		return
@@ -297,31 +393,31 @@ function M.select_card(card_index)
 		return
 	end
 
-	local potato = M.active_potato
-	if not potato or not potato.is_alive then
-		return
-	end
-
 	if chosen_card.type == "heal" then
-		-- Apply healing to player's potato
-		local heal_amt = chosen_card.heal_amount or 25
-		local prev_hp = potato.hp
-		potato.hp = math.min(potato.max_hp, potato.hp + heal_amt)
-		local healed = potato.hp - prev_hp
-
-		if potato.url then
-			msg.post(potato.url, "apply_heal", { amount = healed })
+		sound_manager.play_heal()
+		local heal_amt = chosen_card.heal_amount or 30
+		local cur = player_profile.get_campaign_hp() or 100
+		local next_hp = math.min(100, cur + heal_amt)
+		player_profile.set_campaign_hp(next_hp)
+		for _, p in ipairs(M.potatoes) do
+			if p.team == constants.TEAM_BLUE and p.is_alive then
+				p.hp = math.min(p.max_hp, p.hp + heal_amt)
+				if p.url then
+					msg.post(p.url, "apply_heal", { amount = heal_amt })
+				end
+			end
 		end
-
-		-- Set default weapon for the shot
-		M.select_weapon(weapons.TYPES.GRENADE)
 	elseif chosen_card.type == "weapon" then
-		M.unlock_weapon(chosen_card.weapon_id)
+		M.add_ammo(chosen_card.weapon_id, chosen_card.ammo or 2)
 		M.select_weapon(chosen_card.weapon_id)
+	elseif chosen_card.type == "perk" then
+		if not M.player_perks then M.player_perks = {} end
+		M.player_perks[chosen_card.perk_id] = true
 	end
 
 	M.current_cards = nil
-	M.set_state(constants.STATE_TURN_ACTIVE)
+	M.set_state(constants.STATE_INTRO)
+	M.settle_timer = 0
 end
 
 -- Advance to next turn

@@ -3,6 +3,7 @@
 
 local M = {}
 
+local sound_manager = require("lua_modules.sound_manager")
 local has_druid, druid = pcall(require, "druid.druid")
 
 function M.create(script_instance)
@@ -17,12 +18,16 @@ function M.create(script_instance)
 
 	function ui:button(node_id, callback)
 		local node = gui.get_node(node_id)
+		local wrapped_callback = function(...)
+			sound_manager.play_click()
+			if callback then callback(...) end
+		end
 		if self.is_druid and self.druid_instance then
-			return self.druid_instance:new_button(node, callback)
+			return self.druid_instance:new_button(node, wrapped_callback)
 		else
 			table.insert(self.buttons, {
 				node = node,
-				callback = callback,
+				callback = wrapped_callback,
 			})
 		end
 	end

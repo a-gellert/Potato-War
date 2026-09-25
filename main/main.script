@@ -9,6 +9,7 @@ local bot_ai = require("lua_modules.bot_ai")
 local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
 local player_profile = require("lua_modules.player_profile")
+local sound_manager = require("lua_modules.sound_manager")
 
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
@@ -102,6 +103,7 @@ local function start_game_match(self, mode, level)
 	msg.post("/gui_menu", "disable")
 	msg.post("/gui_game_over", "disable")
 	msg.post("/gui_hud", "enable")
+	msg.post("/gui_hud#gui", "match_started")
 end
 
 function init(self)
@@ -393,7 +395,8 @@ function on_input(self, action_id, action)
 				end
 				return true
 			elseif action_id == hash("jump") and action.pressed then
-				if physics_sim.jump_potato(potato) and potato.url then
+				local max_jumps = game_state.has_perk("triple_jump") and 3 or 1
+				if physics_sim.jump_potato(potato, max_jumps) and potato.url then
 					msg.post(potato.url, "on_jump")
 				end
 				return true
@@ -402,7 +405,7 @@ function on_input(self, action_id, action)
 			for i = 1, weapons.count() do
 				if action_id == hash("weapon_" .. i) and action.pressed then
 					local w = weapons.get_by_index(i)
-					if w then
+					if w and game_state.is_weapon_unlocked(w.id) then
 						game_state.select_weapon(w.id)
 					end
 					return true
@@ -450,7 +453,8 @@ function on_message(self, message_id, message, sender)
 		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 			local potato = game_state.active_potato
 			if potato and potato.is_alive then
-				if physics_sim.jump_potato(potato) and potato.url then
+				local max_jumps = game_state.has_perk("triple_jump") and 3 or 1
+				if physics_sim.jump_potato(potato, max_jumps) and potato.url then
 					msg.post(potato.url, "on_jump")
 				end
 			end
@@ -458,12 +462,16 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("fire_weapon") then
 		local weapon = weapons.get(message.weapon_id or "grenade")
+		sound_manager.play_shot()
 
 		-- Weapon recoil animation on firing potato
 		if message.owner_id then
 			for _, p in ipairs(game_state.potatoes) do
 				if p.id == message.owner_id and p.url then
 					msg.post(p.url, "on_recoil")
+					if p.team == constants.TEAM_BLUE then
+						game_state.consume_ammo(message.weapon_id or "grenade")
+					end
 					break
 				end
 			end
@@ -571,11 +579,13 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("spawn_explosion") then
+		sound_manager.play_explosion()
 		local pos = vmath.vector3(message.x, message.y, 0.5)
 		factory.create("#explosion_factory", pos, nil, {
 			radius = message.radius or 30
 		})
 	elseif message_id == hash("spawn_napalm") then
+		sound_manager.play_explosion()
 		local cx = message.x
 		local cy = message.y
 		local count = message.count or 6

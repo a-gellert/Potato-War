@@ -7,7 +7,7 @@ local M = {}
 M.LANG_RU = "ru"
 M.LANG_EN = "en"
 
-M.current_lang = M.LANG_RU
+M.current_lang = M.LANG_EN
 
 local dictionary = {
 	ru = {
@@ -39,6 +39,10 @@ local dictionary = {
 		mission_format = "Арена %d",
 		mode_bot = "Бой vs Бот",
 		mode_pvp = "Игра 1 на 1",
+		tutorial_hint = "Потяни назад, чтобы выстрелить вперед!",
+		tutorial_sub = "Зажми мышь и потяни в сторону от врага",
+		cards_start_title = "ВЫБЕРИТЕ БОНУС АРЕНЫ",
+		cards_start_subtitle = "Выберите оружие или усиление на эту арену",
 
 		-- Game Over
 		victory = "ПОБЕДА!",
@@ -80,6 +84,10 @@ local dictionary = {
 		mission_format = "Arena %d",
 		mode_bot = "Vs Bot Battle",
 		mode_pvp = "1 vs 1 Game",
+		tutorial_hint = "Pull back to shoot forward!",
+		tutorial_sub = "Click & drag potato away from the target",
+		cards_start_title = "CHOOSE ARENA BONUS",
+		cards_start_subtitle = "Select weapon or upgrade for this battle",
 
 		-- Game Over
 		victory = "VICTORY!",
@@ -125,7 +133,7 @@ function M.detect_language()
 			M.current_lang = M.LANG_EN
 		end
 	else
-		M.current_lang = M.LANG_RU -- default
+		M.current_lang = M.LANG_EN -- default
 	end
 
 	print(">>> I18N DETECTED LANGUAGE:", M.current_lang, "(raw:", tostring(lang_str) .. ")")

@@ -171,11 +171,11 @@ nodes {
 }
 nodes {
   position {
-    x: -402.0
+    x: -287.0
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -195,18 +195,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/grenade"
+  id: "icon_wpn_1"
+  parent: "btn_wpn_1"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "1 Граната"
+  text: "1"
   font: "system_font"
-  id: "txt_wpn_1"
+  id: "num_wpn_1"
   parent: "btn_wpn_1"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -214,11 +237,33 @@ nodes {
 }
 nodes {
   position {
-    x: -287.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "INF"
+  font: "system_font"
+  id: "ammo_wpn_1"
+  parent: "btn_wpn_1"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -205.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -238,18 +283,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/skewer_rifle"
+  id: "icon_wpn_2"
+  parent: "btn_wpn_2"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "2 Винтовка"
+  text: "2"
   font: "system_font"
-  id: "txt_wpn_2"
+  id: "num_wpn_2"
   parent: "btn_wpn_2"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -257,11 +325,33 @@ nodes {
 }
 nodes {
   position {
-    x: -172.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_2"
+  parent: "btn_wpn_2"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -123.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -281,18 +371,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/peeler"
+  id: "icon_wpn_3"
+  parent: "btn_wpn_3"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "3 Нож"
+  text: "3"
   font: "system_font"
-  id: "txt_wpn_3"
+  id: "num_wpn_3"
   parent: "btn_wpn_3"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -300,11 +413,33 @@ nodes {
 }
 nodes {
   position {
-    x: -57.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_3"
+  parent: "btn_wpn_3"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -41.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -324,18 +459,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/oil_bottle"
+  id: "icon_wpn_4"
+  parent: "btn_wpn_4"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "4 Молотов"
+  text: "4"
   font: "system_font"
-  id: "txt_wpn_4"
+  id: "num_wpn_4"
   parent: "btn_wpn_4"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -343,11 +501,33 @@ nodes {
 }
 nodes {
   position {
-    x: 58.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_4"
+  parent: "btn_wpn_4"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 41.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -367,18 +547,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/rifle"
+  id: "icon_wpn_5"
+  parent: "btn_wpn_5"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "5 Автомат"
+  text: "5"
   font: "system_font"
-  id: "txt_wpn_5"
+  id: "num_wpn_5"
   parent: "btn_wpn_5"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -386,11 +589,33 @@ nodes {
 }
 nodes {
   position {
-    x: 173.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_5"
+  parent: "btn_wpn_5"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 123.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -410,18 +635,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/masher_bazooka"
+  id: "icon_wpn_6"
+  parent: "btn_wpn_6"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "6 Базука"
+  text: "6"
   font: "system_font"
-  id: "txt_wpn_6"
+  id: "num_wpn_6"
   parent: "btn_wpn_6"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -429,11 +677,33 @@ nodes {
 }
 nodes {
   position {
-    x: 288.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_6"
+  parent: "btn_wpn_6"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 205.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -453,18 +723,41 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/grater"
+  id: "icon_wpn_7"
+  parent: "btn_wpn_7"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "7 Дробовик"
+  text: "7"
   font: "system_font"
-  id: "txt_wpn_7"
+  id: "num_wpn_7"
   parent: "btn_wpn_7"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -472,11 +765,33 @@ nodes {
 }
 nodes {
   position {
-    x: 403.0
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 108.0
-    y: 36.0
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_7"
+  parent: "btn_wpn_7"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 287.0
+  }
+  size {
+    x: 74.0
+    y: 44.0
   }
   color {
     x: 0.22
@@ -496,18 +811,63 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 0.4
-    y: 0.4
+  position {
+    x: -2.0
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/holy_spud"
+  id: "icon_wpn_8"
+  parent: "btn_wpn_8"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -23.0
+    y: 11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 20.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
   }
   type: TYPE_TEXT
-  text: "8 Св.Граната"
+  text: "8"
   font: "system_font"
-  id: "txt_wpn_8"
+  id: "num_wpn_8"
+  parent: "btn_wpn_8"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 18.0
+    y: -11.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 30.0
+    y: 20.0
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "ammo_wpn_8"
   parent: "btn_wpn_8"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -1199,5 +1559,143 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 92.0
+  }
+  size {
+    x: 500.0
+    y: 44.0
+  }
+  color {
+    x: 0.08
+    y: 0.11
+    z: 0.16
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "tutorial_hint"
+  yanchor: YANCHOR_BOTTOM
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 10.0
+    y: 7.0
+  }
+  scale {
+    x: 0.58
+    y: 0.58
+  }
+  size {
+    x: 460.0
+    y: 24.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "Потяни назад, чтобы выстрелить вперед!"
+  font: "system_font"
+  id: "tutorial_text"
+  parent: "tutorial_hint"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 10.0
+    y: -9.0
+  }
+  scale {
+    x: 0.40
+    y: 0.40
+  }
+  size {
+    x: 460.0
+    y: 20.0
+  }
+  color {
+    x: 0.8
+    y: 0.88
+    z: 0.95
+  }
+  type: TYPE_TEXT
+  text: "Зажми мышь и потяни в сторону от врага"
+  font: "system_font"
+  id: "tutorial_sub"
+  parent: "tutorial_hint"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -215.0
+    y: 0.0
+  }
+  size {
+    x: 24.0
+    y: 24.0
+  }
+  type: TYPE_BOX
+  texture: "game/crosshair"
+  id: "tutorial_arrow"
+  parent: "tutorial_hint"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
+  size {
+    x: 48.0
+    y: 48.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "tutorial_ripple"
+  inherit_alpha: true
+  alpha: 0.5
+  enabled: false
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
+  size {
+    x: 64.0
+    y: 64.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  texture: "game/hand"
+  id: "tutorial_hand"
+  inherit_alpha: true
+  alpha: 0.75
+  enabled: false
 }
 material: "/builtins/materials/gui.material"

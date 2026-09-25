@@ -122,6 +122,18 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				end
 			end
 		end
+
+		if self.weapon.id == "grenade" and game_state.has_perk("fire_bullets") then
+			msg.post("/main#main", "spawn_napalm", {
+				x = hit_x,
+				y = hit_y,
+				count = 4,
+				spread = 32,
+				burn_time = 2.0,
+				radius = 8,
+				dps = 8,
+			})
+		end
 	end
 
 	go.delete()
