@@ -9,24 +9,24 @@ local ATLAS_PATH = "/dynamic_terrain.texturesetc"
 
 local BIOME_THEMES = {
 	grass = {
-		sky = vmath.vector4(0.48, 0.72, 0.94, 1.0),
-		water = vmath.vector4(0.20, 0.55, 0.88, 0.95),
+		sky = vmath.vector4(0.35, 0.75, 0.98, 1.0),
+		water = vmath.vector4(0.10, 0.65, 0.96, 0.95),
 	},
 	desert = {
-		sky = vmath.vector4(0.94, 0.72, 0.48, 1.0),
-		water = vmath.vector4(0.18, 0.75, 0.72, 0.95),
+		sky = vmath.vector4(0.98, 0.68, 0.36, 1.0),
+		water = vmath.vector4(0.08, 0.82, 0.78, 0.95),
 	},
 	arctic = {
-		sky = vmath.vector4(0.65, 0.78, 0.94, 1.0),
-		water = vmath.vector4(0.12, 0.32, 0.65, 0.95),
+		sky = vmath.vector4(0.52, 0.80, 0.98, 1.0),
+		water = vmath.vector4(0.14, 0.48, 0.88, 0.95),
 	},
 	volcano = {
-		sky = vmath.vector4(0.42, 0.16, 0.12, 1.0),
-		water = vmath.vector4(0.98, 0.35, 0.08, 0.95),
+		sky = vmath.vector4(0.52, 0.16, 0.22, 1.0),
+		water = vmath.vector4(1.00, 0.42, 0.06, 0.96),
 	},
 	alien = {
-		sky = vmath.vector4(0.22, 0.12, 0.36, 1.0),
-		water = vmath.vector4(0.15, 0.85, 0.45, 0.95),
+		sky = vmath.vector4(0.28, 0.10, 0.48, 1.0),
+		water = vmath.vector4(0.12, 0.95, 0.58, 0.95),
 	},
 }
 
@@ -41,9 +41,9 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 		return
 	end
 
-	-- Depth from surface (check distance to air above)
-	local depth = 4
-	for d = 1, 3 do
+	-- Depth from surface (check up to 6 cells above for a lush, thick top crust!)
+	local depth = 6
+	for d = 1, 6 do
 		local above_y = gy + d
 		if above_y >= h or grid[above_y * w + gx + 1] == 0 then
 			depth = d - 1
@@ -54,174 +54,188 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 	local r, g, b = 100, 100, 100
 
 	if biome == "desert" then
-		-- DESERT & SANDSTONE BIOME
+		-- VIBRANT GOLDEN DESERT & CORAL CANYON BIOME
 		if depth == 0 then
-			local v = ((gx * 37) % 7) * 4 - 12
-			r = math.max(180, math.min(255, 238 + v))
-			g = math.max(150, math.min(235, 205 + v))
-			b = math.max(80, math.min(160, 115 + v))
-		elseif depth == 1 then
-			r = 222
-			g = 175
-			b = 92
-		elseif depth == 2 then
-			r = 202
-			g = 142
-			b = 75
-		elseif depth == 3 then
-			r = 182
-			g = 112
-			b = 62
+			local fl = (gx * 37 + gy * 13) % 23
+			if fl == 0 then
+				r = 65; g = 240; b = 215 -- Oasis turquoise gem
+			elseif fl == 1 then
+				r = 255; g = 105; b = 135 -- Desert cactus blossom pink
+			else
+				local v = ((gx * 37) % 7) * 4 - 10
+				r = math.max(220, math.min(255, 252 + v))
+				g = math.max(190, math.min(245, 222 + v))
+				b = math.max(95, math.min(165, 118 + v))
+			end
+		elseif depth <= 2 then
+			r = 246; g = 192; b = 96
+		elseif depth <= 4 then
+			r = 232; g = 148; b = 78
+		elseif depth == 5 then
+			r = 212; g = 115; b = 68
 		else
-			local strata = math.sin((gy + math.sin(gx * 0.06) * 5) * 0.18) * 22
+			local strata = math.sin((gy + math.sin(gx * 0.06) * 5) * 0.22) * 26
 			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			r = math.max(50, math.min(240, 172 + strata + grain))
-			g = math.max(30, math.min(170, 92 + strata * 0.5 + grain * 0.5))
-			b = math.max(20, math.min(120, 52 + strata * 0.3 + grain * 0.3))
+			r = math.max(110, math.min(248, 198 + strata + grain))
+			g = math.max(60, math.min(185, 108 + strata * 0.6 + grain * 0.5))
+			b = math.max(40, math.min(135, 68 + strata * 0.3 + grain * 0.3))
 
-			-- Darker slate pebble specks
-			if ((gx * 47 + gy * 83) % 91) <= 1 then
-				r = 110; g = 70; b = 45
+			-- Gold & turquoise mineral specks
+			local speck = (gx * 47 + gy * 83) % 89
+			if speck == 0 then
+				r = 255; g = 215; b = 55
+			elseif speck == 1 then
+				r = 65; g = 225; b = 210
 			end
 		end
 
 	elseif biome == "arctic" then
-		-- ARCTIC ICE & SNOW BIOME
+		-- SPARKLING AURORA ICE & CRYSTAL SNOW BIOME
 		if depth == 0 then
-			local v = ((gx * 31) % 7) * 3 - 9
-			r = math.max(220, math.min(255, 245 + v))
-			g = math.max(235, math.min(255, 250 + v))
-			b = 255
-		elseif depth == 1 then
-			r = 210
-			g = 230
-			b = 248
-		elseif depth == 2 then
-			r = 162
-			g = 202
-			b = 232
-		elseif depth == 3 then
-			r = 118
-			g = 168
-			b = 210
+			local sp = (gx * 29 + gy * 17) % 19
+			if sp == 0 then
+				r = 115; g = 245; b = 255 -- Sparkling cyan ice crystal
+			elseif sp == 1 then
+				r = 235; g = 145; b = 255 -- Aurora pink-violet glint
+			else
+				r = 250; g = 254; b = 255
+			end
+		elseif depth <= 2 then
+			r = 222; g = 244; b = 255
+		elseif depth <= 4 then
+			r = 155; g = 215; b = 250
+		elseif depth == 5 then
+			r = 112; g = 182; b = 238
 		else
-			local strata = math.sin((gy + math.cos(gx * 0.04) * 8) * 0.14) * 18
+			local strata = math.sin((gy + math.cos(gx * 0.05) * 8) * 0.18) * 24
 			local grain = ((gx * 19 + gy * 29) % 11) * 2 - 10
-			r = math.max(30, math.min(160, 72 + strata * 0.4 + grain))
-			g = math.max(60, math.min(200, 118 + strata * 0.7 + grain))
-			b = math.max(90, math.min(240, 168 + strata + grain))
+			r = math.max(45, math.min(185, 82 + strata * 0.5 + grain))
+			g = math.max(95, math.min(225, 148 + strata * 0.8 + grain))
+			b = math.max(145, math.min(255, 212 + strata + grain))
 
-			-- Glistening ice crystal specks
-			if ((gx * 43 + gy * 79) % 89) <= 1 then
-				r = 240; g = 250; b = 255
+			-- Glistening ice & aurora crystal specks
+			local speck = (gx * 43 + gy * 79) % 83
+			if speck == 0 then
+				r = 240; g = 252; b = 255
+			elseif speck == 1 then
+				r = 195; g = 135; b = 255
 			end
 		end
 
 	elseif biome == "volcano" then
-		-- VOLCANIC INFERNO & BASALT BIOME
+		-- JUICY MAGMA GOLD & VIOLET OBSIDIAN BIOME
 		if depth == 0 then
-			local ember = ((gx * 41) % 13) <= 2
+			local ember = ((gx * 41) % 9) <= 2
 			if ember then
-				r = 245; g = 95; b = 20 -- Glowing ember tip!
+				r = 255; g = 195; b = 35 -- Bright golden-orange flame crest
 			else
-				local v = ((gx * 29) % 7) * 4 - 12
-				r = math.max(45, math.min(110, 72 + v))
-				g = math.max(35, math.min(85, 52 + v))
-				b = math.max(35, math.min(85, 52 + v))
+				r = 248; g = 88; b = 28 -- Glowing lava crust
 			end
-		elseif depth == 1 then
-			r = 58; g = 42; b = 44
-		elseif depth == 2 then
-			r = 48; g = 34; b = 36
-		elseif depth == 3 then
-			r = 40; g = 28; b = 30
+		elseif depth <= 2 then
+			r = 215; g = 62; b = 32
+		elseif depth <= 4 then
+			r = 115; g = 45; b = 68
+		elseif depth == 5 then
+			r = 85; g = 38; b = 62
 		else
-			local magma = math.sin((gy * 0.12 + math.sin(gx * 0.08) * 3))
+			local magma = math.sin((gy * 0.15 + math.sin(gx * 0.08) * 3))
 			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			if magma > 0.82 then
-				-- Molten magma vein glowing deep inside rock
-				r = 230; g = 75; b = 18
+			if magma > 0.72 then
+				-- Bright molten magma river glowing inside rock
+				r = 255; g = 120; b = 22
 			else
-				local base = 42 + grain
-				r = math.max(25, math.min(110, base + 10))
-				g = math.max(20, math.min(80, base))
-				b = math.max(20, math.min(80, base + 2))
+				local base = 58 + grain
+				r = math.max(40, math.min(130, base + 18))
+				g = math.max(28, math.min(95, base - 4))
+				b = math.max(45, math.min(135, base + 22))
 			end
 
-			-- Red hot speckles
-			if ((gx * 53 + gy * 71) % 97) <= 1 then
-				r = 220; g = 50; b = 15
+			-- Bright gold/orange fire rubies
+			if ((gx * 53 + gy * 71) % 79) <= 1 then
+				r = 255; g = 185; b = 30
 			end
 		end
 
 	elseif biome == "alien" then
-		-- ALIEN CRYSTAL & NEON SPORE BIOME
+		-- ELECTRIC NEON CYBER-SPORE & CRYSTAL BIOME
 		if depth == 0 then
-			local v = ((gx * 37) % 7) * 4 - 12
-			r = math.max(160, math.min(255, 218 + v))
-			g = math.max(40, math.min(110, 68 + v))
-			b = math.max(170, math.min(255, 225 + v))
-		elseif depth == 1 then
-			r = 168; g = 48; b = 178
-		elseif depth == 2 then
-			r = 120; g = 36; b = 142
-		elseif depth == 3 then
-			r = 82; g = 30; b = 115
+			local neon = (gx * 31) % 14
+			if neon <= 1 then
+				r = 55; g = 255; b = 195 -- Neon cyber-mint flower
+			elseif neon == 2 then
+				r = 255; g = 235; b = 55 -- Electric yellow spore
+			else
+				r = 248; g = 78; b = 255 -- Hot neon magenta grass
+			end
+		elseif depth <= 2 then
+			r = 212; g = 58; b = 235
+		elseif depth <= 4 then
+			r = 148; g = 44; b = 192
+		elseif depth == 5 then
+			r = 104; g = 38; b = 158
 		else
-			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.16) * 16
+			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.18) * 22
 			local grain = ((gx * 19 + gy * 37) % 11) * 2 - 10
-			r = math.max(25, math.min(140, 52 + strata * 0.4 + grain))
-			g = math.max(15, math.min(110, 28 + strata * 0.3 + grain))
-			b = math.max(40, math.min(180, 85 + strata * 0.8 + grain))
+			r = math.max(45, math.min(175, 78 + strata * 0.6 + grain))
+			g = math.max(25, math.min(135, 38 + strata * 0.4 + grain))
+			b = math.max(75, math.min(225, 132 + strata * 0.9 + grain))
 
-			-- Glowing neon cyan crystal specks
-			if ((gx * 47 + gy * 83) % 79) <= 1 then
-				r = 35; g = 235; b = 215
+			-- Glowing neon cyan & gold crystal specks
+			local speck = (gx * 47 + gy * 83) % 73
+			if speck == 0 then
+				r = 45; g = 255; b = 225
+			elseif speck == 1 then
+				r = 255; g = 215; b = 55
 			end
 		end
 
 	else
-		-- DEFAULT: GRASS / MEADOW BIOME
+		-- DEFAULT: LUSH SUNNY MEADOW & WILDFLOWER BIOME
 		if depth == 0 then
-			local v = ((gx * 37) % 7) * 4 - 12
-			r = math.max(50, math.min(110, 76 + v))
-			g = math.max(160, math.min(235, 196 + v * 2))
-			b = math.max(30, math.min(75, 48 + v))
-		elseif depth == 1 then
-			r = 64; g = 172; b = 38
-		elseif depth == 2 then
-			r = 96; g = 138; b = 36
-		elseif depth == 3 then
-			r = 122; g = 98; b = 48
-		else
-			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.15) * 16
-			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			r = math.max(40, math.min(220, 138 + strata + grain))
-			g = math.max(30, math.min(180, 88 + strata * 0.7 + grain))
-			b = math.max(20, math.min(140, 52 + strata * 0.4 + grain * 0.5))
-
-			-- Deep bedrock transition near water
-			if gy < 36 then
-				local factor = math.min(1.0, math.max(0.0, (36 - gy) / 25.0))
-				r = r * (1.0 - factor) + 78 * factor
-				g = g * (1.0 - factor) + 74 * factor
-				b = b * (1.0 - factor) + 72 * factor
+			local flower = (gx * 43 + gy * 11) % 17
+			if flower == 0 then
+				r = 255; g = 230; b = 45 -- Sunny dandelion yellow flower
+			elseif flower == 1 then
+				r = 255; g = 95; b = 125 -- Coral pink blossom
+			elseif flower == 2 then
+				r = 95; g = 205; b = 255 -- Sky-blue forget-me-not
+			else
+				local v = ((gx * 37) % 7) * 4 - 10
+				r = math.max(55, math.min(125, 82 + v))
+				g = math.max(195, math.min(255, 228 + v * 2))
+				b = math.max(35, math.min(85, 52 + v))
 			end
+		elseif depth <= 2 then
+			r = 62; g = 204; b = 44
+		elseif depth <= 4 then
+			r = 102; g = 165; b = 42
+		elseif depth == 5 then
+			r = 148; g = 112; b = 56
+		else
+			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.18) * 20
+			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
+			r = math.max(85, math.min(235, 162 + strata + grain))
+			g = math.max(55, math.min(190, 106 + strata * 0.75 + grain))
+			b = math.max(35, math.min(145, 62 + strata * 0.45 + grain * 0.5))
 
-			if ((gx * 47 + gy * 83) % 97) <= 1 then
-				r = 175; g = 170; b = 165
+			-- Colorful buried gems & warm stones
+			local speck = (gx * 47 + gy * 83) % 89
+			if speck == 0 then
+				r = 255; g = 205; b = 65 -- Gold nugget
+			elseif speck == 1 then
+				r = 85; g = 225; b = 155 -- Emerald pebble
 			end
 		end
 	end
 
-	-- Edge darkening around crater cuts
+	-- Warm sunlit/scorched rim around exposed side/bottom crater cuts
 	local is_exposed = (gx > 0 and grid[row + gx] == 0)
 		or (gx < w - 1 and grid[row + gx + 2] == 0)
 		or (gy > 0 and grid[(gy - 1) * w + gx + 1] == 0)
-	if is_exposed then
-		r = r * 0.75
-		g = g * 0.75
-		b = b * 0.75
+	if is_exposed and depth > 1 then
+		r = math.min(255, r * 0.88 + 28)
+		g = math.min(255, g * 0.84 + 14)
+		b = b * 0.80
 	end
 
 	stream[idx] = math.floor(r)
@@ -369,7 +383,9 @@ function on_message(self, message_id, message, sender)
 		self.current_biome = biome
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome)
 		apply_biome_environment(self, biome)
-		terrain_grid.generate(preset)
+		if not message.already_generated then
+			terrain_grid.generate(preset)
+		end
 		update_full_texture(self)
 
 	elseif message_id == hash("carve_crater") then

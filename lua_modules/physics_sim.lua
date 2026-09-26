@@ -110,11 +110,17 @@ end
 
 -- Walk potato along terrain slope
 function M.walk_potato(p, dir, dt, terrain)
-	if not p.is_alive or not p.is_grounded then
+	if not p.is_alive then
 		return
 	end
 
 	p.facing = dir
+	if not p.is_grounded then
+		-- Air control while jumping
+		p.vel.x = dir * constants.POTATO_WALK_SPEED * 0.85
+		return
+	end
+
 	local walk_dist = dir * constants.POTATO_WALK_SPEED * dt
 	local target_x = p.pos.x + walk_dist
 
@@ -126,8 +132,8 @@ function M.walk_potato(p, dir, dt, terrain)
 	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 6.0, p.pos.y + 12.0)
 	local target_gy = terrain.get_smooth_ground_y(target_x, 6.0, p.pos.y + 12.0)
 
-	-- Check slope step-up limit (cannot climb walls steeper than 12px step)
-	if (target_gy - curr_gy) > 12.0 then
+	-- Check slope step-up limit (cannot climb walls steeper than 16px step)
+	if (target_gy - curr_gy) > 16.0 then
 		p.vel.x = 0
 		return
 	end

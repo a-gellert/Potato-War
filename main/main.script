@@ -96,10 +96,12 @@ local function start_game_match(self, mode, level)
 
 	local config = game_state.get_current_config()
 
-	-- Generate terrain according to match configuration
+	-- Generate terrain grid synchronously first so spawn_potato uses the new level's terrain
+	terrain_grid.generate(config.terrain_preset, level)
 	msg.post("/terrain#terrain", "generate_terrain", {
 		preset = config.terrain_preset,
-		biome = config.biome
+		biome = config.biome,
+		already_generated = true
 	})
 
 	-- Spawn Blue Potatoes
@@ -121,6 +123,9 @@ local function start_game_match(self, mode, level)
 		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp)
 	end
 
+	-- Point active_potato to first blue potato so weapon card selection equips the new instance
+	game_state.active_potato = game_state.potatoes[1]
+
 	-- Reset camera to center
 	camera_controller.follow(constants.WORLD_WIDTH * 0.5, constants.WORLD_HEIGHT * 0.5, true)
 
@@ -141,12 +146,20 @@ function init(self)
 	self.bot_timer = 0
 	self.bot_plan = nil
 	self.burst_queue = {} -- { weapon_id, origin_x, origin_y, vel_x, vel_y, owner_id, shots_left, delay_timer }
+	self.touch_move_dir = 0
+	self.touch_move_timer = 0
+	self.key_left_held = false
+	self.key_right_held = false
 
 	-- Hook turn changed callback
 	game_state.on_turn_changed = function(active_team, active_potato)
+		self.touch_move_dir = 0
+		self.touch_move_timer = 0
+		self.key_left_held = false
+		self.key_right_held = false
 		achievements.on_turn_start(active_team)
 		for _, p in ipairs(game_state.potatoes) do
-			if p.url then
+			if p.is_alive and p.url then
 				local is_act = (p == active_potato)
 				msg.post(p.url, "set_active", { active = is_act })
 				if is_act then
@@ -164,8 +177,9 @@ function init(self)
 
 	-- Hook weapon changed callback
 	game_state.on_weapon_changed = function(weapon_id)
-		if game_state.active_potato and game_state.active_potato.url then
-			msg.post(game_state.active_potato.url, "set_weapon", { weapon_id = weapon_id })
+		local target = game_state.active_potato
+		if target and target.is_alive and target.url then
+			msg.post(target.url, "set_weapon", { weapon_id = weapon_id })
 		end
 	end
 
@@ -204,6 +218,43 @@ function update(self, dt)
 	-- 1. Camera update
 	camera_controller.update(dt)
 
+	-- 1.5 Continuous player movement (smooth per-frame walking for touch & keyboard)
+	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
+		if self.touch_move_timer > 0 then
+			self.touch_move_timer = self.touch_move_timer - dt
+			if self.touch_move_timer <= 0 then
+				self.touch_move_dir = 0
+			end
+		end
+
+		local move_dir = self.touch_move_dir
+		if move_dir == 0 then
+			if self.key_left_held and not self.key_right_held then
+				move_dir = -1
+			elseif self.key_right_held and not self.key_left_held then
+				move_dir = 1
+			end
+		end
+
+		local active_p = game_state.active_potato
+		if move_dir ~= 0 and active_p and active_p.is_alive then
+			physics_sim.walk_potato(active_p, move_dir, dt, terrain_grid)
+			if active_p.facing ~= move_dir then
+				active_p.facing = move_dir
+				if active_p.url then
+					msg.post(active_p.url, "set_facing", { facing = move_dir })
+				end
+			elseif active_p.url then
+				msg.post(active_p.url, "set_facing", { facing = move_dir })
+			end
+		end
+	else
+		self.touch_move_dir = 0
+		self.touch_move_timer = 0
+		self.key_left_held = false
+		self.key_right_held = false
+	end
+
 	-- 2. Potato physics & animation update
 	for _, p in ipairs(game_state.potatoes) do
 		if p.is_alive then
@@ -211,6 +262,7 @@ function update(self, dt)
 			local result = physics_sim.update_potato(p, dt, terrain_grid)
 			if result == "drowned" and p.url then
 				msg.post(p.url, "drowned")
+				p.url = nil
 				camera_controller.shake(5, 0.2)
 				if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
 					local ach = achievements.on_drown(p, game_state.active_team)
@@ -424,23 +476,17 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+	if action_id == hash("left") then
+		self.key_left_held = not action.released
+	elseif action_id == hash("right") then
+		self.key_right_held = not action.released
+	end
+
 	-- Keyboard controls for active potato
 	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 		local potato = game_state.active_potato
 		if potato and potato.is_alive then
-			if action_id == hash("left") then
-				physics_sim.walk_potato(potato, -1, 0.035, terrain_grid)
-				potato.facing = -1
-				if potato.url then
-					msg.post(potato.url, "set_facing", { facing = -1 })
-				end
-				return true
-			elseif action_id == hash("right") then
-				physics_sim.walk_potato(potato, 1, 0.035, terrain_grid)
-				potato.facing = 1
-				if potato.url then
-					msg.post(potato.url, "set_facing", { facing = 1 })
-				end
+			if action_id == hash("left") or action_id == hash("right") then
 				return true
 			elseif action_id == hash("jump") and action.pressed then
 				local max_jumps = game_state.has_perk("triple_jump") and 3 or 1
@@ -478,24 +524,23 @@ function on_message(self, message_id, message, sender)
 		game_state.select_card(message.card_index)
 
 	elseif message_id == hash("show_menu") then
+		self.touch_move_dir = 0
+		self.touch_move_timer = 0
+		self.key_left_held = false
+		self.key_right_held = false
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		msg.post("/gui_hud", "disable")
 		msg.post("/gui_game_over", "disable")
 		msg.post("/gui_menu", "enable")
 		game_state.set_state(constants.STATE_MENU)
 
+	elseif message_id == hash("player_move_state") then
+		self.touch_move_dir = message.dir or 0
+		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
+
 	elseif message_id == hash("player_move") then
-		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-			local potato = game_state.active_potato
-			if potato and potato.is_alive then
-				local dir = message.dir or 1
-				physics_sim.walk_potato(potato, dir, 0.08, terrain_grid)
-				potato.facing = dir
-				if potato.url then
-					msg.post(potato.url, "set_facing", { facing = dir })
-				end
-			end
-		end
+		self.touch_move_dir = message.dir or 0
+		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
 
 	elseif message_id == hash("player_jump") then
 		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then

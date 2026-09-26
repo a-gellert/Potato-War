@@ -115,6 +115,10 @@ function on_input(self, action_id, action)
 
 	if action_id == hash("touch") then
 		if action.pressed then
+			if action.y < 82 or (action.y > 485 and action.x > 820) then
+				self.dragging = false
+				return false
+			end
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
 

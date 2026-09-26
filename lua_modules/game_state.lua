@@ -257,6 +257,7 @@ function M.start_match(mode, campaign_lvl)
 	M.team_turn_index[constants.TEAM_RED] = 1
 	M.turn_timer = constants.TURN_DURATION
 	M.selected_weapon_id = weapons.TYPES.GRENADE
+	M.active_potato = nil
 	M.winner_team = nil
 	M.settle_timer = 0
 	M.current_cards = nil

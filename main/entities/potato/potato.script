@@ -68,10 +68,20 @@ function init(self)
 	msg.post("#reticle", "disable")
 
 	-- Subtle pulse animation on reticle
-	go.animate("#reticle", "scale", go.PLAYBACK_LOOP_PINGPONG, vmath.vector3(0.65, 0.65, 1.0), go.EASING_INOUTSINE, 0.5)
+	go.animate("#reticle", "scale", go.PLAYBACK_LOOP_PINGPONG, vmath.vector3(0.68, 0.68, 1.0), go.EASING_INOUTSINE, 0.45)
+	self.breath_timer = math.random() * 6.28
+	self.scale_anim_timer = 0
 end
 
 function update(self, dt)
+	if self.scale_anim_timer and self.scale_anim_timer > 0 then
+		self.scale_anim_timer = self.scale_anim_timer - dt
+	elseif self.is_alive then
+		self.breath_timer = (self.breath_timer or 0) + dt * (self.is_active and 4.2 or 2.6)
+		local s = math.sin(self.breath_timer) * (self.is_active and 0.045 or 0.025)
+		go.set("#sprite", "scale", vmath.vector3(1.0 - s * 0.7, 1.0 + s, 1.0))
+	end
+
 	if self.hp_bar_timer > 0 then
 		self.hp_bar_timer = self.hp_bar_timer - dt
 		if self.hp_bar_timer <= 0 then
@@ -89,8 +99,9 @@ function on_message(self, message_id, message, sender)
 	if message_id == hash("alert_aimed") then
 		if self.is_alive and not self.is_active and self.alert_timer <= 0 then
 			self.alert_timer = 1.0
+			self.scale_anim_timer = 0.22
 			-- Quick nervous shudder animation
-			go.animate("#sprite", "scale.y", go.PLAYBACK_ONCE_PINGPONG, 0.84, go.EASING_INOUTSINE, 0.16)
+			go.animate("#sprite", "scale.y", go.PLAYBACK_ONCE_PINGPONG, 0.80, go.EASING_INOUTSINE, 0.18)
 			go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(1.3, 0.7, 0.7, 1.0), go.EASING_OUTQUAD, 0.22, 0, function()
 				go.set("#sprite", "tint", self.skin_tint)
 			end)
@@ -149,21 +160,24 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("on_jump") then
 		if self.is_alive then
+			self.scale_anim_timer = 0.25
 			-- Vertical stretch on jump
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.8, 1.28, 1.0), go.EASING_OUTQUAD, 0.22)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.76, 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
 		end
 
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
+			self.scale_anim_timer = 0.28
 			-- Juicy bounce squash on landing
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.28, 0.72, 1.0), go.EASING_OUTBOUNCE, 0.25)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.32, 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
 
 	elseif message_id == hash("on_recoil") then
 		if self.is_alive then
+			self.scale_anim_timer = 0.18
 			-- Weapon kick recoil
 			go.animate("#weapon_sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.55, 0.55, 1.0), go.EASING_OUTQUAD, 0.12)
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.15, 0.9, 1.0), go.EASING_OUTQUAD, 0.14)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.18, 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
 
 	elseif message_id == hash("apply_damage") then
@@ -178,9 +192,10 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
+		self.scale_anim_timer = 0.22
 
 		-- Flash white on hit and juicy impact squash
-		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.25, 0.78, 1.0), go.EASING_INOUTSINE, 0.18)
+		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.30, 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
 			go.set("#sprite", "tint", self.skin_tint)
 		end)

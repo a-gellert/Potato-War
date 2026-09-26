@@ -401,7 +401,7 @@ end
 -- Terrain Preset Generators (Worms-style hybrid architectures)
 ---------------------------------------------------------
 
-function M.generate(preset_type)
+function M.generate(preset_type, campaign_level)
 	preset_type = preset_type or "hills"
 	local w = M.width
 	local h = M.height
@@ -412,225 +412,156 @@ function M.generate(preset_type)
 	end
 
 	local seed = math.random(1, 99999)
+	local is_early_level = (campaign_level == nil) or (campaign_level <= 5)
+	local max_allowed_gy = is_early_level and math.floor(h * 0.44) or math.floor(h * 0.54)
 
 	if preset_type == "flat" then
 		-- Gentle training arena
-		local base_h = h * 0.32
+		local base_h = h * 0.26
 		for gx = 0, w - 1 do
 			local nx = gx / w
-			local gentle = fractal_noise(nx * 5.0, 3, seed) * (h * 0.08)
-			local bump1 = math.exp(-((nx - 0.35) * 6) ^ 2) * (h * 0.06)
+			local gentle = fractal_noise(nx * 4.0, 3, seed) * (h * 0.06)
+			local bump1 = math.exp(-((nx - 0.35) * 6) ^ 2) * (h * 0.05)
 			local bump2 = math.exp(-((nx - 0.7) * 8) ^ 2) * (h * 0.04)
 			local height_val = base_h + gentle + bump1 + bump2
 
-			local max_gy = math.floor(math.max(8, math.min(h - 15, height_val)))
+			local max_gy = math.floor(math.max(12, math.min(max_allowed_gy, height_val)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
 
 	elseif preset_type == "floating_islands" then
-		-- Worms-style Sky archipelago: 3 large floating islands + bottom sea reefs
-		-- 1. Base bottom reefs near water
+		-- Arena 2 (Arctic): Open, low-profile archipelago with smooth walkable islands and shallow ice bridges
 		for gx = 0, w - 1 do
 			local nx = gx / w
-			local reef = fractal_noise(nx * 8.0, 3, seed) * (h * 0.16) + (h * 0.08)
-			local max_gy = math.floor(reef)
+			-- Three broad, comfortable islands (left, center, right) at low-to-mid elevation
+			local left_isl = math.exp(-((nx - 0.22) * 5.5) ^ 2) * (h * 0.18)
+			local center_isl = math.exp(-((nx - 0.50) * 6.5) ^ 2) * (h * 0.14)
+			local right_isl = math.exp(-((nx - 0.78) * 5.5) ^ 2) * (h * 0.18)
+			local base_shelf = h * 0.16
+			local gentle_wave = fractal_noise(nx * 6.0, 2, seed) * (h * 0.05)
+
+			local height_val = base_shelf + math.max(left_isl, math.max(center_isl, right_isl)) + gentle_wave
+			local max_gy = math.floor(math.max(12, math.min(math.floor(h * 0.38), height_val)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
-
-		-- 2. Left Floating Island (medium, elevated)
-		add_blob(w * 0.22, h * 0.48, w * 0.16, h * 0.14, seed + 10, 0.25)
-		-- 3. Center Floating Citadel Island (large, high)
-		add_blob(w * 0.52, h * 0.62, w * 0.18, h * 0.16, seed + 20, 0.28)
-		-- 4. Right Floating Platform (sharp, mid-height)
-		add_blob(w * 0.82, h * 0.45, w * 0.15, h * 0.13, seed + 30, 0.22)
-		-- 5. Small intermediate stepping rock
-		add_blob(w * 0.38, h * 0.32, w * 0.07, h * 0.08, seed + 40, 0.20)
-		add_blob(w * 0.68, h * 0.34, w * 0.07, h * 0.08, seed + 50, 0.20)
-
-	elseif preset_type == "cavern" then
-		-- Worms Cavern Mode: enclosed roof + interior pillars + floor craters and bunkers
-		-- 1. Enclosed Ceiling
-		add_ceiling(h * 0.88, h * 0.14, seed)
-
-		-- 2. Floor with undulating mounds & underground bunkers
-		for gx = 0, w - 1 do
-			local nx = gx / w
-			local floor_h = (h * 0.24) + fractal_noise(nx * 6.0, 3, seed + 100) * (h * 0.15)
-			                + ridged_noise(nx * 12.0, 3, seed + 150) * (h * 0.08)
-			local max_gy = math.floor(math.max(8, math.min(h * 0.50, floor_h)))
-			for gy = 0, max_gy do
-				M.grid[gy * w + gx + 1] = 1
-			end
-		end
-
-		-- 3. Massive interior cave stalagmites / pillars
-		add_blob(w * 0.30, h * 0.52, w * 0.06, h * 0.28, seed + 200, 0.35)
-		add_blob(w * 0.72, h * 0.50, w * 0.06, h * 0.26, seed + 250, 0.35)
-
-		-- 4. Carve natural cavern tunnels through pillars
-		carve_worm_tunnel(w * 0.10, h * 0.42, 35, 0.1, 14, 0.18, seed + 300)
-		carve_worm_tunnel(w * 0.90, h * 0.45, 35, 3.14, 14, 0.18, seed + 350)
 
 	elseif preset_type == "canyon_bridge" or preset_type == "canyon" then
-		-- Deep Canyon with Towering Cliffs AND a massive Natural Stone Bridge / Arch
-		-- 1. Left & Right Cliffs
+		-- Arena 3 (Desert): Scenic open canyon with low side plateaus and a gentle central sand-stone bridge
 		for gx = 0, w - 1 do
 			local nx = gx / w
-			local left_cliff = 1.0 / (1.0 + math.exp(22.0 * (nx - 0.26)))
-			local right_cliff = 1.0 / (1.0 + math.exp(-22.0 * (nx - 0.74)))
-			local cliff_weight = math.max(left_cliff, right_cliff)
+			local left_plateau = 1.0 / (1.0 + math.exp(16.0 * (nx - 0.30)))
+			local right_plateau = 1.0 / (1.0 + math.exp(-16.0 * (nx - 0.70)))
+			local side_weight = math.max(left_plateau, right_plateau)
 
-			local cliff_h = cliff_weight * (h * 0.58)
-			local jagged = ridged_noise(nx * 20.0, 3, seed) * (h * 0.12) * cliff_weight
-			local valley_floor = h * 0.14 + fractal_noise(nx * 12.0, 2, seed + 80) * (h * 0.06)
+			local bridge_hump = math.exp(-((nx - 0.50) * 7.0) ^ 2) * (h * 0.12)
+			local dunes = fractal_noise(nx * 5.0, 2, seed) * (h * 0.05)
+			local base_floor = h * 0.18
 
-			local total_h = valley_floor + cliff_h + jagged
-			local max_gy = math.floor(math.max(8, math.min(h - 15, total_h)))
+			local total_h = base_floor + side_weight * (h * 0.16) + bridge_hump + dunes
+			local max_gy = math.floor(math.max(14, math.min(math.floor(h * 0.40), total_h)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
 
-		-- 2. Massive natural stone arch spanning the gorge!
-		add_arch(w * 0.50, h * 0.38, w * 0.28, h * 0.18, h * 0.12, seed + 77)
+	elseif preset_type == "cavern" then
+		-- Arena 4 (Volcano): Open volcanic caldera basin with low basalt ridges (no blocking ceiling or pillars!)
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local rim_left = math.exp(-((nx - 0.20) * 5.0) ^ 2) * (h * 0.14)
+			local rim_right = math.exp(-((nx - 0.80) * 5.0) ^ 2) * (h * 0.14)
+			local center_mound = math.exp(-((nx - 0.50) * 8.0) ^ 2) * (h * 0.08)
+			local rough = fractal_noise(nx * 7.0, 2, seed + 100) * (h * 0.06)
 
-		-- 3. Center cave hollow under the bridge
-		add_blob(w * 0.50, h * 0.28, w * 0.08, h * 0.06, seed + 99, 0.2)
+			local floor_h = (h * 0.20) + rim_left + rim_right + center_mound + rough
+			local max_gy = math.floor(math.max(14, math.min(math.floor(h * 0.40), floor_h)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
 
 	elseif preset_type == "swiss_cheese" then
-		-- Worms Swiss Cheese: 2D continuous density field riddled with organic tunnels and cave pockets
-		for gy = 0, h - 1 do
-			local ny = gy / h
-			local row = gy * w
-			for gx = 0, w - 1 do
-				local nx = gx / w
-
-				-- Base land envelope (thick solid mountain base tapering off at top)
-				local base_density = (0.72 - ny) * 1.8
-				-- Edge water fade
-				local edge_fade = math.sin(nx * 3.14159)
-				base_density = base_density * edge_fade
-
-				-- 2D structural rock noise
-				local rock_n = fractal_noise2d(nx * 4.0, ny * 3.0, 3, seed) * 0.9
-				local density = base_density + rock_n
-
-				if density > 0.65 and gy > 8 and gy < (h - 12) then
-					M.grid[row + gx + 1] = 1
-				else
-					M.grid[row + gx + 1] = 0
-				end
-			end
-		end
-
-		-- Carve intersecting Worm Tunnels
-		carve_worm_tunnel(w * 0.15, h * 0.45, 45, 0.2, 16, 0.22, seed + 101)
-		carve_worm_tunnel(w * 0.85, h * 0.40, 45, 2.9, 16, 0.22, seed + 202)
-		carve_worm_tunnel(w * 0.50, h * 0.60, 35, -1.5, 14, 0.25, seed + 303)
-
-	elseif preset_type == "islands" then
-		-- 3 Jagged Sea Spire Islands with deep chasms and rock outcroppings
+		-- Arena 5 (Alien): Open terraced alien crater valley with smooth undulating bowls (no underground traps!)
 		for gx = 0, w - 1 do
 			local nx = gx / w
+			local base_h = h * 0.24
+			local wave1 = math.sin(nx * 6.28 * 2.0 + seed * 0.1) * (h * 0.06)
+			local wave2 = fractal_noise(nx * 6.0, 2, seed) * (h * 0.08)
+			local crater1 = math.exp(-((nx - 0.36) * 10.0) ^ 2) * (h * 0.07)
+			local crater2 = math.exp(-((nx - 0.64) * 10.0) ^ 2) * (h * 0.07)
 
-			local i1 = math.exp(-((nx - 0.18) * 8.0) ^ 2) * (h * 0.42)
-			local i2 = math.exp(-((nx - 0.52) * 6.0) ^ 2) * (h * 0.55)
-			local i3 = math.exp(-((nx - 0.84) * 8.5) ^ 2) * (h * 0.38)
-
-			local envelope = math.max(i1, math.max(i2, i3))
-			local crag = ridged_noise(nx * 22.0, 4, seed) * (h * 0.12)
-			local detail = fractal_noise(nx * 35.0, 3, seed + 50) * (h * 0.05)
-
-			local height_val = (h * 0.05) + envelope + crag + detail
-			-- Sharp sea cuts
-			local gap1 = math.exp(-((nx - 0.35) * 14.0) ^ 2) * (h * 0.35)
-			local gap2 = math.exp(-((nx - 0.68) * 14.0) ^ 2) * (h * 0.30)
-			height_val = height_val - gap1 - gap2
-
-			local max_gy = math.floor(math.max(8, math.min(h - 15, height_val)))
+			local height_val = base_h + wave1 + wave2 - crater1 - crater2
+			local max_gy = math.floor(math.max(14, math.min(math.floor(h * 0.40), height_val)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
 
-		-- Natural stone arch on the center island
-		add_blob(w * 0.52, h * 0.42, w * 0.12, h * 0.10, seed + 88, 0.25)
-
-	elseif preset_type == "bunkers" then
-		-- Fortified Twin Plateaus with dug-out underground bunker rooms
+	elseif preset_type == "islands" then
+		-- 3 Low Scenic Islands with shallow water channels
 		for gx = 0, w - 1 do
 			local nx = gx / w
+			local i1 = math.exp(-((nx - 0.20) * 6.5) ^ 2) * (h * 0.20)
+			local i2 = math.exp(-((nx - 0.50) * 6.5) ^ 2) * (h * 0.22)
+			local i3 = math.exp(-((nx - 0.80) * 6.5) ^ 2) * (h * 0.20)
 
-			local wall_steepness = 18.0
-			local p1 = 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.14)))
-				     - 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.44)))
-			local p2 = 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.56)))
-				     - 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.86)))
+			local envelope = math.max(i1, math.max(i2, i3))
+			local detail = fractal_noise(nx * 8.0, 2, seed + 50) * (h * 0.04)
+
+			local height_val = (h * 0.14) + envelope + detail
+			local max_gy = math.floor(math.max(12, math.min(max_allowed_gy, height_val)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+	elseif preset_type == "bunkers" then
+		-- Twin Low Plateaus with gentle central valley
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wall_steepness = 14.0
+			local p1 = 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.12)))
+				     - 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.42)))
+			local p2 = 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.58)))
+				     - 1.0 / (1.0 + math.exp(-wall_steepness * (nx - 0.88)))
 			p1 = math.max(0, p1)
 			p2 = math.max(0, p2)
 
-			local plateau = p1 * (h * 0.46) + p2 * (h * 0.42)
-			local trench_floor = h * 0.14
-			local rough = ridged_noise(nx * 25.0, 3, seed) * (h * 0.08)
+			local plateau = p1 * (h * 0.16) + p2 * (h * 0.16)
+			local trench_floor = h * 0.18
+			local rough = fractal_noise(nx * 8.0, 2, seed) * (h * 0.04)
 
 			local height_val = trench_floor + plateau + rough
-			local max_gy = math.floor(math.max(8, math.min(h - 15, height_val)))
+			local max_gy = math.floor(math.max(12, math.min(max_allowed_gy, height_val)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
 
-		-- Underground bunker rooms (carved pockets with ceilings intact)
-		carve_worm_tunnel(w * 0.28, h * 0.24, 20, 0, 15, 0.05, seed + 11)
-		carve_worm_tunnel(w * 0.72, h * 0.22, 20, 3.14, 15, 0.05, seed + 22)
-
-	else -- "hills" (rich default with overhangs & varied topology)
-		local base_h = h * 0.26
-		local features = {}
-		for i = 1, math.random(3, 5) do
-			table.insert(features, {
-				x = math.random() * 0.7 + 0.15,
-				height = (math.random() * 0.22 + 0.12) * h,
-				width = math.random() * 8.0 + 6.0,
-			})
-		end
-		local valleys = {}
-		for i = 1, math.random(1, 3) do
-			table.insert(valleys, {
-				x = math.random() * 0.6 + 0.2,
-				depth = (math.random() * 0.14 + 0.06) * h,
-				width = math.random() * 6.0 + 4.0,
-			})
-		end
+	else -- "hills" (Arena 1: Smooth, gentle, low rolling meadow hills)
+		local base_h = h * 0.22
+		local hill1_x = 0.25 + (math.random() - 0.5) * 0.08
+		local hill2_x = 0.52 + (math.random() - 0.5) * 0.08
+		local hill3_x = 0.78 + (math.random() - 0.5) * 0.08
 
 		for gx = 0, w - 1 do
 			local nx = gx / w
-			local big = fractal_noise(nx * 3.5, 4, seed) * (h * 0.28)
-			local med = ridged_noise(nx * 8.0, 3, seed + 20) * (h * 0.12)
-			local fine = fractal_noise(nx * 25.0, 2, seed + 40) * (h * 0.05)
-			local wave = math.sin(nx * 6.28 * 1.5 + seed * 0.01) * (h * 0.08)
+			local gentle_roll = fractal_noise(nx * 3.0, 2, seed) * (h * 0.08)
+			local wave = math.sin(nx * 6.28 * 1.2 + seed * 0.01) * (h * 0.04)
+			local h1 = math.exp(-((nx - hill1_x) * 6.0) ^ 2) * (h * 0.06)
+			local h2 = math.exp(-((nx - hill2_x) * 7.0) ^ 2) * (h * 0.07)
+			local h3 = math.exp(-((nx - hill3_x) * 6.0) ^ 2) * (h * 0.06)
 
-			local height_val = base_h + big + med + fine + wave
-			for _, f in ipairs(features) do
-				height_val = height_val + math.exp(-((nx - f.x) * f.width) ^ 2) * f.height
-			end
-			for _, v in ipairs(valleys) do
-				height_val = height_val - math.exp(-((nx - v.x) * v.width) ^ 2) * v.depth
-			end
-
-			local max_gy = math.floor(math.max(8, math.min(h - 15, height_val)))
+			local height_val = base_h + gentle_roll + wave + h1 + h2 + h3
+			local max_gy = math.floor(math.max(14, math.min(math.floor(h * 0.36), height_val)))
 			for gy = 0, max_gy do
 				M.grid[gy * w + gx + 1] = 1
 			end
 		end
-
-		-- Add 1-2 rocky overhang / bridge features
-		add_blob(w * 0.35, h * 0.40, w * 0.10, h * 0.07, seed + 60, 0.22)
-		add_blob(w * 0.68, h * 0.38, w * 0.09, h * 0.06, seed + 70, 0.22)
 	end
 end
 

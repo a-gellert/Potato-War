@@ -144,11 +144,11 @@ nodes {
 }
 nodes {
   position {
-    x: 480.0
+    x: 560.0
     y: 40.0
   }
   size {
-    x: 960.0
+    x: 670.0
     y: 56.0
   }
   color {
@@ -875,12 +875,12 @@ nodes {
 }
 nodes {
   position {
-    x: 100.0
-    y: 40.0
+    x: 115.0
+    y: 46.0
   }
   size {
-    x: 156.0
-    y: 52.0
+    x: 210.0
+    y: 64.0
   }
   color {
     x: 0.12
@@ -903,11 +903,11 @@ nodes {
 }
 nodes {
   position {
-    x: -50.0
+    x: -66.0
   }
   size {
-    x: 44.0
-    y: 44.0
+    x: 60.0
+    y: 54.0
   }
   color {
     x: 0.22
@@ -946,8 +946,8 @@ nodes {
 }
 nodes {
   size {
-    x: 44.0
-    y: 44.0
+    x: 60.0
+    y: 54.0
   }
   color {
     x: 0.22
@@ -982,11 +982,11 @@ nodes {
 }
 nodes {
   position {
-    x: 50.0
+    x: 66.0
   }
   size {
-    x: 44.0
-    y: 44.0
+    x: 60.0
+    y: 54.0
   }
   color {
     x: 0.22
