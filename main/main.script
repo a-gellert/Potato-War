@@ -11,6 +11,8 @@ local camera_controller = require("lua_modules.camera_controller")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
 local achievements = require("lua_modules.achievements")
+local level_config = require("lua_modules.level_config")
+local meta_progression = require("lua_modules.meta_progression")
 
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
@@ -23,15 +25,15 @@ local function clear_match_entities(self)
 	self.active_projectiles = {}
 end
 
-local function spawn_potato(self, x, team, potato_id, initial_hp)
-	local gy = terrain_grid.get_smooth_ground_y(x, 6.0)
+local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy)
+	local gy = terrain_grid.get_smooth_ground_y(x, 6.0, from_wy)
 	-- If initial x falls into water gap/chasm, find nearest solid ground
 	if gy < constants.WATER_LEVEL + 20 then
 		for offset = 15, 90, 12 do
 			local test_l = math.max(constants.POTATO_RADIUS + 20, x - offset)
 			local test_r = math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20, x + offset)
-			local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0)
-			local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0)
+			local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0, from_wy)
+			local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0, from_wy)
 			if gy_l > constants.WATER_LEVEL + 20 then
 				x = test_l
 				gy = gy_l
@@ -50,12 +52,13 @@ local function spawn_potato(self, x, team, potato_id, initial_hp)
 
 	local initial_facing = (team == constants.TEAM_BLUE) and 1 or -1
 	local potato_hp = initial_hp or 100
+	local potato_max_hp = max_hp or potato_hp
 
 	local url = factory.create("#potato_factory", pos, nil, {
 		team = team,
 		potato_id = potato_id,
 		hp = potato_hp,
-		max_hp = 100,
+		max_hp = potato_max_hp,
 		facing = initial_facing
 	})
 
@@ -65,7 +68,7 @@ local function spawn_potato(self, x, team, potato_id, initial_hp)
 		pos = vmath.vector3(pos.x, pos.y, 0.1),
 		vel = vmath.vector3(0, 0, 0),
 		hp = potato_hp,
-		max_hp = 100,
+		max_hp = potato_max_hp,
 		radius = constants.POTATO_RADIUS,
 		facing = initial_facing,
 		is_alive = true,
@@ -95,32 +98,36 @@ local function start_game_match(self, mode, level)
 	game_state.start_match(mode, level)
 
 	local config = game_state.get_current_config()
+	local terrain_preset = config.terrain_type or config.terrain_preset or "hills"
+	local biome = config.biome or level_config.deduce_biome(terrain_preset)
 
 	-- Generate terrain grid synchronously first so spawn_potato uses the new level's terrain
-	terrain_grid.generate(config.terrain_preset, level)
+	terrain_grid.generate(terrain_preset, level)
 	msg.post("/terrain#terrain", "generate_terrain", {
-		preset = config.terrain_preset,
-		biome = config.biome,
+		preset = terrain_preset,
+		biome = biome,
 		already_generated = true
 	})
 
 	-- Spawn Blue Potatoes
-	local blue_count = config.blue_count or 2
+	local blue_count = config.player_count or config.blue_count or 1
 	local step_blue = (360 - 120) / math.max(1, blue_count)
-	local player_hp = (mode == constants.MODE_CAMPAIGN) and player_profile.get_campaign_hp() or 100
+	local player_max_hp = meta_progression.get_player_max_hp()
+	local player_hp = (mode == constants.MODE_CAMPAIGN) and player_profile.get_campaign_hp() or player_max_hp
+	local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55) or nil
 
 	for i = 1, blue_count do
 		local x = 120 + (i - 0.5) * step_blue + (math.random() - 0.5) * 20
-		spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp)
+		spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp, player_max_hp, from_wy)
 	end
 
-	-- Spawn Red Potatoes (Fast 60 HP duel on Level 1!)
-	local red_count = config.red_count or 2
+	-- Spawn Red Potatoes using level configuration (enemy count & enemy HP)
+	local red_count = config.enemy_count or config.red_count or 1
 	local step_red = (840 - 600) / math.max(1, red_count)
-	local enemy_hp = (mode == constants.MODE_CAMPAIGN and (level or 1) == 1) and 60 or 100
 	for i = 1, red_count do
+		local enemy_hp = level_config.get_enemy_hp(level, i)
 		local x = 600 + (i - 0.5) * step_red + (math.random() - 0.5) * 20
-		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp)
+		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy)
 	end
 
 	-- Point active_potato to first blue potato so weapon card selection equips the new instance
@@ -333,7 +340,8 @@ function update(self, dt)
 				-- Initialize bot turn
 				self.bot_thinking = true
 				local config = game_state.get_current_config()
-				self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, config.bot_difficulty)
+				local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
+				self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
 				self.bot_phase = "move"
 				self.bot_move_steps_done = 0
 				self.bot_move_timer = 0
@@ -401,7 +409,8 @@ function update(self, dt)
 					else
 						-- Movement done, recalculate aim from new position
 						local config = game_state.get_current_config()
-						self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, config.bot_difficulty)
+						local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
+						self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
 						if self.bot_plan then
 							self.bot_plan.movement = { dir = 0, steps = 0, should_jump = false }
 							game_state.select_weapon(self.bot_plan.weapon_id)

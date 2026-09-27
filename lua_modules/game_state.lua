@@ -6,62 +6,13 @@ local weapons = require("lua_modules.weapons")
 local cards = require("lua_modules.cards")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
+local level_config = require("lua_modules.level_config")
+local meta_progression = require("lua_modules.meta_progression")
 
 local M = {}
 
--- Campaign level definitions: 1 Player vs Bots!
-M.CAMPAIGN_LEVELS = {
-	{
-		id = 1,
-		name = "Арена 1: Зеленые Холмы",
-		desc = "Быстрая дуэль 1 на 1 среди цветущих лугов!",
-		terrain_preset = "hills",
-		biome = "grass",
-		blue_count = 1,
-		red_count = 1,
-		bot_difficulty = "easy",
-	},
-	{
-		id = 2,
-		name = "Арена 2: Ледяной Архипелаг",
-		desc = "Дуэль на парящих в воздухе ледяных островах!",
-		terrain_preset = "floating_islands",
-		biome = "arctic",
-		blue_count = 1,
-		red_count = 1,
-		bot_difficulty = "normal",
-	},
-	{
-		id = 3,
-		name = "Арена 3: Каньон и Каменный Мост",
-		desc = "Сражение на гигантской каменной арке над пустынным ущельем.",
-		terrain_preset = "canyon_bridge",
-		biome = "desert",
-		blue_count = 1,
-		red_count = 1,
-		bot_difficulty = "normal",
-	},
-	{
-		id = 4,
-		name = "Арена 4: Лавовые Катакомбы",
-		desc = "1 против 2 ботов в закрытой пещере с потолком и лавой!",
-		terrain_preset = "cavern",
-		biome = "volcano",
-		blue_count = 1,
-		red_count = 2,
-		bot_difficulty = "hard",
-	},
-	{
-		id = 5,
-		name = "Арена 5: Инопланетная Цитадель",
-		desc = "Финальный штурм: 1 против 2 ботов в изрезанной кавернами цитадели!",
-		terrain_preset = "swiss_cheese",
-		biome = "alien",
-		blue_count = 1,
-		red_count = 2,
-		bot_difficulty = "hard",
-	},
-}
+-- Campaign level definitions: delegated to level_config module
+M.CAMPAIGN_LEVELS = level_config.LEVELS
 
 -- Poki SDK Safety Wrappers
 function M.poki_gameplay_start()
@@ -280,14 +231,17 @@ function M.start_match(mode, campaign_lvl)
 			fire_bullets = false,
 			triple_jump = false,
 		}
+		-- Apply meta-upgrade starting weapons (Shotgun, Rifle, Bazooka, Burst, Holy Spud)
+		meta_progression.apply_starting_loadout(M)
 	end
 
 	M.poki_gameplay_start()
 
 	-- Offer bonus card selection at the beginning of each level in campaign mode!
 	if M.mode == constants.MODE_CAMPAIGN then
-		local p_hp = player_profile.get_campaign_hp() or 100
-		local c1, c2 = cards.draw_2_cards(p_hp, 100, M.campaign_level, M.player_perks)
+		local max_p_hp = meta_progression.get_player_max_hp()
+		local p_hp = player_profile.get_campaign_hp() or max_p_hp
+		local c1, c2 = cards.draw_2_cards(p_hp, max_p_hp, M.campaign_level, M.player_perks)
 		M.current_cards = { c1, c2 }
 		M.set_state(constants.STATE_CARD_SELECT)
 		if M.on_cards_offered then
@@ -301,62 +255,9 @@ end
 -- Get current match configuration
 function M.get_current_config()
 	if M.mode == constants.MODE_CAMPAIGN then
-		if M.campaign_level <= #M.CAMPAIGN_LEVELS then
-			return M.CAMPAIGN_LEVELS[M.campaign_level]
-		else
-			-- Infinite / high arenas
-			local presets = { "hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "islands", "bunkers" }
-			local biomes = { "grass", "arctic", "desert", "volcano", "alien", "grass", "desert" }
-			local idx = ((M.campaign_level - 1) % #presets) + 1
-			return {
-				id = M.campaign_level,
-				name = "Арена " .. tostring(M.campaign_level) .. ": Экстрим",
-				desc = "1 против волны элитных ботов!",
-				terrain_preset = presets[idx],
-				biome = biomes[idx],
-				blue_count = 1,
-				red_count = math.min(3, 1 + math.floor(M.campaign_level / 2)),
-				bot_difficulty = "hard",
-			}
-		end
-	elseif M.mode == constants.MODE_QUICK_PVP then
-		local pool = {
-			{ preset = "hills", biome = "grass" },
-			{ preset = "floating_islands", biome = "arctic" },
-			{ preset = "canyon_bridge", biome = "desert" },
-			{ preset = "cavern", biome = "volcano" },
-			{ preset = "swiss_cheese", biome = "alien" },
-			{ preset = "islands", biome = "grass" },
-			{ preset = "bunkers", biome = "desert" },
-		}
-		local pick = pool[math.random(1, #pool)]
-		return {
-			name = "Быстрый бой: 2 Игрока",
-			terrain_preset = pick.preset,
-			biome = pick.biome,
-			blue_count = 2,
-			red_count = 2,
-			bot_difficulty = "none",
-		}
-	else -- constants.MODE_QUICK_BOT
-		local pool = {
-			{ preset = "hills", biome = "grass" },
-			{ preset = "floating_islands", biome = "arctic" },
-			{ preset = "canyon_bridge", biome = "desert" },
-			{ preset = "cavern", biome = "volcano" },
-			{ preset = "swiss_cheese", biome = "alien" },
-			{ preset = "islands", biome = "grass" },
-			{ preset = "bunkers", biome = "desert" },
-		}
-		local pick = pool[math.random(1, #pool)]
-		return {
-			name = "Быстрый бой vs Компьютер",
-			terrain_preset = pick.preset,
-			biome = pick.biome,
-			blue_count = 2,
-			red_count = 2,
-			bot_difficulty = "normal",
-		}
+		return level_config.get(M.campaign_level)
+	else
+		return level_config.get_quick_match(M.mode)
 	end
 end
 
@@ -426,9 +327,10 @@ function M.select_card(card_index)
 
 	if chosen_card.type == "heal" then
 		sound_manager.play_heal()
+		local max_p_hp = meta_progression.get_player_max_hp()
 		local heal_amt = chosen_card.heal_amount or 30
-		local cur = player_profile.get_campaign_hp() or 100
-		local next_hp = math.min(100, cur + heal_amt)
+		local cur = player_profile.get_campaign_hp() or max_p_hp
+		local next_hp = math.min(max_p_hp, cur + heal_amt)
 		player_profile.set_campaign_hp(next_hp)
 		for _, p in ipairs(M.potatoes) do
 			if p.team == constants.TEAM_BLUE and p.is_alive then
@@ -436,6 +338,12 @@ function M.select_card(card_index)
 				if p.url then
 					msg.post(p.url, "apply_heal", { amount = heal_amt })
 				end
+				msg.post("/gui_hud#gui", "show_damage", {
+					x = p.pos.x,
+					y = p.pos.y,
+					amount = heal_amt,
+					is_heal = true
+				})
 			end
 		end
 	elseif chosen_card.type == "weapon" then
@@ -562,6 +470,12 @@ function M.update(dt, active_projectiles_count)
 		end
 
 		if (all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT then
+			-- Round HP Regeneration (meta-upgrade): restores % of max HP after each round of combat
+			for _, p in ipairs(M.potatoes) do
+				if p.team == constants.TEAM_BLUE and p.is_alive then
+					meta_progression.apply_round_regen(p, M)
+				end
+			end
 			M.next_turn()
 		end
 	end

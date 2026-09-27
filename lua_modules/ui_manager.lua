@@ -7,10 +7,19 @@ local sound_manager = require("lua_modules.sound_manager")
 
 local function is_node_effectively_enabled(node)
 	if not node then return false end
-	local ok, enabled = pcall(gui.is_enabled, node, true)
-	if ok then return enabled end
-	local ok2, enabled2 = pcall(gui.is_enabled, node)
-	return ok2 and enabled2 or false
+	local curr = node
+	while curr do
+		local ok, enabled = pcall(gui.is_enabled, curr)
+		if not ok or not enabled then
+			return false
+		end
+		local ok_parent, parent = pcall(gui.get_parent, curr)
+		if not ok_parent or not parent then
+			break
+		end
+		curr = parent
+	end
+	return true
 end
 
 local function pick_node_with_slop(node, x, y, slop)
@@ -152,13 +161,15 @@ function M.create(script_instance)
 						any_on_ui = true
 					end
 				end
-				for _, btn in ipairs(self.buttons) do
+				for i = #self.buttons, 1, -1 do
+					local btn = self.buttons[i]
 					if pick_node_with_slop(btn.node, t.x, t.y, btn.slop) then
 						any_on_ui = true
 						if (t.pressed and btn.instant) or (t.released and not btn.instant) then
 							animate_button_click(btn.node)
 							btn.callback()
 						end
+						break
 					end
 				end
 			end
@@ -192,8 +203,9 @@ function M.create(script_instance)
 					return true
 				end
 
-				-- Check regular buttons
-				for _, btn in ipairs(self.buttons) do
+				-- Check regular buttons (reverse order so top-most / overlay buttons hit first)
+				for i = #self.buttons, 1, -1 do
+					local btn = self.buttons[i]
 					if pick_node_with_slop(btn.node, action.x, action.y, btn.slop) then
 						self.active_btn = btn
 						self.captured_touch = true

@@ -7,49 +7,77 @@ M.SKINS = {
 	{
 		id = "classic",
 		name = "Обычный Боец",
+		name_ru = "Обычный Боец",
+		name_en = "Classic Spud",
 		desc = "Классический синий картофельный боец",
+		desc_ru = "Классический синий картофельный боец",
+		desc_en = "Classic blue potato warrior",
 		price = 0,
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
 		id = "gold",
 		name = "Золотой Самородок",
+		name_ru = "Золотой Самородок",
+		name_en = "Golden Nugget",
 		desc = "Покрыт чистым золотом высшей пробы",
+		desc_ru = "Покрыт чистым золотом высшей пробы",
+		desc_en = "Coated in pure 24-karat gold",
 		price = 150,
 		tint = { 1.0, 0.85, 0.2, 1.0 },
 	},
 	{
 		id = "ninja",
 		name = "Картошка-Ниндзя",
+		name_ru = "Картошка-Ниндзя",
+		name_en = "Ninja Spud",
 		desc = "Темный скрытный мастер боевых искусств",
+		desc_ru = "Темный скрытный мастер боевых искусств",
+		desc_en = "Stealthy martial arts master",
 		price = 250,
 		tint = { 0.35, 0.35, 0.45, 1.0 },
 	},
 	{
 		id = "cyber",
 		name = "Киборг MK-II",
+		name_ru = "Киборг MK-II",
+		name_en = "Cyborg MK-II",
 		desc = "Неоновый кибернетический корпус",
+		desc_ru = "Неоновый кибернетический корпус",
+		desc_en = "Neon cybernetic battle chassis",
 		price = 400,
 		tint = { 0.2, 0.9, 1.0, 1.0 },
 	},
 	{
 		id = "king",
 		name = "Король Пюре",
+		name_ru = "Король Пюре",
+		name_en = "King Mash",
 		desc = "Королевское величие и пурпурная мантия",
+		desc_ru = "Королевское величие и пурпурная мантия",
+		desc_en = "Royal majesty in a purple robe",
 		price = 600,
 		tint = { 0.85, 0.25, 0.85, 1.0 },
 	},
 	{
 		id = "magma",
 		name = "Магмовый Титан",
+		name_ru = "Магмовый Титан",
+		name_en = "Magma Titan",
 		desc = "Раскаленная лава и несокрушимая броня",
+		desc_ru = "Раскаленная лава и несокрушимая броня",
+		desc_en = "Molten lava and indestructible armor",
 		price = 900,
 		tint = { 1.0, 0.4, 0.1, 1.0 },
 	},
 	{
 		id = "emerald",
 		name = "Изумрудный Страж",
+		name_ru = "Изумрудный Страж",
+		name_en = "Emerald Sentinel",
 		desc = "Древний кристальный защитник урожая",
+		desc_ru = "Древний кристальный защитник урожая",
+		desc_en = "Ancient crystal crop guardian",
 		price = 1200,
 		tint = { 0.2, 1.0, 0.4, 1.0 },
 	},
@@ -60,13 +88,39 @@ for _, s in ipairs(M.SKINS) do
 	M.SKINS_BY_ID[s.id] = s
 end
 
+function M.get_skin_name(skin, lang)
+	if not skin then return "" end
+	lang = lang or "en"
+	if lang == "ru" then
+		return skin.name_ru or skin.name or ""
+	else
+		return skin.name_en or skin.name or ""
+	end
+end
+
+function M.get_skin_desc(skin, lang)
+	if not skin then return "" end
+	lang = lang or "en"
+	if lang == "ru" then
+		return skin.desc_ru or skin.desc or ""
+	else
+		return skin.desc_en or skin.desc or ""
+	end
+end
+
 -- Profile state
 M.data = {
+	language = nil,
 	points = 0,
 	unlocked_skins = { ["classic"] = true },
 	equipped_skin = "classic",
 	campaign_hp = 100,
 	campaign_max_hp = 100,
+	meta_upgrades = {
+		max_hp = 0,
+		starting_weapon = 0,
+		hp_regen = 0,
+	},
 }
 
 local function get_save_path()
@@ -77,17 +131,21 @@ function M.load()
 	local path = get_save_path()
 	local loaded = sys.load(path)
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
+		M.data.language = loaded.language
 		M.data.points = loaded.points or 0
 		M.data.unlocked_skins = loaded.unlocked_skins or { ["classic"] = true }
 		M.data.equipped_skin = loaded.equipped_skin or "classic"
 		M.data.campaign_hp = loaded.campaign_hp or 100
 		M.data.campaign_max_hp = loaded.campaign_max_hp or 100
+		M.data.meta_upgrades = loaded.meta_upgrades or { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
 	else
+		M.data.language = nil
 		M.data.points = 0
 		M.data.unlocked_skins = { ["classic"] = true }
 		M.data.equipped_skin = "classic"
 		M.data.campaign_hp = 100
 		M.data.campaign_max_hp = 100
+		M.data.meta_upgrades = { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
 	end
 	return M.data
 end
@@ -95,6 +153,17 @@ end
 function M.save()
 	local path = get_save_path()
 	sys.save(path, M.data)
+end
+
+function M.get_language()
+	return M.data.language
+end
+
+function M.set_language(lang)
+	if lang == "ru" or lang == "en" then
+		M.data.language = lang
+		M.save()
+	end
 end
 
 function M.get_points()
@@ -148,12 +217,29 @@ function M.get_campaign_hp()
 end
 
 function M.set_campaign_hp(hp)
-	M.data.campaign_hp = math.max(1, math.min(100, hp or 100))
+	local max_hp = M.data.campaign_max_hp or 100
+	M.data.campaign_hp = math.max(1, math.min(max_hp, hp or max_hp))
 	M.save()
 end
 
 function M.reset_campaign_hp()
-	M.data.campaign_hp = 100
+	local max_hp = M.data.campaign_max_hp or 100
+	M.data.campaign_hp = max_hp
+	M.save()
+end
+
+function M.get_upgrade_level(upgrade_id)
+	if not M.data.meta_upgrades then
+		M.data.meta_upgrades = {}
+	end
+	return M.data.meta_upgrades[upgrade_id] or 0
+end
+
+function M.set_upgrade_level(upgrade_id, level)
+	if not M.data.meta_upgrades then
+		M.data.meta_upgrades = {}
+	end
+	M.data.meta_upgrades[upgrade_id] = level or 0
 	M.save()
 end
 

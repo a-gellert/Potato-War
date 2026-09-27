@@ -83,7 +83,7 @@ function M.update_potato(p, dt, terrain)
 		end
 	else
 		-- Grounded state
-		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0, p.pos.y + 12.0)
+		local ground_y = terrain.get_smooth_ground_y(new_x, 4.0, p.pos.y + 8.0)
 		local target_standing_y = ground_y + check_radius
 
 		-- If potato got upward vertical impulse (e.g. explosion blast or jump), become airborne
@@ -96,6 +96,11 @@ function M.update_potato(p, dt, terrain)
 				p.is_grounded = false
 				p.vel.y = -20.0
 				new_y = p.pos.y + p.vel.y * dt
+			elseif (target_standing_y - p.pos.y) > 6.0 then
+				-- Hit a wall or steep rise while moving along ground: block horizontal progress
+				new_x = p.pos.x
+				new_y = p.pos.y
+				p.vel.x = 0
 			else
 				-- Stable ground resting / slope following:
 				new_y = target_standing_y
@@ -121,25 +126,78 @@ function M.walk_potato(p, dir, dt, terrain)
 		return
 	end
 
-	local walk_dist = dir * constants.POTATO_WALK_SPEED * dt
-	local target_x = p.pos.x + walk_dist
+	local radius = constants.POTATO_RADIUS
+	local speed = constants.POTATO_WALK_SPEED
+	local MAX_CLIMB_SLOPE = 1.05 -- ~46 degrees (standard Worms max walkable slope)
+	local MAX_STEP_UP = 3.5      -- small voxel step-up limit (curbs, jagged pixels)
 
-	-- Clamp bounds
-	if target_x < constants.POTATO_RADIUS or target_x > constants.WORLD_WIDTH - constants.POTATO_RADIUS then
-		return
-	end
-
-	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 6.0, p.pos.y + 12.0)
-	local target_gy = terrain.get_smooth_ground_y(target_x, 6.0, p.pos.y + 12.0)
-
-	-- Check slope step-up limit (cannot climb walls steeper than 16px step)
-	if (target_gy - curr_gy) > 16.0 then
+	-- 1. Wall collision check at body level
+	-- If solid rock is directly in front of the potato at waist or chest height, stop
+	local front_check_x = p.pos.x + dir * (radius * 0.75)
+	if terrain.is_solid(front_check_x, p.pos.y) or terrain.is_solid(front_check_x, p.pos.y + 4.0) then
 		p.vel.x = 0
 		return
 	end
 
+	-- 2. Measure ground height under current position and ahead
+	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 4.0, p.pos.y + 8.0)
+
+	-- Look ahead to evaluate slope of the terrain
+	local look_ahead = 6.0
+	local ahead_x = p.pos.x + dir * look_ahead
+	local ahead_gy = terrain.get_smooth_ground_y(ahead_x, 4.0, p.pos.y + 8.0)
+	local ahead_diff = ahead_gy - curr_gy
+
+	-- If going uphill, check whether the incline is too steep
+	if ahead_diff > MAX_STEP_UP then
+		local slope = ahead_diff / look_ahead
+		if slope > MAX_CLIMB_SLOPE then
+			-- Too steep to walk up (mountain/cliff/wall) - must jump!
+			p.vel.x = 0
+			return
+		end
+	end
+
+	-- 3. Calculate movement speed along surface
+	-- Walking along an incline should maintain surface speed, not teleport vertically
+	local slope_angle = math.atan2(math.max(0, ahead_diff), look_ahead)
+	local speed_mult = math.max(0.75, 1.0 - 0.25 * math.sin(slope_angle))
+	local move_speed = speed * speed_mult
+
+	local ds = move_speed * dt
+	local step_x = dir * ds * math.cos(slope_angle)
+	local target_x = p.pos.x + step_x
+
+	-- Clamp bounds
+	if target_x < radius or target_x > constants.WORLD_WIDTH - radius then
+		p.vel.x = 0
+		return
+	end
+
+	-- 4. Check immediate step-up at target_x
+	local target_gy = terrain.get_smooth_ground_y(target_x, 4.0, p.pos.y + 8.0)
+	local step_diff = target_gy - curr_gy
+
+	if step_diff > MAX_STEP_UP then
+		local local_slope = step_diff / math.max(0.01, math.abs(step_x))
+		if local_slope > MAX_CLIMB_SLOPE then
+			p.vel.x = 0
+			return
+		end
+	end
+
+	-- 5. Walking off a cliff / ledge (steep drop)
+	if (curr_gy - target_gy) > 8.0 then
+		p.pos.x = target_x
+		p.is_grounded = false
+		p.vel.x = dir * speed * 0.75
+		p.vel.y = -10.0
+		return
+	end
+
+	-- 6. Apply smooth position update
 	p.pos.x = target_x
-	p.pos.y = target_gy + constants.POTATO_RADIUS
+	p.pos.y = target_gy + radius
 end
 
 -- Jump potato

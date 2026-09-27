@@ -470,13 +470,17 @@ function on_message(self, message_id, message, sender)
 			local x = message.x or 480
 			local y = (message.y or 270) + 18
 			local amt = message.amount or 0
-			local is_crit = (amt >= 45)
+			local is_heal = (message.is_heal == true)
+			local is_crit = (not is_heal) and (amt >= 45)
 
-			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), "-" .. tostring(amt))
+			local prefix = is_heal and "+" or "-"
+			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), prefix .. tostring(amt))
 			gui.set_font(txt_node, "system_font")
-			local scale = is_crit and 0.85 or 0.65
+			local scale = is_heal and 0.80 or (is_crit and 0.85 or 0.65)
 			gui.set_scale(txt_node, vmath.vector3(scale, scale, 1.0))
-			if is_crit then
+			if is_heal then
+				gui.set_color(txt_node, vmath.vector4(0.18, 0.95, 0.35, 1.0)) -- Vibrant emerald green
+			elseif is_crit then
 				gui.set_color(txt_node, vmath.vector4(1.0, 0.22, 0.15, 1.0)) -- Crit red
 			else
 				gui.set_color(txt_node, vmath.vector4(1.0, 0.85, 0.2, 1.0)) -- Gold/yellow

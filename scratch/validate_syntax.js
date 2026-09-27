@@ -11,6 +11,10 @@ const files = [
     'lua_modules/weapons.lua',
     'lua_modules/cards.lua',
     'lua_modules/i18n.lua',
+    'lua_modules/level_config.lua',
+    'lua_modules/meta_progression.lua',
+    'lua_modules/player_profile.lua',
+    'lua_modules/terrain_grid.lua',
     'lua_modules/game_state.lua',
     'lua_modules/bot_ai.lua',
     'lua_modules/physics_sim.lua'

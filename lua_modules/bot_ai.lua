@@ -9,6 +9,7 @@
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local physics_sim = require("lua_modules.physics_sim")
+local level_config = require("lua_modules.level_config")
 
 local M = {}
 
@@ -132,6 +133,7 @@ end
 
 -- 2. TACTICAL MOVEMENT: Escaping pits, safe standoff for breaching, or seeking cover from direct aim
 function M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
+	difficulty = level_config.normalize_skill(difficulty or "normal")
 	if not target then
 		return { dir = 0, steps = 0, should_jump = false, intent = "idle" }
 	end
@@ -592,7 +594,7 @@ end
 
 -- 4. MASTER BOT TURN PLANNER: Coordinates perception, movement, and combat
 function M.plan_turn(bot, all_potatoes, terrain, difficulty)
-	difficulty = difficulty or "normal"
+	difficulty = level_config.normalize_skill(difficulty or "normal")
 
 	-- Collect alive enemies
 	local enemies = {}
