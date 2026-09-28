@@ -539,12 +539,16 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	local candidate_weapons = {
 		weapons.get(weapons.TYPES.GRENADE),
 		weapons.get(weapons.TYPES.BAZOOKA),
+		weapons.get(weapons.TYPES.DRILL),
+		weapons.get(weapons.TYPES.BEETLE),
 	}
 	if dist > 180.0 then
 		table.insert(candidate_weapons, weapons.get(weapons.TYPES.HOLY_GRENADE))
+		table.insert(candidate_weapons, weapons.get(weapons.TYPES.GARLIC))
 	end
 	if dist < 260.0 then
 		table.insert(candidate_weapons, weapons.get(weapons.TYPES.MOLOTOV))
+		table.insert(candidate_weapons, weapons.get(weapons.TYPES.PEPPER))
 	end
 
 	local chosen_weapon = candidate_weapons[math.random(1, #candidate_weapons)]

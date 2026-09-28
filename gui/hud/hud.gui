@@ -144,11 +144,11 @@ nodes {
 }
 nodes {
   position {
-    x: 560.0
+    x: 530.0
     y: 40.0
   }
   size {
-    x: 670.0
+    x: 440.0
     y: 56.0
   }
   color {
@@ -171,10 +171,10 @@ nodes {
 }
 nodes {
   position {
-    x: -287.0
+    x: -172.0
   }
   size {
-    x: 74.0
+    x: 76.0
     y: 44.0
   }
   color {
@@ -259,10 +259,10 @@ nodes {
 }
 nodes {
   position {
-    x: -205.0
+    x: -86.0
   }
   size {
-    x: 74.0
+    x: 76.0
     y: 44.0
   }
   color {
@@ -347,10 +347,10 @@ nodes {
 }
 nodes {
   position {
-    x: -123.0
+    x: 0.0
   }
   size {
-    x: 74.0
+    x: 76.0
     y: 44.0
   }
   color {
@@ -435,10 +435,10 @@ nodes {
 }
 nodes {
   position {
-    x: -41.0
+    x: 86.0
   }
   size {
-    x: 74.0
+    x: 76.0
     y: 44.0
   }
   color {
@@ -523,10 +523,10 @@ nodes {
 }
 nodes {
   position {
-    x: 41.0
+    x: 172.0
   }
   size {
-    x: 74.0
+    x: 76.0
     y: 44.0
   }
   color {
@@ -555,7 +555,7 @@ nodes {
     y: 28.0
   }
   type: TYPE_BOX
-  texture: "game/rifle"
+  texture: "game/masher_bazooka"
   id: "icon_wpn_5"
   parent: "btn_wpn_5"
   inherit_alpha: true
@@ -605,270 +605,6 @@ nodes {
   font: "system_font"
   id: "ammo_wpn_5"
   parent: "btn_wpn_5"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 123.0
-  }
-  size {
-    x: 74.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_6"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/masher_bazooka"
-  id: "icon_wpn_6"
-  parent: "btn_wpn_6"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "6"
-  font: "system_font"
-  id: "num_wpn_6"
-  parent: "btn_wpn_6"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_6"
-  parent: "btn_wpn_6"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 205.0
-  }
-  size {
-    x: 74.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_7"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/grater"
-  id: "icon_wpn_7"
-  parent: "btn_wpn_7"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "7"
-  font: "system_font"
-  id: "num_wpn_7"
-  parent: "btn_wpn_7"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_7"
-  parent: "btn_wpn_7"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 287.0
-  }
-  size {
-    x: 74.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_8"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/holy_spud"
-  id: "icon_wpn_8"
-  parent: "btn_wpn_8"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "8"
-  font: "system_font"
-  id: "num_wpn_8"
-  parent: "btn_wpn_8"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_8"
-  parent: "btn_wpn_8"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0

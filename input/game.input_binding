@@ -86,3 +86,15 @@ key_trigger {
   input: KEY_ENTER
   action: "enter"
 }
+key_trigger {
+  input: KEY_F1
+  action: "toggle_profiler"
+}
+key_trigger {
+  input: KEY_F3
+  action: "toggle_profiler"
+}
+key_trigger {
+  input: KEY_P
+  action: "toggle_profiler"
+}

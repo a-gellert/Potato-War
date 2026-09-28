@@ -243,6 +243,25 @@ function M.set_upgrade_level(upgrade_id, level)
 	M.save()
 end
 
+function M.get_next_skin_progress()
+	local pts = M.get_points()
+	for _, skin in ipairs(M.SKINS) do
+		if skin.price > 0 and not M.is_skin_unlocked(skin.id) then
+			local pct = math.min(1.0, math.max(0.0, pts / skin.price))
+			local needed = math.max(0, skin.price - pts)
+			return {
+				skin = skin,
+				current_points = pts,
+				target_price = skin.price,
+				needed = needed,
+				percent = pct,
+				can_buy = (pts >= skin.price)
+			}
+		end
+	end
+	return nil
+end
+
 -- Initialize by loading on startup
 M.load()
 

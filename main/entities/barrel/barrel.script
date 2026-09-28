@@ -1,0 +1,113 @@
+-- main/entities/barrel/barrel.script
+-- Physics settling, hit detection, and massive TNT chain-reaction explosion
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+local camera_controller = require("lua_modules.camera_controller")
+local game_state = require("lua_modules.game_state")
+local physics_sim = require("lua_modules.physics_sim")
+local player_profile = require("lua_modules.player_profile")
+
+go.property("radius", 55)
+go.property("max_damage", 45)
+go.property("blast_force", 240)
+
+function init(self)
+	self.pos = go.get_position()
+	self.is_alive = true
+	self.vel_y = 0
+end
+
+function update(self, dt)
+	if not self.is_alive then return end
+
+	local gy = terrain_grid.get_smooth_ground_y(self.pos.x, 4.0, self.pos.y + 12)
+	local target_y = gy + 17
+
+	if self.pos.y > target_y then
+		self.vel_y = self.vel_y - 800 * dt
+		self.pos.y = self.pos.y + self.vel_y * dt
+		if self.pos.y <= target_y then
+			self.pos.y = target_y
+			self.vel_y = 0
+		end
+		go.set_position(self.pos)
+	elseif self.pos.y < target_y - 2 then
+		self.pos.y = target_y
+		self.vel_y = 0
+		go.set_position(self.pos)
+	end
+
+	-- If submerged in water, sink and vanish
+	if self.pos.y < constants.WATER_LEVEL + 5 then
+		self.is_alive = false
+		msg.post("/main#main", "barrel_destroyed", { id = go.get_id() })
+		go.delete()
+	end
+end
+
+local function explode(self)
+	if not self.is_alive then return end
+	self.is_alive = false
+
+	local bx = self.pos.x
+	local by = self.pos.y
+	local my_id = go.get_id()
+
+	-- Notify main that this barrel is destroyed immediately
+	msg.post("/main#main", "barrel_destroyed", { id = my_id })
+
+	-- 1. Carve crater in terrain
+	msg.post("/terrain#terrain", "carve_crater", {
+		x = bx,
+		y = by,
+		radius = 52
+	})
+
+	-- 2. Visual explosion & sound (triggers check_blast on remaining barrels via main)
+	msg.post("/main#main", "spawn_explosion", {
+		x = bx,
+		y = by,
+		radius = self.radius
+	})
+
+	-- 3. Screen shake
+	camera_controller.shake(22, 0.45)
+
+	-- 4. Apply damage and blast to potatoes
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive then
+			local dmg = physics_sim.apply_blast(p, bx, by, self.radius, self.blast_force, self.max_damage)
+			if dmg > 0 and p.url then
+				msg.post(p.url, "apply_damage", { damage = dmg })
+				msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
+			end
+		end
+	end
+
+	-- 5. Bonus toast if hit during player turn
+	if game_state.active_team == constants.TEAM_BLUE then
+		player_profile.add_points(25)
+		msg.post("/gui_hud#gui", "show_achievement_toast", {
+			icon = "💥",
+			title = "TNT БАБАХ!",
+			points = 25
+		})
+	end
+
+	go.delete()
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("explode") then
+		explode(self)
+	elseif message_id == hash("check_blast") then
+		if not self.is_alive then return end
+		local dx = self.pos.x - message.x
+		local dy = self.pos.y - message.y
+		local dist = math.sqrt(dx * dx + dy * dy)
+		if dist <= (message.radius or 30) + 20 then
+			explode(self)
+		end
+	end
+end

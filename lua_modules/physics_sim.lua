@@ -363,7 +363,27 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 
 	-- Otherwise, if terrain was hit:
 	if terrain_hit then
-		if proj.weapon.bounciness and proj.weapon.bounciness > 0.1 then
+		if proj.weapon.on_hit == "drill" and not proj.is_drilling then
+			proj.is_drilling = true
+			local drill_dist = proj.weapon.drill_dist or 65
+			local speed = math.sqrt(proj.vel.x * proj.vel.x + proj.vel.y * proj.vel.y)
+			if speed > 0.01 then
+				local dir_x = proj.vel.x / speed
+				local dir_y = proj.vel.y / speed
+				local final_x = thx + dir_x * drill_dist
+				local final_y = thy + dir_y * drill_dist
+				-- Carve tunnel through terrain
+				if terrain and terrain.carve_circle then
+					terrain.carve_circle(thx + dir_x * 15, thy + dir_y * 15, 10)
+					terrain.carve_circle(thx + dir_x * 35, thy + dir_y * 35, 11)
+					terrain.carve_circle(thx + dir_x * 55, thy + dir_y * 55, 12)
+				end
+				proj.pos.x = final_x
+				proj.pos.y = final_y
+				return "explode", final_x, final_y
+			end
+			return "explode", thx, thy
+		elseif proj.weapon.bounciness and proj.weapon.bounciness > 0.1 then
 			-- Bounce (Grenade / Holy Grenade)
 			local dot = proj.vel.x * nx + proj.vel.y * ny
 			if dot < 0 then
@@ -386,7 +406,7 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 			end
 			return "bounce", thx, thy
 		else
-			-- Explode on impact (Rifle / Rocket / Burst / Shotgun / Molotov)
+			-- Explode on impact (Rifle / Rocket / Burst / Shotgun / Molotov / Beetle)
 			return "explode", thx, thy
 		end
 	end

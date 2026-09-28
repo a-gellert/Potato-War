@@ -4,6 +4,7 @@
 local constants = require("lua_modules.constants")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
+local player_profile = require("lua_modules.player_profile")
 local i18n = require("lua_modules.i18n")
 
 function init(self)
@@ -15,8 +16,13 @@ function init(self)
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", {
 			mode = game_state.mode,
-			level = (game_state.mode == constants.MODE_CAMPAIGN) and 1 or game_state.campaign_level
+			level = game_state.campaign_level or 1
 		})
+	end)
+
+	self.ui:button("btn_revive", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "revive_player")
 	end)
 
 	self.ui:button("btn_next_level", function()
@@ -26,6 +32,11 @@ function init(self)
 			mode = constants.MODE_CAMPAIGN,
 			level = next_lvl
 		})
+	end)
+
+	self.ui:button("btn_shop", function()
+		msg.post(".", "disable")
+		msg.post("/gui_menu#gui", "open_shop", { mode = "skins" })
 	end)
 
 	self.ui:button("btn_menu", function()
@@ -60,6 +71,10 @@ function on_message(self, message_id, message, sender)
 		local rematch_txt = gui.get_node("txt_rematch")
 		local next_btn = gui.get_node("btn_next_level")
 		local next_txt = gui.get_node("txt_next_level")
+		local revive_btn = gui.get_node("btn_revive")
+		local revive_txt = gui.get_node("txt_revive")
+		local shop_btn = gui.get_node("btn_shop")
+		local shop_txt = gui.get_node("txt_shop")
 		local menu_btn = gui.get_node("btn_menu")
 		local menu_txt = gui.get_node("txt_menu")
 
@@ -68,6 +83,34 @@ function on_message(self, message_id, message, sender)
 		local achieve_node = gui.get_node("achieve_text")
 		local ach_list = message.achievements or {}
 		local ach_bonus = message.achieve_bonus or 0
+
+		-- 1. Skin Progress bar
+		pcall(function()
+			local prog = player_profile.get_next_skin_progress()
+			local skin_bg = gui.get_node("skin_progress_bg")
+			local skin_txt = gui.get_node("skin_progress_txt")
+			if prog and prog.skin then
+				gui.set_enabled(skin_bg, true)
+				local skin_name = is_ru and (prog.skin.name_ru or prog.skin.name) or (prog.skin.name_en or prog.skin.name)
+				if prog.can_buy then
+					local ready_msg = is_ru and ("🎉 Доступен скин «" .. skin_name .. "» (" .. prog.target_price .. " очков)! Нажмите «МАГАЗИН»")
+						or ("🎉 Unlocked: '" .. skin_name .. "' (" .. prog.target_price .. " pts)! Click 'SHOP'")
+					gui.set_text(skin_txt, ready_msg)
+					gui.set_color(skin_txt, vmath.vector4(0.3, 1.0, 0.5, 1.0))
+				else
+					local prog_msg = is_ru and ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " до скина «" .. skin_name .. "» (Осталось " .. prog.needed .. " очков)")
+						or ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " to '" .. skin_name .. "' (" .. prog.needed .. " pts to go)")
+					gui.set_text(skin_txt, prog_msg)
+					gui.set_color(skin_txt, vmath.vector4(1.0, 0.85, 0.25, 1.0))
+				end
+			else
+				gui.set_enabled(skin_bg, false)
+			end
+		end)
+
+		gui.set_text(shop_txt, i18n.t("btn_shop"))
+		gui.set_text(revive_txt, i18n.t("btn_revive"))
+		gui.set_text(menu_txt, i18n.t("btn_menu"))
 
 		if winner == constants.TEAM_BLUE then
 			-- VICTORY
@@ -94,25 +137,28 @@ function on_message(self, message_id, message, sender)
 				gui.set_enabled(achieve_node, true)
 			end
 
-			gui.set_text(next_txt, is_ru and "ДАЛЕЕ" or "NEXT")
+			gui.set_text(next_txt, i18n.t("btn_next_level"))
 
 			gui.set_enabled(reward_bg, true)
 			gui.set_enabled(reward_txt, true)
 			gui.set_enabled(next_btn, true)
 			gui.set_enabled(next_txt, true)
 
+			gui.set_enabled(revive_btn, false)
+			gui.set_enabled(revive_txt, false)
 			gui.set_enabled(rematch_btn, false)
 			gui.set_enabled(rematch_txt, false)
-			gui.set_enabled(menu_btn, false)
-			gui.set_enabled(menu_txt, false)
+
+			gui.set_enabled(shop_btn, true)
+			gui.set_position(shop_btn, vmath.vector3(480, 92, 0))
+			gui.set_enabled(menu_btn, true)
 
 		elseif winner == constants.TEAM_RED then
 			-- DEFEAT
 			gui.set_text(title_node, i18n.t("defeat"))
 			gui.set_color(title_node, vmath.vector4(0.91, 0.30, 0.24, 1.0))
 			gui.set_text(sub_node, is_ru and "Ваша картошка уничтожена." or "Your potato was destroyed.")
-			gui.set_text(rematch_txt, is_ru and "НАЧАТЬ ЗАНОВО" or "RESTART")
-			gui.set_text(menu_txt, i18n.t("btn_menu"))
+			gui.set_text(rematch_txt, i18n.t("btn_rematch"))
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)
@@ -120,17 +166,25 @@ function on_message(self, message_id, message, sender)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
 
+			-- Revive option (Second Chance)
+			gui.set_enabled(revive_btn, true)
+			gui.set_enabled(revive_txt, true)
+
+			-- Restart run
 			gui.set_enabled(rematch_btn, true)
 			gui.set_enabled(rematch_txt, true)
+
+			-- Shop
+			gui.set_enabled(shop_btn, true)
+			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
+
 			gui.set_enabled(menu_btn, true)
-			gui.set_enabled(menu_txt, true)
 		else
 			-- DRAW
 			gui.set_text(title_node, i18n.t("draw"))
 			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
 			gui.set_text(sub_node, i18n.t("sub_draw"))
 			gui.set_text(rematch_txt, i18n.t("btn_rematch"))
-			gui.set_text(menu_txt, i18n.t("btn_menu"))
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)
@@ -138,10 +192,12 @@ function on_message(self, message_id, message, sender)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
 
+			gui.set_enabled(revive_btn, false)
 			gui.set_enabled(rematch_btn, true)
 			gui.set_enabled(rematch_txt, true)
+			gui.set_enabled(shop_btn, true)
+			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
 			gui.set_enabled(menu_btn, true)
-			gui.set_enabled(menu_txt, true)
 		end
 	end
 end

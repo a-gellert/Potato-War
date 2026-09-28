@@ -10,14 +10,20 @@ local camera_controller = require("lua_modules.camera_controller")
 go.property("burn_time", 2.5)
 go.property("radius", 8)
 go.property("dps", 10)
+go.property("is_pepper", false)
 
 function init(self)
 	self.timer = self.burn_time
 	self.burn_tick = 0
 	self.carve_tick = 0
 
-	-- Fire-orange tint, pulsating
-	go.set("#sprite", "tint", vmath.vector4(1.0, 0.55, 0.1, 0.9))
+	if self.is_pepper then
+		-- Spicy cayenne pepper crimson-red tint
+		go.set("#sprite", "tint", vmath.vector4(0.95, 0.15, 0.1, 0.85))
+	else
+		-- Fire-orange tint, pulsating
+		go.set("#sprite", "tint", vmath.vector4(1.0, 0.55, 0.1, 0.9))
+	end
 	go.animate("#sprite", "tint.w", go.PLAYBACK_LOOP_PINGPONG, 0.5, go.EASING_INOUTSINE, 0.3)
 
 	local s = self.radius / 12.0
@@ -46,7 +52,7 @@ function update(self, dt)
 		})
 	end
 
-	-- Damage nearby potatoes every 0.5s
+	-- Damage nearby potatoes every 0.5s + sneezing if pepper
 	self.burn_tick = self.burn_tick + dt
 	if self.burn_tick >= 0.5 then
 		self.burn_tick = self.burn_tick - 0.5
@@ -60,6 +66,12 @@ function update(self, dt)
 					p.hp = math.max(0, p.hp - dmg)
 					if p.url then
 						msg.post(p.url, "apply_damage", { damage = dmg })
+					end
+					-- Sneezing pop effect from chili pepper!
+					if self.is_pepper then
+						p.vel.y = p.vel.y + 110 + math.random(0, 35)
+						p.vel.x = p.vel.x + (math.random() - 0.5) * 80
+						p.is_grounded = false
 					end
 					if p.hp <= 0 then
 						p.is_alive = false

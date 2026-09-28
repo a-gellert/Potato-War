@@ -16,8 +16,8 @@ embedded_components {
     z: -0.3
   }
   scale {
-    x: 100.0
-    y: 100.0
+    x: 2.0
+    y: 2.0
   }
 }
 embedded_components {

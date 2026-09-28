@@ -73,11 +73,13 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 	constants.log(">>> PROJECTILE DETONATING AT:", hit_x, hit_y, "weapon:", self.weapon.id, "direct_hit:", direct_hit_potato and direct_hit_potato.id)
 	self.is_active = false
 
-	if self.weapon.on_hit == "napalm" then
-		-- Small initial explosion
-		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
+	if self.weapon.on_hit == "napalm" or self.weapon.on_hit == "pepper" then
+		local is_pepper = (self.weapon.on_hit == "pepper")
+		-- Initial explosion and crater
+		local crater_r = self.weapon.crater_radius or self.weapon.blast_radius
+		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = crater_r })
 		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
-		camera_controller.shake(self.weapon.blast_radius * 0.2, 0.2)
+		camera_controller.shake(self.weapon.blast_radius * 0.25, 0.2)
 		
 		-- Apply direct hit or blast damage
 		for _, p in ipairs(game_state.potatoes) do
@@ -96,23 +98,39 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 			end
 		end
 		
-		-- Spawn napalm fire patches
+		-- Spawn napalm / pepper cloud patches
 		msg.post("/main#main", "spawn_napalm", {
 			x = hit_x,
 			y = hit_y,
-			count = self.weapon.napalm_count or 6,
-			spread = self.weapon.napalm_spread or 40,
-			burn_time = self.weapon.napalm_burn_time or 2.5,
-			radius = self.weapon.napalm_radius or 8,
-			dps = self.weapon.napalm_dps or 10,
+			count = is_pepper and (self.weapon.pepper_count or 6) or (self.weapon.napalm_count or 6),
+			spread = is_pepper and (self.weapon.pepper_spread or 42) or (self.weapon.napalm_spread or 40),
+			burn_time = is_pepper and (self.weapon.pepper_burn_time or 3.0) or (self.weapon.napalm_burn_time or 2.5),
+			radius = is_pepper and (self.weapon.pepper_radius or 11) or (self.weapon.napalm_radius or 8),
+			dps = is_pepper and (self.weapon.pepper_dps or 12) or (self.weapon.napalm_dps or 10),
+			is_pepper = is_pepper,
 		})
+
+	elseif self.weapon.on_hit == "beetles" then
+		-- Jar cracks open: small crater, visual explosion, and release 3 beetles!
+		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = 16 })
+		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = 20 })
+		camera_controller.shake(5, 0.2)
+
+		-- Spawn 3 beetle minions scattering in arcs
+		msg.post("/main#main", "spawn_beetles", {
+			x = hit_x,
+			y = hit_y,
+			count = self.weapon.beetle_count or 3,
+			owner_id = self.owner_id
+		})
+
 	else
-		-- Standard explosion (Rifle, Grenade, Bazooka, Shotgun, Burst, Holy Grenade)
-		-- Carve crater in terrain
+		-- Standard explosion (Rifle, Grenade, Bazooka, Shotgun, Burst, Holy Grenade, Drill, Garlic)
+		local crater_r = self.weapon.crater_radius or self.weapon.blast_radius
 		msg.post("/terrain#terrain", "carve_crater", {
 			x = hit_x,
 			y = hit_y,
-			radius = self.weapon.blast_radius
+			radius = crater_r
 		})
 
 		-- Spawn visual explosion
@@ -153,6 +171,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				burn_time = 2.0,
 				radius = 8,
 				dps = 8,
+				is_pepper = false,
 			})
 		end
 	end

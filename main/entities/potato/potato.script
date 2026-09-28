@@ -40,6 +40,11 @@ local WEAPON_SPRITE_MAP = {
 	bazooka = "masher_bazooka",
 	shotgun = "grater",
 	holy_grenade = "holy_spud",
+	beetle = "box",
+	drill = "spark",
+	pepper = "oil_bottle",
+	garlic = "holy_spud",
+	beetle_minion = "circle",
 }
 
 function init(self)

@@ -1,0 +1,52 @@
+-- main/entities/airship/airship.script
+-- Smooth flyby across the sky, dropping bazooka rockets onto the battlefield
+
+local constants = require("lua_modules.constants")
+
+go.property("speed", 100)
+
+function init(self)
+	self.pos = go.get_position()
+	self.base_y = self.pos.y
+	self.time = 0
+	go.set("#sprite", "scale", vmath.vector3(1.5, 1.5, 1.0))
+	constants.log(">>> AIRSHIP INIT! POS:", self.pos.x, self.pos.y, self.pos.z)
+
+	-- Drop 3 rocket salvos across the battlefield
+	self.bomb_drops = {
+		{ x = 240 + math.random(0, 50), dropped = false },
+		{ x = 460 + math.random(0, 50), dropped = false },
+		{ x = 680 + math.random(0, 50), dropped = false },
+	}
+end
+
+function update(self, dt)
+	self.time = self.time + dt
+	self.pos.x = self.pos.x + self.speed * dt
+	self.pos.y = self.base_y + math.sin(self.time * 2.2) * 8.0
+	go.set_position(self.pos)
+
+	-- Check rocket drop points
+	for _, drop in ipairs(self.bomb_drops) do
+		if not drop.dropped and self.pos.x >= drop.x then
+			drop.dropped = true
+			msg.post("/main#main", "airship_drop_bomb", {
+				x = self.pos.x,
+				y = self.pos.y - 25
+			})
+		end
+	end
+
+	-- Delete once flown off screen
+	if self.pos.x > constants.WORLD_WIDTH + 140 then
+		constants.log(">>> AIRSHIP FINISHED FLYBY")
+		msg.post("/main#main", "airship_finished")
+		go.delete()
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("destroy") then
+		go.delete()
+	end
+end

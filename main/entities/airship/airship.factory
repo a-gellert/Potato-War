@@ -1,0 +1,2 @@
+prototype: "/main/entities/airship/airship.go"
+load_dynamically: false

@@ -19,6 +19,14 @@ components {
   component: "/main/entities/napalm/napalm.factory"
 }
 components {
+  id: "barrel_factory"
+  component: "/main/entities/barrel/barrel.factory"
+}
+components {
+  id: "airship_factory"
+  component: "/main/entities/airship/airship.factory"
+}
+components {
   id: "sound_click"
   component: "/main/assets/sounds/sound_click.sound"
 }

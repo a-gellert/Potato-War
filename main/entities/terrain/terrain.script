@@ -1,34 +1,57 @@
 -- main/entities/terrain/terrain.script
--- Manages destructible terrain texture updates, dynamic biomes, and environment themes for Potato War
+-- Manages destructible terrain texture updates, dynamic biomes, procedural background art,
+-- and ambient background warfare simulation for Potato War.
 
 local constants = require("lua_modules.constants")
 local terrain_grid = require("lua_modules.terrain_grid")
+local bg_battle = require("lua_modules.bg_battle")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
 
+local TEXTURE_BG_PATH = "/dynamic_bg.texturec"
+local ATLAS_BG_PATH = "/dynamic_bg.texturesetc"
+
 local BIOME_THEMES = {
 	grass = {
-		sky = vmath.vector4(0.35, 0.75, 0.98, 1.0),
 		water = vmath.vector4(0.10, 0.65, 0.96, 0.95),
 	},
 	desert = {
-		sky = vmath.vector4(0.98, 0.68, 0.36, 1.0),
 		water = vmath.vector4(0.08, 0.82, 0.78, 0.95),
 	},
 	arctic = {
-		sky = vmath.vector4(0.52, 0.80, 0.98, 1.0),
 		water = vmath.vector4(0.14, 0.48, 0.88, 0.95),
 	},
 	volcano = {
-		sky = vmath.vector4(0.52, 0.16, 0.22, 1.0),
 		water = vmath.vector4(1.00, 0.42, 0.06, 0.96),
 	},
 	alien = {
-		sky = vmath.vector4(0.28, 0.10, 0.48, 1.0),
 		water = vmath.vector4(0.12, 0.95, 0.58, 0.95),
 	},
 }
+
+-- Fast value noise helper for background generation
+local function hash_val2d(x, y)
+    local n = math.sin(x * 12.9898 + y * 78.233) * 43758.5453
+    return n - math.floor(n)
+end
+
+local function bg_noise(x, seed)
+	local ix = math.floor(x)
+	local fx = x - ix
+	fx = fx * fx * (3.0 - 2.0 * fx)
+	local a = hash_val2d(ix, seed)
+	local b = hash_val2d(ix + 1, seed)
+	return a + (b - a) * fx
+end
+
+local function clamp(v, min_v, max_v)
+	return math.max(min_v, math.min(max_v, v))
+end
+
+---------------------------------------------------------
+-- Ultra-Rich & Natural Landscape Shading per Biome (No Vertical Stripes)
+---------------------------------------------------------
 
 local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 	local row = gy * w
@@ -41,7 +64,7 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 		return
 	end
 
-	-- Depth from surface (check up to 6 cells above for a lush, thick top crust!)
+	-- Depth from surface (check up to 6 cells above for natural vertical layer transition)
 	local depth = 6
 	for d = 1, 6 do
 		local above_y = gy + d
@@ -51,140 +74,171 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 		end
 	end
 
+	-- True 2D pseudo-random white noise (eliminates all vertical barcode and diagonal moire artifacts!)
+	local rnd = hash_val2d(gx * 1.31, gy * 1.73)
+	local grain = (rnd - 0.5) * 10
+	local fold = math.sin(gx * 0.025) * 5 + math.cos(gx * 0.05) * 2.5
+	local layer_y = gy + fold
+
 	local r, g, b = 100, 100, 100
 
 	if biome == "desert" then
-		-- VIBRANT GOLDEN DESERT & CORAL CANYON BIOME
+		-- GOLDEN DESERT & STRATIFIED CANYON BIOME
 		if depth == 0 then
-			local fl = (gx * 37 + gy * 13) % 23
-			if fl == 0 then
-				r = 65; g = 240; b = 215 -- Oasis turquoise gem
-			elseif fl == 1 then
-				r = 255; g = 105; b = 135 -- Desert cactus blossom pink
+			-- Top dune crest with occasional rare desert flowers & turquoise crystals
+			if rnd > 0.965 then
+				r = 65; g = 240; b = 215 -- Turquoise geode
+			elseif rnd > 0.935 then
+				r = 255; g = 105; b = 145 -- Cactus blossom
+			elseif rnd > 0.905 then
+				r = 255; g = 220; b = 60  -- Golden flower
 			else
-				local v = ((gx * 37) % 7) * 4 - 10
-				r = math.max(220, math.min(255, 252 + v))
-				g = math.max(190, math.min(245, 222 + v))
-				b = math.max(95, math.min(165, 118 + v))
+				r = clamp(250 + grain * 0.5, 230, 255)
+				g = clamp(216 + grain * 0.5, 195, 240)
+				b = clamp(118 + grain * 0.3, 100, 145)
 			end
-		elseif depth <= 2 then
+		elseif depth == 1 then
 			r = 246; g = 192; b = 96
+		elseif depth == 2 then
+			r = 238; g = 168; b = 84
 		elseif depth <= 4 then
-			r = 232; g = 148; b = 78
+			r = 224; g = 138; b = 74
 		elseif depth == 5 then
-			r = 212; g = 115; b = 68
+			r = 202; g = 112; b = 64
 		else
-			local strata = math.sin((gy + math.sin(gx * 0.06) * 5) * 0.22) * 26
-			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			r = math.max(110, math.min(248, 198 + strata + grain))
-			g = math.max(60, math.min(185, 108 + strata * 0.6 + grain * 0.5))
-			b = math.max(40, math.min(135, 68 + strata * 0.3 + grain * 0.3))
+			-- Smooth horizontal canyon strata with natural geological folding
+			local strata = math.sin(layer_y * 0.16) * 26
+			local strata_fine = math.cos(layer_y * 0.35) * 10
 
-			-- Gold & turquoise mineral specks
-			local speck = (gx * 47 + gy * 83) % 89
-			if speck == 0 then
-				r = 255; g = 215; b = 55
-			elseif speck == 1 then
-				r = 65; g = 225; b = 210
+			r = clamp(188 + strata + strata_fine + grain, 110, 245)
+			g = clamp(102 + strata * 0.6 + strata_fine * 0.3 + grain * 0.5, 55, 175)
+			b = clamp(62 + strata * 0.3 + grain * 0.3, 35, 120)
+
+			-- Rare embedded gold & turquoise flecks
+			if rnd > 0.985 then
+				r = 255; g = 225; b = 45 -- Gold nugget
+			elseif rnd > 0.970 then
+				r = 50; g = 235; b = 210 -- Turquoise crystal
 			end
 		end
 
 	elseif biome == "arctic" then
 		-- SPARKLING AURORA ICE & CRYSTAL SNOW BIOME
 		if depth == 0 then
-			local sp = (gx * 29 + gy * 17) % 19
-			if sp == 0 then
-				r = 115; g = 245; b = 255 -- Sparkling cyan ice crystal
-			elseif sp == 1 then
-				r = 235; g = 145; b = 255 -- Aurora pink-violet glint
+			if rnd > 0.965 then
+				r = 115; g = 248; b = 255 -- Cyan ice crystal
+			elseif rnd > 0.935 then
+				r = 242; g = 152; b = 255 -- Aurora violet sparkle
+			elseif rnd > 0.905 then
+				r = 175; g = 235; b = 255 -- Pale blue frost star
 			else
-				r = 250; g = 254; b = 255
+				r = clamp(248 + grain * 0.3, 238, 255)
+				g = clamp(252 + grain * 0.3, 245, 255)
+				b = 255
 			end
-		elseif depth <= 2 then
-			r = 222; g = 244; b = 255
+		elseif depth == 1 then
+			r = 232; g = 248; b = 255
+		elseif depth == 2 then
+			r = 205; g = 236; b = 252
 		elseif depth <= 4 then
-			r = 155; g = 215; b = 250
+			r = 155; g = 212; b = 248
 		elseif depth == 5 then
-			r = 112; g = 182; b = 238
+			r = 115; g = 178; b = 236
 		else
-			local strata = math.sin((gy + math.cos(gx * 0.05) * 8) * 0.18) * 24
-			local grain = ((gx * 19 + gy * 29) % 11) * 2 - 10
-			r = math.max(45, math.min(185, 82 + strata * 0.5 + grain))
-			g = math.max(95, math.min(225, 148 + strata * 0.8 + grain))
-			b = math.max(145, math.min(255, 212 + strata + grain))
+			-- Deep glacier ice compression strata
+			local strata = math.sin(layer_y * 0.15) * 24
+			local strata_ice = math.cos(layer_y * 0.32) * 12
 
-			-- Glistening ice & aurora crystal specks
-			local speck = (gx * 43 + gy * 79) % 83
-			if speck == 0 then
-				r = 240; g = 252; b = 255
-			elseif speck == 1 then
-				r = 195; g = 135; b = 255
+			r = clamp(75 + strata * 0.5 + strata_ice * 0.3 + grain, 40, 175)
+			g = clamp(138 + strata * 0.8 + strata_ice * 0.5 + grain, 85, 218)
+			b = clamp(208 + strata + grain, 140, 255)
+
+			if rnd > 0.985 then
+				r = 245; g = 255; b = 255 -- Diamond frost
+			elseif rnd > 0.970 then
+				r = 195; g = 145; b = 255 -- Aurora amethyst
 			end
 		end
 
 	elseif biome == "volcano" then
-		-- JUICY MAGMA GOLD & VIOLET OBSIDIAN BIOME
+		-- MOLTEN MAGMA & FIERY OBSIDIAN BIOME
 		if depth == 0 then
-			local ember = ((gx * 41) % 9) <= 2
-			if ember then
-				r = 255; g = 195; b = 35 -- Bright golden-orange flame crest
+			if rnd > 0.950 then
+				r = 255; g = 210; b = 35 -- Bright flame spark
+			elseif rnd > 0.850 then
+				r = 248; g = 85; b = 25  -- Glowing ember
 			else
-				r = 248; g = 88; b = 28 -- Glowing lava crust
+				r = clamp(88 + grain * 0.5, 65, 115)
+				g = clamp(48 + grain * 0.3, 35, 68)
+				b = clamp(52 + grain * 0.3, 38, 72)
 			end
-		elseif depth <= 2 then
-			r = 215; g = 62; b = 32
+		elseif depth == 1 then
+			r = 95; g = 48; b = 56
+		elseif depth == 2 then
+			r = 82; g = 40; b = 48
 		elseif depth <= 4 then
-			r = 115; g = 45; b = 68
+			r = 68; g = 34; b = 42
 		elseif depth == 5 then
-			r = 85; g = 38; b = 62
+			r = 56; g = 28; b = 35
 		else
-			local magma = math.sin((gy * 0.15 + math.sin(gx * 0.08) * 3))
-			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			if magma > 0.72 then
-				-- Bright molten magma river glowing inside rock
-				r = 255; g = 120; b = 22
+			-- Horizontal magma veins and deep basalt rock
+			local magma = math.sin(layer_y * 0.18 + math.sin(gx * 0.04) * 2)
+			local sulfur = math.cos(layer_y * 0.12 + math.cos(gx * 0.03) * 2)
+
+			if magma > 0.82 then
+				r = 255; g = 135; b = 20 -- Glowing magma vein
+			elseif sulfur > 0.88 then
+				r = 245; g = 220; b = 40 -- Sulfur vein
 			else
-				local base = 58 + grain
-				r = math.max(40, math.min(130, base + 18))
-				g = math.max(28, math.min(95, base - 4))
-				b = math.max(45, math.min(135, base + 22))
+				local base = 56 + grain
+				r = clamp(base + 20, 38, 120)
+				g = clamp(base - 4, 25, 90)
+				b = clamp(base + 18, 40, 125)
 			end
 
-			-- Bright gold/orange fire rubies
-			if ((gx * 53 + gy * 71) % 79) <= 1 then
-				r = 255; g = 185; b = 30
+			if rnd > 0.985 then
+				r = 255; g = 180; b = 28
 			end
 		end
 
 	elseif biome == "alien" then
-		-- ELECTRIC NEON CYBER-SPORE & CRYSTAL BIOME
+		-- NEON BIOLUMINESCENT SPORE & COSMIC CRYSTAL BIOME
 		if depth == 0 then
-			local neon = (gx * 31) % 14
-			if neon <= 1 then
-				r = 55; g = 255; b = 195 -- Neon cyber-mint flower
-			elseif neon == 2 then
-				r = 255; g = 235; b = 55 -- Electric yellow spore
+			if rnd > 0.965 then
+				r = 55; g = 255; b = 205 -- Mint spore
+			elseif rnd > 0.935 then
+				r = 255; g = 238; b = 55  -- Yellow spore
+			elseif rnd > 0.905 then
+				r = 255; g = 75; b = 180  -- Pink crystal
 			else
-				r = 248; g = 78; b = 255 -- Hot neon magenta grass
+				r = clamp(245 + grain * 0.3, 225, 255)
+				g = clamp(68 + grain * 0.3, 50, 90)
+				b = clamp(250 + grain * 0.3, 230, 255)
 			end
-		elseif depth <= 2 then
-			r = 212; g = 58; b = 235
+		elseif depth == 1 then
+			r = 215; g = 55; b = 238
+		elseif depth == 2 then
+			r = 182; g = 48; b = 212
 		elseif depth <= 4 then
-			r = 148; g = 44; b = 192
+			r = 142; g = 40; b = 185
 		elseif depth == 5 then
-			r = 104; g = 38; b = 158
+			r = 98; g = 34; b = 148
 		else
-			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.18) * 22
-			local grain = ((gx * 19 + gy * 37) % 11) * 2 - 10
-			r = math.max(45, math.min(175, 78 + strata * 0.6 + grain))
-			g = math.max(25, math.min(135, 38 + strata * 0.4 + grain))
-			b = math.max(75, math.min(225, 132 + strata * 0.9 + grain))
+			-- Smooth extraterrestrial horizontal strata with cyan plasma pockets
+			local strata = math.sin(layer_y * 0.16) * 22
+			local plasma = math.sin(layer_y * 0.22 + math.sin(gx * 0.04) * 3)
 
-			-- Glowing neon cyan & gold crystal specks
-			local speck = (gx * 47 + gy * 83) % 73
-			if speck == 0 then
-				r = 45; g = 255; b = 225
-			elseif speck == 1 then
+			if plasma > 0.86 then
+				r = 45; g = 255; b = 225 -- Plasma geode
+			else
+				r = clamp(74 + strata * 0.6 + grain, 42, 168)
+				g = clamp(35 + strata * 0.4 + grain, 22, 128)
+				b = clamp(130 + strata * 0.9 + grain, 70, 220)
+			end
+
+			if rnd > 0.985 then
+				r = 45; g = 255; b = 235
+			elseif rnd > 0.970 then
 				r = 255; g = 215; b = 55
 			end
 		end
@@ -192,38 +246,38 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 	else
 		-- DEFAULT: LUSH SUNNY MEADOW & WILDFLOWER BIOME
 		if depth == 0 then
-			local flower = (gx * 43 + gy * 11) % 17
-			if flower == 0 then
-				r = 255; g = 230; b = 45 -- Sunny dandelion yellow flower
-			elseif flower == 1 then
-				r = 255; g = 95; b = 125 -- Coral pink blossom
-			elseif flower == 2 then
-				r = 95; g = 205; b = 255 -- Sky-blue forget-me-not
+			if rnd > 0.965 then
+				r = 255; g = 232; b = 45 -- Dandelion
+			elseif rnd > 0.940 then
+				r = 255; g = 75; b = 95  -- Red poppy
+			elseif rnd > 0.915 then
+				r = 85; g = 210; b = 255 -- Forget-me-not
+			elseif rnd > 0.890 then
+				r = 255; g = 255; b = 255 -- Daisy
 			else
-				local v = ((gx * 37) % 7) * 4 - 10
-				r = math.max(55, math.min(125, 82 + v))
-				g = math.max(195, math.min(255, 228 + v * 2))
-				b = math.max(35, math.min(85, 52 + v))
+				r = clamp(82 + grain * 0.5, 60, 115)
+				g = clamp(225 + grain * 0.5, 195, 250)
+				b = clamp(52 + grain * 0.3, 38, 75)
 			end
-		elseif depth <= 2 then
-			r = 62; g = 204; b = 44
+		elseif depth == 1 then
+			r = 64; g = 202; b = 42
+		elseif depth == 2 then
+			r = 85; g = 178; b = 38
 		elseif depth <= 4 then
-			r = 102; g = 165; b = 42
+			r = 112; g = 148; b = 42
 		elseif depth == 5 then
-			r = 148; g = 112; b = 56
+			r = 142; g = 108; b = 48
 		else
-			local strata = math.sin((gy + math.sin(gx * 0.05) * 6) * 0.18) * 20
-			local grain = ((gx * 17 + gy * 31) % 11) * 2 - 10
-			r = math.max(85, math.min(235, 162 + strata + grain))
-			g = math.max(55, math.min(190, 106 + strata * 0.75 + grain))
-			b = math.max(35, math.min(145, 62 + strata * 0.45 + grain * 0.5))
+			-- Rich organic humus, smooth horizontal sedimentary rock layers
+			local strata = math.sin(layer_y * 0.16) * 20
+			r = clamp(158 + strata + grain, 85, 225)
+			g = clamp(104 + strata * 0.75 + grain, 55, 182)
+			b = clamp(62 + strata * 0.45 + grain * 0.5, 35, 140)
 
-			-- Colorful buried gems & warm stones
-			local speck = (gx * 47 + gy * 83) % 89
-			if speck == 0 then
-				r = 255; g = 205; b = 65 -- Gold nugget
-			elseif speck == 1 then
-				r = 85; g = 225; b = 155 -- Emerald pebble
+			if rnd > 0.985 then
+				r = 255; g = 210; b = 55 -- Gold nugget
+			elseif rnd > 0.970 then
+				r = 75; g = 230; b = 150 -- Emerald pebble
 			end
 		end
 	end
@@ -233,8 +287,8 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 		or (gx < w - 1 and grid[row + gx + 2] == 0)
 		or (gy > 0 and grid[(gy - 1) * w + gx + 1] == 0)
 	if is_exposed and depth > 1 then
-		r = math.min(255, r * 0.88 + 28)
-		g = math.min(255, g * 0.84 + 14)
+		r = math.min(255, r * 0.88 + 24)
+		g = math.min(255, g * 0.84 + 12)
 		b = b * 0.80
 	end
 
@@ -260,13 +314,226 @@ local function fill_full_stream(self)
 	end
 end
 
+---------------------------------------------------------
+-- Procedural Multi-Layer Background Generator
+---------------------------------------------------------
+
+local function generate_base_background(self, biome)
+	local w = self.w
+	local h = self.h
+	local stream = self.bg_base_stream
+	local seed = math.random(1, 99999)
+	self.horizon_profile = {}
+
+	-- Helper: Draw filled circle on bg stream
+	local function draw_bg_circle(cx, cy, r_val, cr, cg, cb, max_a)
+		local min_x = math.max(0, math.floor(cx - r_val))
+		local max_x = math.min(w - 1, math.ceil(cx + r_val))
+		local min_y = math.max(0, math.floor(cy - r_val))
+		local max_y = math.min(h - 1, math.ceil(cy + r_val))
+		local r2 = r_val * r_val
+		for py = min_y, max_y do
+			local dy2 = (py - cy) * (py - cy)
+			for px = min_x, max_x do
+				local dx = px - cx
+				local d2 = dx * dx + dy2
+				if d2 <= r2 then
+					local dist = math.sqrt(d2)
+					local falloff = 1.0 - (dist / r_val)
+					local alpha = max_a * falloff
+					local idx = (py * w + px) * 4 + 1
+					local inv_a = 1.0 - alpha
+					stream[idx]     = clamp(math.floor(stream[idx] * inv_a + cr * alpha), 0, 255)
+					stream[idx + 1] = clamp(math.floor(stream[idx + 1] * inv_a + cg * alpha), 0, 255)
+					stream[idx + 2] = clamp(math.floor(stream[idx + 2] * inv_a + cb * alpha), 0, 255)
+				end
+			end
+		end
+	end
+
+	-- 1. Sky Gradient & Atmosphere
+	for gy = 0, h - 1 do
+		local ny = gy / h
+		local sr, sg, sb = 100, 150, 200
+
+		if biome == "desert" then
+			-- Sunset amber to fiery coral to golden horizon
+			if ny > 0.65 then
+				local t = (ny - 0.65) / 0.35
+				sr = 155 * t + 242 * (1 - t)
+				sg = 52 * t + 115 * (1 - t)
+				sb = 110 * t + 52 * (1 - t)
+			else
+				local t = ny / 0.65
+				sr = 255 * (1 - t) + 242 * t
+				sg = 215 * (1 - t) + 115 * t
+				sb = 125 * (1 - t) + 52 * t
+			end
+
+		elseif biome == "arctic" then
+			-- Polar twilight to cyan-pink aurora band to frosted horizon
+			if ny > 0.70 then
+				local t = (ny - 0.70) / 0.30
+				sr = 22 * t + 75 * (1 - t)
+				sg = 28 * t + 165 * (1 - t)
+				sb = 68 * t + 215 * (1 - t)
+			else
+				local t = ny / 0.70
+				sr = 185 * (1 - t) + 75 * t
+				sg = 225 * (1 - t) + 165 * t
+				sb = 248 * (1 - t) + 215 * t
+			end
+
+		elseif biome == "volcano" then
+			-- Dark charcoal/blood crimson to smoky glowing magma horizon
+			if ny > 0.65 then
+				local t = (ny - 0.65) / 0.35
+				sr = 48 * t + 175 * (1 - t)
+				sg = 18 * t + 42 * (1 - t)
+				sb = 28 * t + 24 * (1 - t)
+			else
+				local t = ny / 0.65
+				sr = 238 * (1 - t) + 175 * t
+				sg = 98 * (1 - t) + 42 * t
+				sb = 22 * (1 - t) + 24 * t
+			end
+
+		elseif biome == "alien" then
+			-- Deep cosmic space purple to magenta nebula to electric cyan horizon
+			if ny > 0.65 then
+				local t = (ny - 0.65) / 0.35
+				sr = 18 * t + 115 * (1 - t)
+				sg = 10 * t + 35 * (1 - t)
+				sb = 35 * t + 142 * (1 - t)
+			else
+				local t = ny / 0.65
+				sr = 38 * (1 - t) + 115 * t
+				sg = 168 * (1 - t) + 35 * t
+				sb = 185 * (1 - t) + 142 * t
+			end
+
+		else
+			-- Grass / Meadow: Clear radiant azure sky to warm horizon
+			sr = 55 * ny + 185 * (1 - ny)
+			sg = 135 * ny + 225 * (1 - ny)
+			sb = 238 * ny + 248 * (1 - ny)
+		end
+
+		local row = gy * w
+		for gx = 0, w - 1 do
+			local idx = (row + gx) * 4 + 1
+			stream[idx]     = math.floor(sr)
+			stream[idx + 1] = math.floor(sg)
+			stream[idx + 2] = math.floor(sb)
+			stream[idx + 3] = 255
+		end
+	end
+
+	-- 2. Celestial Bodies (Sun, Moon, Ringed Planet, Aurora)
+	if biome == "grass" then
+		-- Radiant golden sun at (360, 205)
+		draw_bg_circle(360, 205, 45, 255, 245, 180, 0.45)
+		draw_bg_circle(360, 205, 22, 255, 252, 220, 0.95)
+	elseif biome == "desert" then
+		-- Giant setting sun at (130, 145)
+		draw_bg_circle(130, 145, 55, 255, 140, 50, 0.55)
+		draw_bg_circle(130, 145, 28, 255, 230, 120, 0.95)
+	elseif biome == "arctic" then
+		-- Crescent moon at (380, 210) + Aurora Borealis glow
+		draw_bg_circle(380, 210, 18, 220, 245, 255, 0.90)
+		for gx = 0, w - 1 do
+			local wave = math.sin(gx * 0.03 + seed) * 15 + math.cos(gx * 0.06) * 8
+			local ay = math.floor(195 + wave)
+			draw_bg_circle(gx, ay, 12, 65, 235, 215, 0.28)
+			draw_bg_circle(gx, ay + 6, 10, 225, 115, 255, 0.20)
+		end
+	elseif biome == "volcano" then
+		-- Blood moon at (240, 210) obscured by smoke
+		draw_bg_circle(240, 210, 32, 245, 55, 25, 0.65)
+		draw_bg_circle(240, 210, 16, 255, 140, 55, 0.92)
+	elseif biome == "alien" then
+		-- Ringed Saturn-like gas giant at (340, 195) + twinkling stars
+		draw_bg_circle(340, 195, 26, 175, 75, 215, 0.92)
+		-- Ring
+		for rx = -44, 44 do
+			local ry = math.floor(rx * 0.28)
+			draw_bg_circle(340 + rx, 195 + ry, 3, 225, 165, 255, 0.75)
+		end
+		-- Moonlet
+		draw_bg_circle(110, 220, 9, 55, 235, 215, 0.95)
+		-- Twinkling stars
+		for i = 1, 45 do
+			local sx = math.floor((bg_noise(i * 12.3, seed + 1) * 0.95) * w)
+			local sy = math.floor((bg_noise(i * 23.7, seed + 2) * 0.35 + 0.65) * h)
+			draw_bg_circle(sx, sy, 1.5, 255, 255, 255, 0.85)
+		end
+	end
+
+	-- 3. Far Mountain Range (Silhouette Layer 1)
+	local far_h_base = math.floor(h * 0.38)
+	for gx = 0, w - 1 do
+		local nx = gx / w
+		local m1 = bg_noise(nx * 4.0, seed + 10) * (h * 0.18)
+		local m2 = bg_noise(nx * 9.0, seed + 20) * (h * 0.08)
+		local max_gy = math.floor(far_h_base + m1 + m2)
+
+		for gy = 0, max_gy do
+			local idx = (gy * w + gx) * 4 + 1
+			local haze = 0.55
+			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 95))
+			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 145))
+			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 195))
+
+			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
+			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
+			stream[idx + 2] = clamp(math.floor(stream[idx + 2] * (1 - haze) + mb * haze), 0, 255)
+		end
+	end
+
+	-- 4. Mid-Distance Battle Ridge (Silhouette Layer 2 with Fortress Towers & Bunkers)
+	local mid_h_base = math.floor(h * 0.24)
+	for gx = 0, w - 1 do
+		local nx = gx / w
+		local r1 = bg_noise(nx * 5.5, seed + 30) * (h * 0.14)
+		local r2 = bg_noise(nx * 12.0, seed + 40) * (h * 0.05)
+		local max_gy = math.floor(mid_h_base + r1 + r2)
+
+		-- Add silhouette towers / outposts
+		if (gx >= 90 and gx <= 98) or (gx >= 380 and gx <= 388) then
+			max_gy = max_gy + 14 -- Watchtower silhouette
+		elseif (gx >= 235 and gx <= 245) then
+			max_gy = max_gy + 8  -- Central bunker
+		end
+
+		self.horizon_profile[gx] = max_gy
+
+		for gy = 0, max_gy do
+			local idx = (gy * w + gx) * 4 + 1
+			local haze = 0.82
+			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 45))
+			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 95))
+			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 125))
+
+			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
+			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
+			stream[idx + 2] = clamp(math.floor(stream[idx + 2] * (1 - haze) + mb * haze), 0, 255)
+		end
+	end
+
+	-- Initialize target background stream from base stream (once per level start)
+	local total_bytes = w * h * 4
+	for i = 1, total_bytes do
+		self.bg_stream[i] = self.bg_base_stream[i]
+	end
+
+	-- Initialize ambient background warfare simulation with this horizon
+	bg_battle.init(w, h, biome, function(gx) return self.horizon_profile[gx] or 75 end)
+end
+
 local function apply_biome_environment(self, biome)
 	self.current_biome = biome or "grass"
 	local theme = BIOME_THEMES[self.current_biome] or BIOME_THEMES.grass
 
-	pcall(function()
-		go.set("#sky", "tint", theme.sky)
-	end)
 	pcall(function()
 		go.set("#water", "tint", theme.water)
 	end)
@@ -288,13 +555,19 @@ local function update_full_texture(self)
 	end
 end
 
+---------------------------------------------------------
+-- Script Lifecycle
+---------------------------------------------------------
+
 function init(self)
-	constants.log(">>> TERRAIN INIT STARTED")
+	constants.log(">>> TERRAIN INIT STARTED WITH DYNAMIC BG AND WARFARE")
 	self.w = constants.TERRAIN_WIDTH
 	self.h = constants.TERRAIN_HEIGHT
 	self.is_initialized = false
 	self.current_biome = "grass"
 	self.current_preset = "hills"
+	self.bg_update_timer = 0
+	self.horizon_profile = {}
 
 	-- Water shimmer animation
 	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.15, go.EASING_INOUTSINE, 1.8)
@@ -302,18 +575,32 @@ function init(self)
 	-- Apply initial environment
 	apply_biome_environment(self, "grass")
 
-	-- Create pixel buffer for terrain
+	-- 1. Create pixel buffer for foreground terrain
 	self.tex_buffer = buffer.create(self.w * self.h, {
 		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
 	})
 	self.stream = buffer.get_stream(self.tex_buffer, hash("rgba"))
 
-	-- Generate initial terrain
+	-- 2. Create pixel buffers for procedural background & live war compositing
+	self.bg_base_buffer = buffer.create(self.w * self.h, {
+		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+	})
+	self.bg_base_stream = buffer.get_stream(self.bg_base_buffer, hash("rgba"))
+
+	self.bg_buffer = buffer.create(self.w * self.h, {
+		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+	})
+	self.bg_stream = buffer.get_stream(self.bg_buffer, hash("rgba"))
+
+	-- Generate initial background & terrain
+	generate_base_background(self, "grass")
+	bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
+
 	terrain_grid.init(self.w, self.h, constants.TERRAIN_SCALE)
 	terrain_grid.generate("hills")
 	fill_full_stream(self)
 
-	-- Create dynamic texture
+	-- 3. Create dynamic texture and atlas for Foreground Terrain
 	local t_params = {
 		width = self.w,
 		height = self.h,
@@ -323,7 +610,6 @@ function init(self)
 	}
 	local ok_t, tex_res = pcall(resource.create_texture, TEXTURE_PATH, t_params, self.tex_buffer)
 
-	-- Create dynamic atlas pointing to dynamic texture
 	local atlas_params = {
 		texture = TEXTURE_PATH,
 		animations = {
@@ -353,10 +639,74 @@ function init(self)
 		self.atlas_id = atlas_res
 		go.set("#sprite", "image", atlas_res)
 		sprite.play_flipbook("#sprite", "terrain")
+	end
+
+	-- 4. Create dynamic texture and atlas for Procedural Background
+	local bg_t_params = {
+		width = self.w,
+		height = self.h,
+		type = graphics.TEXTURE_TYPE_2D,
+		format = graphics.TEXTURE_FORMAT_RGBA,
+		num_mip_maps = 1
+	}
+	local ok_bgt, bg_tex_res = pcall(resource.create_texture, TEXTURE_BG_PATH, bg_t_params, self.bg_buffer)
+
+	local bg_atlas_params = {
+		texture = TEXTURE_BG_PATH,
+		animations = {
+			{
+				id = "bg",
+				width = self.w,
+				height = self.h,
+				frames = { 1 }
+			}
+		},
+		geometries = {
+			{
+				id = "bg",
+				width = self.w,
+				height = self.h,
+				pivot_x = 0.5,
+				pivot_y = 0.5,
+				vertices = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
+				uvs = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
+				indices = { 0, 1, 2,  0, 2, 3 }
+			}
+		}
+	}
+	local ok_bga, bg_atlas_res = pcall(resource.create_atlas, ATLAS_BG_PATH, bg_atlas_params)
+
+	if ok_bga and bg_atlas_res then
+		self.bg_atlas_id = bg_atlas_res
+		go.set("#sky", "image", bg_atlas_res)
+		sprite.play_flipbook("#sky", "bg")
 		self.is_initialized = true
-		constants.log(">>> TERRAIN INIT FINISHED WITH DYNAMIC ATLAS SUCCESS!")
+		constants.log(">>> DYNAMIC BACKGROUND AND ATLAS CREATED SUCCESSFULLY!")
 	else
-		constants.log(">>> TERRAIN ATLAS ERROR:", ok_a, tostring(atlas_res), ok_t, tostring(tex_res))
+		constants.log(">>> BG ATLAS ERROR:", ok_bga, tostring(bg_atlas_res), ok_bgt, tostring(bg_tex_res))
+	end
+end
+
+function update(self, dt)
+	-- Update background warfare simulation at smooth 25 FPS rate
+	if self.is_initialized and self.bg_stream and self.bg_base_stream then
+		self.bg_update_timer = (self.bg_update_timer or 0) + dt
+		if self.bg_update_timer >= 0.04 then
+			self.bg_update_timer = 0
+			bg_battle.update(0.04, function(gx) return self.horizon_profile[gx] or 75 end)
+			bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
+
+			pcall(function()
+				resource.set_texture(TEXTURE_BG_PATH, {
+					x = 0,
+					y = 0,
+					width = self.w,
+					height = self.h,
+					type = graphics.TEXTURE_TYPE_2D,
+					format = graphics.TEXTURE_FORMAT_RGBA
+				}, self.bg_buffer)
+			end)
+		end
 	end
 end
 
@@ -365,7 +715,6 @@ function on_message(self, message_id, message, sender)
 		local preset = message.preset or "hills"
 		local biome = message.biome
 		if not biome then
-			-- Match default biome to preset if not specified
 			if preset == "canyon" or preset == "canyon_bridge" or preset == "bunkers" then
 				biome = "desert"
 			elseif preset == "floating_islands" then
@@ -383,8 +732,27 @@ function on_message(self, message_id, message, sender)
 		self.current_biome = biome
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome)
 		apply_biome_environment(self, biome)
+
+		-- Re-generate base procedural background and warfare simulation for this biome
+		if self.bg_base_stream then
+			generate_base_background(self, biome)
+			bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
+			if self.is_initialized then
+				pcall(function()
+					resource.set_texture(TEXTURE_BG_PATH, {
+						x = 0,
+						y = 0,
+						width = self.w,
+						height = self.h,
+						type = graphics.TEXTURE_TYPE_2D,
+						format = graphics.TEXTURE_FORMAT_RGBA
+					}, self.bg_buffer)
+				end)
+			end
+		end
+
 		if not message.already_generated then
-			terrain_grid.generate(preset)
+			terrain_grid.generate(preset, message.campaign_level)
 		end
 		update_full_texture(self)
 

@@ -43,6 +43,26 @@ local LOCALIZED_CARD_DATA = {
 		ru = { title = "ФРИТЮРНОЕ МАСЛО (+2)", badge = "Оружие", desc = "Бутылки с кипящим маслом!\n2 броска | Урон: 20 + Пепелище", btn_label = "ВЗЯТЬ" },
 		en = { title = "FRYING OIL (+2)", badge = "Weapon", desc = "Boiling deep fry oil bottles!\n2 bottles | Damage: 20 + Burn pool", btn_label = "TAKE" },
 	},
+	knife = {
+		ru = { title = "КАРТОФЕЛЕЧИСТКА (+3)", badge = "Оружие", desc = "Срезает кожуру в упор!\n3 удара | Урон: 60 + Мега-толчок", btn_label = "ВЗЯТЬ" },
+		en = { title = "POTATO PEELER (+3)", badge = "Weapon", desc = "Close-range deadly slice!\n3 slashes | Dmg: 60 + Push", btn_label = "TAKE" },
+	},
+	beetle = {
+		ru = { title = "КОЛОРАДСКИЙ ДЕСАНТ (+2)", badge = "Оружие", desc = "Банка с жуками-диверсантами!\n2 банки | 3 жука x 24 урона", btn_label = "ВЗЯТЬ" },
+		en = { title = "BEETLE SWARM (+2)", badge = "Weapon", desc = "Jar of hungry Colorado beetles!\n2 jars | 3 beetles x 24 dmg", btn_label = "TAKE" },
+	},
+	drill = {
+		ru = { title = "ГРЯДКОВЫЙ БУР (+2)", badge = "Оружие", desc = "Пружинный корнеудалитель!\n2 бура | Пробивает грунт | Урон: 60", btn_label = "ВЗЯТЬ" },
+		en = { title = "GARDEN DRILL (+2)", badge = "Weapon", desc = "Heavy spring soil drill!\n2 drills | Pierces terrain | Dmg: 60", btn_label = "TAKE" },
+	},
+	pepper = {
+		ru = { title = "ПЕРЦЕМОЛКА «ЧИЛИ» (+2)", badge = "Оружие", desc = "Жгучий помол кайенского перца!\n2 броска | DoT + Чихание", btn_label = "ВЗЯТЬ" },
+		en = { title = "CHILI PEPPER MILL (+2)", badge = "Weapon", desc = "Fiery cayenne pepper cloud DoT!\n2 mills | Sneezing & knockup", btn_label = "TAKE" },
+	},
+	garlic = {
+		ru = { title = "ЧЕСНОЧНЫЙ ДИНАМИТ (+2)", badge = "Оружие", desc = "Связка ядреного чеснока!\n2 броска | Мега-отталкивание в воду!", btn_label = "ВЗЯТЬ" },
+		en = { title = "GARLIC DYNAMITE (+2)", badge = "Weapon", desc = "Nuclear garlic dynamite bundle!\n2 throws | Extreme knockback into water!", btn_label = "TAKE" },
+	},
 }
 
 M.ALL_CARDS = {
@@ -55,6 +75,11 @@ M.ALL_CARDS = {
 	{ id = "shotgun", type = "weapon", weapon_id = "shotgun", ammo = 3, bg_color = { 0.30, 0.35, 0.25, 1.0 }, accent_color = { 0.6, 0.9, 0.4, 1.0 } },
 	{ id = "rifle", type = "weapon", weapon_id = "rifle", ammo = 3, bg_color = { 0.35, 0.32, 0.22, 1.0 }, accent_color = { 1.0, 0.85, 0.3, 1.0 } },
 	{ id = "molotov", type = "weapon", weapon_id = "molotov", ammo = 2, bg_color = { 0.45, 0.25, 0.12, 1.0 }, accent_color = { 1.0, 0.5, 0.15, 1.0 } },
+	{ id = "knife", type = "weapon", weapon_id = "knife", ammo = 3, bg_color = { 0.25, 0.35, 0.40, 1.0 }, accent_color = { 0.4, 0.8, 0.9, 1.0 } },
+	{ id = "beetle", type = "weapon", weapon_id = "beetle", ammo = 2, bg_color = { 0.48, 0.38, 0.12, 1.0 }, accent_color = { 1.0, 0.85, 0.2, 1.0 } },
+	{ id = "drill", type = "weapon", weapon_id = "drill", ammo = 2, bg_color = { 0.28, 0.32, 0.48, 1.0 }, accent_color = { 0.5, 0.75, 1.0, 1.0 } },
+	{ id = "pepper", type = "weapon", weapon_id = "pepper", ammo = 2, bg_color = { 0.52, 0.15, 0.15, 1.0 }, accent_color = { 1.0, 0.35, 0.2, 1.0 } },
+	{ id = "garlic", type = "weapon", weapon_id = "garlic", ammo = 2, bg_color = { 0.42, 0.45, 0.32, 1.0 }, accent_color = { 0.9, 0.95, 0.6, 1.0 } },
 }
 
 local function localize_card(card)

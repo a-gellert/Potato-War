@@ -80,7 +80,8 @@ M.winner_team = nil
 M.settle_timer = 0
 
 M.current_cards = nil -- { card1, card2 } during card select phase
-M.player_weapons = { "grenade" } -- Unlocked weapons inventory
+M.MAX_LOADOUT_SLOTS = 5
+M.player_loadout = { "grenade" } -- 5-slot active weapon stack
 M.player_ammo = {
 	grenade = -1, -- Unlimited!
 	rifle = 0,
@@ -90,18 +91,34 @@ M.player_ammo = {
 	bazooka = 0,
 	shotgun = 0,
 	holy_grenade = 0,
+	beetle = 0,
+	drill = 0,
+	pepper = 0,
+	garlic = 0,
 }
 M.player_perks = {
 	fire_bullets = false,
 	triple_jump = false,
 }
 
+function M.get_slot_weapon(slot_idx)
+	if not M.player_loadout then
+		M.player_loadout = { "grenade" }
+	end
+	local w_id = M.player_loadout[slot_idx]
+	if w_id then
+		return weapons.get(w_id)
+	end
+	return nil
+end
+
 function M.get_ammo(weapon_id)
 	if weapon_id == "grenade" then
 		return -1 -- Unlimited
 	end
 	if M.mode ~= constants.MODE_CAMPAIGN then
-		return weapons.get(weapon_id).default_ammo or 2
+		local w = weapons.get(weapon_id)
+		return w and (w.default_ammo or 2) or 2
 	end
 	if not M.player_ammo then
 		M.player_ammo = { grenade = -1 }
@@ -109,12 +126,35 @@ function M.get_ammo(weapon_id)
 	return M.player_ammo[weapon_id] or 0
 end
 
+function M.is_in_loadout(weapon_id)
+	if not M.player_loadout then return false end
+	for _, w_id in ipairs(M.player_loadout) do
+		if w_id == weapon_id then return true end
+	end
+	return false
+end
+
 function M.add_ammo(weapon_id, count)
 	if not M.player_ammo then
 		M.player_ammo = { grenade = -1 }
 	end
+	if not M.player_loadout then
+		M.player_loadout = { "grenade" }
+	end
+
 	M.player_ammo[weapon_id] = (M.player_ammo[weapon_id] or 0) + count
-	M.unlock_weapon(weapon_id)
+
+	-- Add to 5-slot weapon stack
+	if not M.is_in_loadout(weapon_id) then
+		if #M.player_loadout < M.MAX_LOADOUT_SLOTS then
+			table.insert(M.player_loadout, weapon_id)
+		else
+			-- Stack is full (5 weapons): replace the oldest special weapon in slot 2 (FIFO), keeping Grenade at slot 1
+			table.remove(M.player_loadout, 2)
+			table.insert(M.player_loadout, weapon_id)
+		end
+	end
+
 	if M.on_ammo_changed then
 		M.on_ammo_changed()
 	end
@@ -130,6 +170,15 @@ function M.consume_ammo(weapon_id)
 		if cur > 0 then
 			M.player_ammo[weapon_id] = cur - 1
 			if M.player_ammo[weapon_id] <= 0 then
+				-- Remove depleted weapon from active 5-slot loadout
+				if M.player_loadout then
+					for idx, w_id in ipairs(M.player_loadout) do
+						if w_id == weapon_id and w_id ~= "grenade" then
+							table.remove(M.player_loadout, idx)
+							break
+						end
+					end
+				end
 				M.select_weapon("grenade")
 			end
 			if M.on_ammo_changed then
@@ -157,19 +206,13 @@ function M.is_weapon_unlocked(weapon_id)
 		return true
 	end
 	if M.mode ~= constants.MODE_CAMPAIGN then
-		return true
+		return M.is_in_loadout(weapon_id)
 	end
-	return M.get_ammo(weapon_id) > 0
+	return M.is_in_loadout(weapon_id) and (M.get_ammo(weapon_id) > 0)
 end
 
 function M.unlock_weapon(weapon_id)
-	if not M.player_weapons then
-		M.player_weapons = { "grenade" }
-	end
-	for _, w_id in ipairs(M.player_weapons) do
-		if w_id == weapon_id then return end
-	end
-	table.insert(M.player_weapons, weapon_id)
+	M.add_ammo(weapon_id, 0)
 end
 
 -- Callback hooks for UI / Main
@@ -198,6 +241,13 @@ function M.select_weapon(weapon_id)
 	end
 end
 
+function M.select_slot(slot_idx)
+	local w = M.get_slot_weapon(slot_idx)
+	if w and M.is_weapon_unlocked(w.id) then
+		M.select_weapon(w.id)
+	end
+end
+
 -- Start a new match
 function M.start_match(mode, campaign_lvl)
 	M.mode = mode or constants.MODE_CAMPAIGN
@@ -213,26 +263,41 @@ function M.start_match(mode, campaign_lvl)
 	M.settle_timer = 0
 	M.current_cards = nil
 
-	-- Reset inventory on new campaign run (level 1)
-	if M.mode == constants.MODE_CAMPAIGN and M.campaign_level == 1 then
-		player_profile.reset_campaign_hp()
-		M.player_weapons = { "grenade" }
+	-- Setup inventory loadout (up to 5 weapons)
+	if M.mode == constants.MODE_CAMPAIGN then
+		if M.campaign_level == 1 then
+			player_profile.reset_campaign_hp()
+			M.player_loadout = { "grenade" }
+			M.player_ammo = {
+				grenade = -1,
+				rifle = 0,
+				knife = 0,
+				molotov = 0,
+				burst = 0,
+				bazooka = 0,
+				shotgun = 0,
+				holy_grenade = 0,
+				beetle = 0,
+				drill = 0,
+				pepper = 0,
+				garlic = 0,
+			}
+			M.player_perks = {
+				fire_bullets = false,
+				triple_jump = false,
+			}
+			meta_progression.apply_starting_loadout(M)
+		end
+	else
+		-- Quick Battle vs Bot or PvP: provide a rich 5-weapon arsenal
+		M.player_loadout = { "grenade", "bazooka", "shotgun", "drill", "pepper" }
 		M.player_ammo = {
 			grenade = -1,
-			rifle = 0,
-			knife = 0,
-			molotov = 0,
-			burst = 0,
-			bazooka = 0,
-			shotgun = 0,
-			holy_grenade = 0,
+			bazooka = 2,
+			shotgun = 3,
+			drill = 2,
+			pepper = 2,
 		}
-		M.player_perks = {
-			fire_bullets = false,
-			triple_jump = false,
-		}
-		-- Apply meta-upgrade starting weapons (Shotgun, Rifle, Bazooka, Burst, Holy Spud)
-		meta_progression.apply_starting_loadout(M)
 	end
 
 	M.poki_gameplay_start()
@@ -388,8 +453,8 @@ function M.next_turn()
 			M.winner_team = constants.TEAM_BLUE
 			if M.mode == constants.MODE_CAMPAIGN and blue_potato then
 				current_hp = blue_potato.hp
-				-- +10% max HP bonus on winning arena
-				hp_healed = math.floor(blue_potato.max_hp * 0.10)
+				-- +35% max HP bonus on winning arena (at least +35 HP)
+				hp_healed = math.max(35, math.floor(blue_potato.max_hp * 0.35))
 				next_hp = math.min(blue_potato.max_hp, current_hp + hp_healed)
 				player_profile.set_campaign_hp(next_hp)
 
