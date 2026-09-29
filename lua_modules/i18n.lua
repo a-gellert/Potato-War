@@ -14,7 +14,7 @@ local dictionary = {
 		-- Main Menu
 		title = "POTATO WAR",
 		subtitle = "Битва Картошек — Пошаговая артиллерия",
-		btn_campaign = "В БОЙ (КАМПАНИЯ)",
+		btn_campaign = "В БОЙ",
 		btn_upgrades = "ПРОКАЧКА / УЛУЧШЕНИЯ",
 		btn_quick_bot = "БЫСТРЫЙ БОЙ VS БОТ",
 		btn_quick_pvp = "2 ИГРОКА (ОДИН ЭКРАН)",
@@ -73,7 +73,7 @@ local dictionary = {
 		-- Main Menu
 		title = "POTATO WAR",
 		subtitle = "Potato Battle — Turn-Based Artillery",
-		btn_campaign = "TO BATTLE (CAMPAIGN)",
+		btn_campaign = "TO BATTLE",
 		btn_upgrades = "UPGRADES & PERKS",
 		btn_quick_bot = "QUICK BATTLE VS BOT",
 		btn_quick_pvp = "2 PLAYERS (SAME SCREEN)",

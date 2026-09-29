@@ -22,7 +22,7 @@ local function update_localized_menu(self)
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local camp_lbl = is_ru and "В БОЙ! (КАМПАНИЯ)" or "TO BATTLE! (CAMPAIGN)"
+		local camp_lbl = is_ru and "В БОЙ!" or "TO BATTLE!"
 		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
 		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_upgrades"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
@@ -204,7 +204,7 @@ function init(self)
 		-- Central large Campaign button
 		local camp_btn = gui.get_node("btn_campaign")
 		gui.set_position(camp_btn, vmath.vector3(480, 305, 0))
-		gui.set_size(camp_btn, vmath.vector3(360, 52, 0))
+		gui.set_size(camp_btn, vmath.vector3(440, 64, 0))
 		gui.set_color(camp_btn, vmath.vector4(0.18, 0.72, 0.38, 1.0)) -- Vibrant Hero Green!
 
 		-- Upgrades button (reusing btn_quick_bot node)

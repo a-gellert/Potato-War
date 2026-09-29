@@ -40,11 +40,11 @@ local WEAPON_SPRITE_MAP = {
 	bazooka = "masher_bazooka",
 	shotgun = "grater",
 	holy_grenade = "holy_spud",
-	beetle = "box",
-	drill = "spark",
-	pepper = "oil_bottle",
-	garlic = "holy_spud",
-	beetle_minion = "circle",
+	beetle = "beetle_crate",
+	drill = "drill_missile",
+	pepper = "pepper_bomb",
+	garlic = "garlic_bomb",
+	beetle_minion = "beetle_minion",
 }
 
 function init(self)
@@ -69,7 +69,8 @@ function init(self)
 	msg.post("#hp_bg", "disable")
 	msg.post("#hp_fill", "disable")
 
-	-- Hide reticle by default
+	-- Hide weapon and reticle by default until active
+	msg.post("#weapon_sprite", "disable")
 	msg.post("#reticle", "disable")
 
 	-- Subtle pulse animation on reticle
@@ -117,9 +118,11 @@ function on_message(self, message_id, message, sender)
 			msg.post("#reticle", "enable")
 			msg.post("#hp_bg", "enable")
 			msg.post("#hp_fill", "enable")
+			msg.post("#weapon_sprite", "enable")
 			self.hp_bar_timer = 0 -- keep showing while active
 		else
 			msg.post("#reticle", "disable")
+			msg.post("#weapon_sprite", "disable")
 			self.hp_bar_timer = 2.0 -- fade out after 2 seconds
 		end
 
@@ -137,6 +140,9 @@ function on_message(self, message_id, message, sender)
 				sprite.play_flipbook("#weapon_sprite", hash(sprite_name))
 				local flip = (self.facing < 0)
 				sprite.set_hflip("#weapon_sprite", flip)
+				if self.is_active then
+					msg.post("#weapon_sprite", "enable")
+				end
 			end)
 		end
 
@@ -177,11 +183,11 @@ function on_message(self, message_id, message, sender)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.32, 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
 
-	elseif message_id == hash("on_recoil") then
+	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.18
-			-- Weapon kick recoil
-			go.animate("#weapon_sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.55, 0.55, 1.0), go.EASING_OUTQUAD, 0.12)
+			-- Weapon kick recoil and hide weapon from hands as it has been fired/thrown
+			msg.post("#weapon_sprite", "disable")
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.18, 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
 
