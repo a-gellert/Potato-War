@@ -39,6 +39,14 @@ local function clear_match_entities(self)
 		self.airship_url = nil
 	end
 	self.airship_timer = 55.0
+
+	for _, c in ipairs(self.spawned_crates or {}) do
+		pcall(function()
+			go.delete(c.url)
+		end)
+	end
+	self.spawned_crates = {}
+	self.crate_timer = 60.0
 end
 
 local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy)
@@ -118,39 +126,49 @@ local function start_game_match(self, mode, level)
 	local biome = config.biome or level_config.deduce_biome(terrain_preset)
 	self.current_terrain_preset = terrain_preset
 
+	local is_campaign = (mode == constants.MODE_CAMPAIGN)
+	local world_w = is_campaign and constants.WORLD_WIDTH or constants.PVP_WORLD_WIDTH
+	local grid_w = is_campaign and constants.TERRAIN_WIDTH or constants.PVP_TERRAIN_WIDTH
+
 	-- Generate terrain grid synchronously first so spawn_potato uses the new level's terrain
+	terrain_grid.init(grid_w, constants.TERRAIN_HEIGHT, constants.TERRAIN_SCALE)
 	terrain_grid.generate(terrain_preset, level)
 	msg.post("/terrain#terrain", "generate_terrain", {
 		preset = terrain_preset,
 		biome = biome,
+		mode = mode,
 		already_generated = true
 	})
 
-	-- Spawn Blue Potatoes
+	-- Spawn Blue Potatoes (up to 3 for 3v3 PvP)
 	local blue_count = config.player_count or config.blue_count or 1
-	local step_blue = (360 - 120) / math.max(1, blue_count)
+	local left_min = 180
+	local left_max = is_campaign and 380 or 680
+	local step_blue = (left_max - left_min) / math.max(1, blue_count)
 	local player_max_hp = meta_progression.get_player_max_hp()
-	local player_hp = (mode == constants.MODE_CAMPAIGN) and player_profile.get_campaign_hp() or player_max_hp
+	local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
 	local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55) or nil
 
 	for i = 1, blue_count do
-		local x = 120 + (i - 0.5) * step_blue + (math.random() - 0.5) * 20
+		local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 25
 		spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp, player_max_hp, from_wy)
 	end
 
-	-- Spawn Red Potatoes using level configuration (enemy count & enemy HP)
+	-- Spawn Red Potatoes using level configuration (enemy count & enemy HP, up to 3 for 3v3)
 	local red_count = config.enemy_count or config.red_count or 1
-	local step_red = (840 - 600) / math.max(1, red_count)
+	local right_min = is_campaign and 600 or 1240
+	local right_max = is_campaign and 820 or 1740
+	local step_red = (right_max - right_min) / math.max(1, red_count)
 	for i = 1, red_count do
 		local enemy_hp = level_config.get_enemy_hp(level, i)
-		local x = 600 + (i - 0.5) * step_red + (math.random() - 0.5) * 20
+		local x = right_min + (i - 0.5) * step_red + (math.random() - 0.5) * 25
 		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy)
 	end
 
-	-- Spawn TNT Barrels on the battlefield (0-1 barrel in neutral center)
-	local barrel_count = (math.random() < 0.65) and 1 or 0
-	if barrel_count > 0 then
-		local bx = 480 + math.random(-40, 40)
+	-- Spawn TNT Barrels on the battlefield (1-2 barrels in neutral center)
+	local barrel_count = (math.random() < 0.75) and 2 or 1
+	for b = 1, barrel_count do
+		local bx = is_campaign and (480 + (b - 1.5) * 60 + math.random(-20, 20)) or (960 + (b - 1.5) * 120 + math.random(-35, 35))
 		local bgy = terrain_grid.get_smooth_ground_y(bx, 4.0, from_wy)
 		if bgy > constants.WATER_LEVEL + 25 then
 			local bpos = vmath.vector3(bx, bgy + 17, 0.15)
@@ -162,8 +180,17 @@ local function start_game_match(self, mode, level)
 	-- Point active_potato to first blue potato so weapon card selection equips the new instance
 	game_state.active_potato = game_state.potatoes[1]
 
-	-- Reset camera to center
-	camera_controller.follow(constants.WORLD_WIDTH * 0.5, constants.WORLD_HEIGHT * 0.5, true)
+	-- Reset camera
+	if is_campaign then
+		camera_controller.follow(480, 270, true)
+		camera_controller.set_zoom(1.0)
+	elseif game_state.active_potato then
+		camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
+		camera_controller.set_zoom(1.0)
+	else
+		camera_controller.follow(world_w * 0.5, constants.WORLD_HEIGHT * 0.5, true)
+		camera_controller.set_zoom(1.0)
+	end
 
 	-- Update GUI visibility
 	msg.post("/gui_menu", "disable")
@@ -178,6 +205,8 @@ function init(self)
 
 	self.spawned_potatoes = {}
 	self.spawned_barrels = {}
+	self.spawned_crates = {}
+	self.crate_timer = 60.0
 	self.current_terrain_preset = "hills"
 	self.airship_timer = 55.0
 	self.airship_url = nil
@@ -271,6 +300,37 @@ function update(self, dt)
 				local airship_pos = vmath.vector3(-130, 420, 0.35)
 				self.airship_url = factory.create("#airship_factory", airship_pos)
 			end
+		end
+	end
+
+	-- 0.5 Airdrop crate timer (every 60s drops medkit or weapon crate with parachute)
+	if is_battle_running and self.current_terrain_preset ~= "cavern" then
+		self.crate_timer = (self.crate_timer or 60.0) - dt
+		if self.crate_timer <= 0 then
+			self.crate_timer = 60.0
+			local drop_x = math.random(180, constants.WORLD_WIDTH - 180)
+			local crate_type = (math.random() < 0.5) and hash("medkit") or hash("weapon")
+			local wpn_pool = { "bazooka", "shotgun", "rifle", "molotov", "burst", "holy_grenade", "drill", "pepper", "garlic", "beetle" }
+			local pick_wpn = hash(wpn_pool[math.random(1, #wpn_pool)])
+			local amt = (crate_type == hash("medkit")) and math.random(20, 50) or math.random(1, 3)
+
+			local c_pos = vmath.vector3(drop_x, constants.WORLD_HEIGHT - 18, 0.2)
+			local crate_url = factory.create("#crate_factory", c_pos, nil, {
+				crate_type = crate_type,
+				amount = amt,
+				weapon_id = pick_wpn
+			})
+			table.insert(self.spawned_crates, { url = crate_url })
+
+			local is_ru = (i18n.current_lang == "ru")
+			local toast_title = (crate_type == hash("medkit"))
+				and (is_ru and ("С неба падает аптечка (+" .. amt .. " HP)!") or ("Airdrop: Medkit inbound (+" .. amt .. " HP)!"))
+				or (is_ru and "С неба падает ящик с оружием!" or "Airdrop: Weapon crate inbound!")
+			msg.post("/gui_hud#gui", "show_achievement_toast", {
+				icon = (crate_type == hash("medkit")) and "❤️" or "📦",
+				title = toast_title,
+				points = 0
+			})
 		end
 	end
 
@@ -393,7 +453,11 @@ function update(self, dt)
 				self.bot_thinking = true
 				local config = game_state.get_current_config()
 				local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
-				self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+				if game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP or bot_skill == "hard" then
+					self.bot_plan = bot_ai.plan_pvp_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+				else
+					self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+				end
 				self.bot_phase = "move"
 				self.bot_move_steps_done = 0
 				self.bot_move_timer = 0
@@ -459,29 +523,49 @@ function update(self, dt)
 							go.set_position(bot.pos, bot.url)
 						end
 					else
-						-- Movement done, recalculate aim from new position
-						local config = game_state.get_current_config()
-						local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
-						self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
-						if self.bot_plan then
-							self.bot_plan.movement = { dir = 0, steps = 0, should_jump = false }
-							game_state.select_weapon(self.bot_plan.weapon_id)
+						-- Movement done
+						if self.bot_plan.is_pvp_bot then
+							-- Smart PvP Bot: Position Assessment & Evaluation Phase ("оценивает позицию")
+							self.bot_phase = "assess"
+							self.bot_timer = self.bot_plan.assess_delay or 0.85
 							bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
 							if bot.url then
 								msg.post(bot.url, "set_facing", { facing = bot.facing })
 								msg.post(bot.url, "set_weapon", { weapon_id = self.bot_plan.weapon_id })
 							end
+						else
+							local config = game_state.get_current_config()
+							local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
+							self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+							if self.bot_plan then
+								self.bot_plan.movement = { dir = 0, steps = 0, should_jump = false }
+								game_state.select_weapon(self.bot_plan.weapon_id)
+								bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
+								if bot.url then
+									msg.post(bot.url, "set_facing", { facing = bot.facing })
+									msg.post(bot.url, "set_weapon", { weapon_id = self.bot_plan.weapon_id })
+								end
+							end
+							self.bot_phase = "aim"
+							self.bot_timer = self.bot_plan and self.bot_plan.think_delay or 0.40
 						end
+					end
+
+				elseif self.bot_phase == "assess" then
+					-- Smart PvP Bot evaluates position and deliberates before aiming
+					self.bot_timer = self.bot_timer - dt
+					if self.bot_timer <= 0 then
 						self.bot_phase = "aim"
-						self.bot_timer = self.bot_plan and self.bot_plan.think_delay or 0.40
+						self.bot_timer = self.bot_plan.aim_delay or 0.75
 					end
 
 				elseif self.bot_phase == "aim" then
 					-- Aiming/thinking phase
 					self.bot_timer = self.bot_timer - dt
 
-					-- Show aiming preview 0.20s before shot
-					if self.bot_timer < 0.20 and self.bot_timer + dt >= 0.20 then
+					-- Show aiming preview
+					local preview_threshold = self.bot_plan.is_pvp_bot and 0.50 or 0.20
+					if self.bot_timer < preview_threshold and self.bot_timer + dt >= preview_threshold then
 						local vx = self.bot_plan.aim_dx * self.bot_plan.power
 						local vy = self.bot_plan.aim_dy * self.bot_plan.power
 						bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
@@ -527,9 +611,24 @@ function update(self, dt)
 		self.bot_phase = nil
 	end
 
-	-- 5. Camera follow active potato during aiming
-	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato then
-		camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
+	-- 5. Camera follow active projectile during flight with gradual zoom-in, or follow active potato
+	if game_state.mode == constants.MODE_CAMPAIGN then
+		camera_controller.follow(480, 270, true)
+		camera_controller.set_zoom(1.0)
+	else
+		if game_state.state == constants.STATE_ACTION and #self.active_projectiles > 0 then
+			local lead_proj = self.active_projectiles[#self.active_projectiles]
+			local ok, ppos = pcall(go.get_position, lead_proj)
+			if ok and ppos then
+				camera_controller.follow(ppos.x, ppos.y)
+				camera_controller.set_zoom(1.30)
+			end
+		elseif game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato and game_state.active_potato.is_alive then
+			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
+			camera_controller.set_zoom(1.0)
+		else
+			camera_controller.set_zoom(1.0)
+		end
 	end
 
 	-- 6. Update match timer and turn progression
@@ -556,18 +655,23 @@ function on_input(self, action_id, action)
 				end
 				return true
 			end
-			-- Weapon selection via slot keys 1..5
-			for i = 1, 5 do
-				if action_id == hash("weapon_" .. i) and action.pressed then
-					game_state.select_slot(i)
-					return true
+			-- Weapon selection via slot keys 1..5 (only in non-PvP modes; in PvP weapons are selected exclusively via inventory)
+			local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
+			if not is_pvp then
+				for i = 1, 5 do
+					if action_id == hash("weapon_" .. i) and action.pressed then
+						game_state.select_slot(i)
+						return true
+					end
 				end
 			end
 		end
 	end
 
-	if action_id == hash("toggle_profiler") and action.pressed then
-		msg.post("@system:", "toggle_profile")
+	if (action_id == hash("inventory") or action_id == hash("key_q")) and action.pressed then
+		if game_state.mode ~= constants.MODE_CAMPAIGN then
+			msg.post("/gui_hud#gui", "toggle_inventory")
+		end
 		return true
 	end
 
@@ -591,6 +695,8 @@ function on_message(self, message_id, message, sender)
 		self.touch_move_timer = 0
 		self.key_left_held = false
 		self.key_right_held = false
+		camera_controller.follow(480, 270, true)
+		camera_controller.set_zoom(1.0)
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		msg.post("/gui_hud", "disable")
 		msg.post("/gui_game_over", "disable")
@@ -740,10 +846,15 @@ function on_message(self, message_id, message, sender)
 		factory.create("#explosion_factory", pos, nil, {
 			radius = message.radius or 30
 		})
-		-- Check impact on barrels
+		-- Check impact on barrels and crates
 		for _, b in ipairs(self.spawned_barrels or {}) do
 			pcall(function()
 				msg.post(b.url, "check_blast", { x = message.x, y = message.y, radius = message.radius or 30 })
+			end)
+		end
+		for _, c in ipairs(self.spawned_crates or {}) do
+			pcall(function()
+				msg.post(c.url, "check_blast", { x = message.x, y = message.y, radius = message.radius or 30 })
 			end)
 		end
 	elseif message_id == hash("spawn_napalm") then
@@ -790,6 +901,15 @@ function on_message(self, message_id, message, sender)
 			local b = self.spawned_barrels[i]
 			if b.url == target or b.id == target or (target and msg.url(b.url).path == msg.url(target).path) then
 				table.remove(self.spawned_barrels, i)
+			end
+		end
+
+	elseif message_id == hash("crate_collected") or message_id == hash("crate_destroyed") then
+		local target = message.url
+		for i = #self.spawned_crates, 1, -1 do
+			local c = self.spawned_crates[i]
+			if c.url == target or (target and msg.url(c.url).path == msg.url(target).path) then
+				table.remove(self.spawned_crates, i)
 			end
 		end
 

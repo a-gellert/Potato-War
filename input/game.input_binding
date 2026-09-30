@@ -79,6 +79,10 @@ key_trigger {
   action: "weapon_8"
 }
 key_trigger {
+  input: KEY_Q
+  action: "inventory"
+}
+key_trigger {
   input: KEY_ESC
   action: "escape"
 }

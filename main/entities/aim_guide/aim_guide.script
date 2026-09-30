@@ -123,16 +123,16 @@ function on_input(self, action_id, action)
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
 
 		elseif self.dragging and not action.released then
-			-- Angry Birds slingshot: pull back to aim forward
-			local pull_x = self.drag_start.x - action.x
-			local pull_y = self.drag_start.y - action.y
-			local len = math.sqrt(pull_x * pull_x + pull_y * pull_y)
+			-- Direct Aim: drag towards target to aim in that direction!
+			local aim_x = action.x - self.drag_start.x
+			local aim_y = action.y - self.drag_start.y
+			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
-			if len > 10 then
+			if len > 12 then
 				game_state.is_aiming = true
 				msg.post("/gui_hud#gui", "hide_tutorial")
-				local dir_x = pull_x / len
-				local dir_y = pull_y / len
+				local dir_x = aim_x / len
+				local dir_y = aim_y / len
 				local power = math.min(weapon.max_power, len * weapon.power_scale)
 
 				local vx = dir_x * power
@@ -141,7 +141,7 @@ function on_input(self, action_id, action)
 				self.last_vy = vy
 
 				-- Turn potato towards firing direction
-				local facing_dir = (pull_x >= 0) and 1 or -1
+				local facing_dir = (aim_x >= 0) and 1 or -1
 				potato.facing = facing_dir
 				if potato.url then
 					msg.post(potato.url, "set_facing", { facing = facing_dir })
@@ -155,15 +155,15 @@ function on_input(self, action_id, action)
 		elseif action.released and self.dragging then
 			self.dragging = false
 			game_state.is_aiming = false
-			msg.post("/gui_hud#gui", "hide_tutorial")
-			local pull_x = self.drag_start.x - action.x
-			local pull_y = self.drag_start.y - action.y
-			local len = math.sqrt(pull_x * pull_x + pull_y * pull_y)
+			local aim_x = action.x - self.drag_start.x
+			local aim_y = action.y - self.drag_start.y
+			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
 			hide_guide(self)
 
 			if len > 16 then
 				-- Fire weapon!
+				msg.post("/gui_hud#gui", "tutorial_shot_fired")
 				msg.post("/main#main", "fire_weapon", {
 					origin_x = potato.pos.x,
 					origin_y = potato.pos.y + 8,

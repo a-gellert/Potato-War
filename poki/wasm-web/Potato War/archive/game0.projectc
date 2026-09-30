@@ -58,7 +58,7 @@ sub_step_count = 4
 
 [bootstrap]
 main_collection = /main/main.collectionc
-render = /builtins/render/default.renderc
+render = /main/game.renderc
 debug_init_script = 
 
 [graphics]

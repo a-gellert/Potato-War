@@ -477,7 +477,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	end
 
 	-- C. SITUATION: DIRECT LINE OF SIGHT (LOS CLEAR)
-	if clear_los then
+	if clear_los and difficulty == "hard" then
 		-- Close-medium range: Shotgun or Assault Rifle (Burst)
 		if dist < 140.0 then
 			local roll = math.random()
@@ -539,9 +539,12 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	local candidate_weapons = {
 		weapons.get(weapons.TYPES.GRENADE),
 		weapons.get(weapons.TYPES.BAZOOKA),
-		weapons.get(weapons.TYPES.DRILL),
-		weapons.get(weapons.TYPES.BEETLE),
+		weapons.get(weapons.TYPES.MOLOTOV),
 	}
+	if difficulty ~= "easy" then
+		table.insert(candidate_weapons, weapons.get(weapons.TYPES.DRILL))
+		table.insert(candidate_weapons, weapons.get(weapons.TYPES.BEETLE))
+	end
 	if dist > 180.0 then
 		table.insert(candidate_weapons, weapons.get(weapons.TYPES.HOLY_GRENADE))
 		table.insert(candidate_weapons, weapons.get(weapons.TYPES.GARLIC))
@@ -627,14 +630,14 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty)
 	local power_jitter = 1.0
 
 	if difficulty == "easy" then
-		angle_jitter = (math.random() - 0.5) * 0.16 -- ~9 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.18
+		angle_jitter = (math.random() - 0.5) * 0.28 -- ~16 degrees
+		power_jitter = 1.0 + (math.random() - 0.5) * 0.24
 	elseif difficulty == "normal" then
-		angle_jitter = (math.random() - 0.5) * 0.06 -- ~3.4 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.08
+		angle_jitter = (math.random() - 0.5) * 0.12 -- ~6.8 degrees
+		power_jitter = 1.0 + (math.random() - 0.5) * 0.12
 	else -- "hard"
-		angle_jitter = (math.random() - 0.5) * 0.02 -- ~1.1 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.03
+		angle_jitter = (math.random() - 0.5) * 0.04 -- ~2.3 degrees
+		power_jitter = 1.0 + (math.random() - 0.5) * 0.05
 	end
 
 	local cos_j = math.cos(angle_jitter)
@@ -665,4 +668,258 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty)
 	}
 end
 
+-- 5. DEDICATED SMART PVP BOT AI ("отдельный бот для пвп, который более умный, ходит, выбирает позиции, не сразу стреляет, а оценивает позицию")
+function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
+	-- 1. Gather alive enemies and allies
+	local enemies = {}
+	local allies = {}
+	for _, p in ipairs(all_potatoes) do
+		if p.is_alive then
+			if p.team ~= bot.team then
+				table.insert(enemies, p)
+			else
+				table.insert(allies, p)
+			end
+		end
+	end
+
+	if #enemies == 0 then
+		return nil
+	end
+
+	-- 2. Smart Target Evaluation:
+	-- Evaluates who is most vulnerable (near water/cliff, lowest HP, or clumped with another enemy)
+	local best_target = nil
+	local highest_target_score = -999999
+
+	for _, enemy in ipairs(enemies) do
+		local dx = enemy.pos.x - bot.pos.x
+		local dy = enemy.pos.y - bot.pos.y
+		local dist = math.sqrt(dx * dx + dy * dy)
+		local ground_e = terrain.get_smooth_ground_y(enemy.pos.x, 4.0)
+
+		local t_score = 500 - dist * 0.4 - enemy.hp * 1.2
+
+		-- Big bonus if enemy is near water (easy push kill!)
+		if ground_e < constants.WATER_LEVEL + 40.0 then
+			t_score = t_score + 180
+		end
+
+		-- Check if other enemies are clustered near this one (splash damage value)
+		local cluster_count = 0
+		for _, other_e in ipairs(enemies) do
+			if other_e.id ~= enemy.id then
+				local cdx = math.abs(other_e.pos.x - enemy.pos.x)
+				local cdy = math.abs(other_e.pos.y - enemy.pos.y)
+				if (cdx * cdx + cdy * cdy) < 65 * 65 then
+					cluster_count = cluster_count + 1
+				end
+			end
+		end
+		t_score = t_score + cluster_count * 150
+
+		if t_score > highest_target_score then
+			highest_target_score = t_score
+			best_target = enemy
+		end
+	end
+
+	local target = best_target or enemies[1]
+
+	-- 3. Advanced Tactical Position Selection ("выбирает позиции, ходит"):
+	-- Tests 14 candidate positions left & right within range of movement
+	local best_pos_x = bot.pos.x
+	local best_pos_score = -999999
+	local current_gy = terrain.get_smooth_ground_y(bot.pos.x, 4.0)
+
+	local test_offsets = { 0, -25, 25, -50, 50, -75, 75, -100, 100, -125, 125, -150, 150 }
+	for _, off in ipairs(test_offsets) do
+		local cx = bot.pos.x + off
+		if cx > 40 and cx < constants.WORLD_WIDTH - 40 then
+			local cy = terrain.get_smooth_ground_y(cx, 4.0)
+			if cy > constants.WATER_LEVEL + 32.0 then
+				local step_h = cy - current_gy
+				-- Can we reach here without extreme sheer cliff climbing?
+				if math.abs(step_h) < 55.0 then
+					local pos_score = 100
+
+					-- Elevation advantage: high ground gives superior firing angles
+					pos_score = pos_score + math.min(40, (cy - current_gy) * 1.2)
+
+					-- Distance sweet spot to target (120 to 320 px)
+					local t_dist = math.abs(cx - target.pos.x)
+					if t_dist >= 120 and t_dist <= 300 then
+						pos_score = pos_score + 60
+					elseif t_dist < 60 then
+						pos_score = pos_score - 80 -- Too close, danger of self-damage
+					end
+
+					-- Cliff / Water Safety check ahead of candidate
+					local edge_l = terrain.get_smooth_ground_y(cx - 28, 4.0)
+					local edge_r = terrain.get_smooth_ground_y(cx + 28, 4.0)
+					if (cy - edge_l) > 30.0 or (cy - edge_r) > 30.0 then
+						pos_score = pos_score - 120 -- Dangerous cliff edge!
+					end
+
+					-- Line of sight to target
+					local hit_t, _, _ = terrain.raycast(cx, cy + 8, target.pos.x, target.pos.y + 8)
+					if not hit_t then
+						pos_score = pos_score + 70 -- Clear shot available!
+					else
+						pos_score = pos_score + 20 -- Needs mortar/parabola or drill
+					end
+
+					-- Cover from OTHER enemies (reduces return fire exposure)
+					local covered_enemies = 0
+					for _, e in ipairs(enemies) do
+						if e.id ~= target.id then
+							local hit_e, _, _ = terrain.raycast(e.pos.x, e.pos.y + 8, cx, cy + 8)
+							if hit_e then
+								covered_enemies = covered_enemies + 1
+							end
+						end
+					end
+					pos_score = pos_score + covered_enemies * 40
+
+					if pos_score > best_pos_score then
+						best_pos_score = pos_score
+						best_pos_x = cx
+					end
+				end
+			end
+		end
+	end
+
+	-- Plan movement to best position
+	local move_dx = best_pos_x - bot.pos.x
+	local move_dir = (math.abs(move_dx) > 10) and ((move_dx > 0) and 1 or -1) or 0
+	local move_steps = math.max(0, math.min(12, math.ceil(math.abs(move_dx) / 7.0)))
+	local should_jump = (math.abs(move_dx) > 35) or (terrain.get_smooth_ground_y(best_pos_x, 4.0) > current_gy + 10.0)
+
+	local move_plan = {
+		dir = move_dir,
+		steps = move_steps,
+		should_jump = should_jump,
+		intent = "pvp_reposition",
+		target_x = best_pos_x
+	}
+
+	-- 4. Tactical Weapon Evaluation & Ballistic Solver from planned position
+	local eval_x = best_pos_x
+	local eval_y = terrain.get_smooth_ground_y(best_pos_x, 4.0) + 8.0
+	local t_dx = target.pos.x - eval_x
+	local t_dy = (target.pos.y + 8.0) - eval_y
+	local dist_to_target = math.sqrt(t_dx * t_dx + t_dy * t_dy)
+	local dir_to_t = t_dx > 0 and 1 or -1
+
+	local hit_los, _, _ = terrain.raycast(eval_x, eval_y, target.pos.x, target.pos.y + 8)
+	local has_los = not hit_los
+
+	-- Weapon selection based on tactical assessment
+	local chosen_weapon_id = weapons.TYPES.GRENADE
+
+	if dist_to_target < 44.0 then
+		-- Melee sweet spot: Potato Peeler (knife) or Grater (shotgun)
+		chosen_weapon_id = (math.random() > 0.4) and weapons.TYPES.KNIFE or weapons.TYPES.SHOTGUN
+	elseif target.pos.y < constants.WATER_LEVEL + 40.0 and dist_to_target < 240.0 then
+		-- Target near water: Garlic Dynamite (massive 720 blast knockback to drown them!)
+		chosen_weapon_id = weapons.TYPES.GARLIC
+	elseif not has_los and math.abs(t_dx) > 120.0 and math.random() > 0.45 then
+		-- Obstructed by terrain: Drill Missile or Pepper
+		chosen_weapon_id = (math.random() > 0.5) and weapons.TYPES.DRILL or weapons.TYPES.PEPPER
+	elseif has_los and dist_to_target > 160.0 and dist_to_target < 450.0 then
+		-- Long line-of-sight: Sniper Rifle or Burst Rifle
+		chosen_weapon_id = (math.random() > 0.5) and weapons.TYPES.RIFLE or weapons.TYPES.BURST
+	else
+		-- General combat: Bazooka or Grenade or Molotov
+		local r = math.random()
+		if r < 0.40 then
+			chosen_weapon_id = weapons.TYPES.BAZOOKA
+		elseif r < 0.70 then
+			chosen_weapon_id = weapons.TYPES.GRENADE
+		else
+			chosen_weapon_id = weapons.TYPES.MOLOTOV
+		end
+	end
+
+	local weapon = weapons.get(chosen_weapon_id)
+
+	-- Precise ballistic solver for chosen weapon
+	local best_aim_dx = dir_to_t
+	local best_aim_dy = 0.5
+	local best_power = 400
+	local best_shot_score = -999999
+
+	if weapon.fire_mode == "melee" then
+		best_aim_dx = dir_to_t
+		best_aim_dy = 0.05
+		best_power = 1
+	elseif has_los and (chosen_weapon_id == weapons.TYPES.RIFLE or chosen_weapon_id == weapons.TYPES.BURST) then
+		local drop = 0.5 * constants.GRAVITY * (weapon.gravity_mult or 0.15) * math.pow(dist_to_target / (weapon.speed or 900), 2)
+		local eff_dy = t_dy + drop
+		local len = math.sqrt(t_dx * t_dx + eff_dy * eff_dy)
+		best_aim_dx = t_dx / len
+		best_aim_dy = eff_dy / len
+		best_power = weapon.max_power
+	else
+		-- Parabolic solver (lob angles 35° to 78°)
+		for angle_deg = 35, 78, 3 do
+			local rad = math.rad(angle_deg)
+			local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
+			local sin2 = math.max(0.12, math.sin(2 * rad))
+			local ideal_v = math.sqrt(math.max(120, (dist_to_target * grav) / sin2))
+
+			for _, pm in ipairs({ 0.90, 1.0, 1.10 }) do
+				local test_v = math.min(weapon.max_power, math.max(140, ideal_v * pm))
+				local ax = dir_to_t * math.cos(rad)
+				local ay = math.sin(rad)
+
+				local vx = ax * test_v
+				local vy = ay * test_v
+				local ix, iy, _, hit_p, _ = physics_sim.simulate_shot(
+					eval_x, eval_y, vx, vy, weapon, terrain, all_potatoes, bot.id
+				)
+
+				-- Strict self-damage avoidance:
+				local d_bot = math.sqrt((ix - eval_x) * (ix - eval_x) + (iy - eval_y) * (iy - eval_y))
+				local blast_r = weapon.blast_radius or 30
+				if d_bot >= (blast_r * 1.15 + 8.0) then
+					local d_target = math.sqrt((ix - target.pos.x) * (ix - target.pos.x) + (iy - target.pos.y) * (iy - target.pos.y))
+					local s = 1000 - d_target
+					if hit_p and hit_p.team ~= bot.team then
+						s = s + 1000
+					end
+					if s > best_shot_score then
+						best_shot_score = s
+						best_aim_dx = ax
+						best_aim_dy = ay
+						best_power = test_v
+					end
+				end
+			end
+		end
+	end
+
+	-- High precision for PvP bot (very low jitter ~1 degree)
+	local angle_jitter = (math.random() - 0.5) * 0.02
+	local cos_j = math.cos(angle_jitter)
+	local sin_j = math.sin(angle_jitter)
+	local final_dx = best_aim_dx * cos_j - best_aim_dy * sin_j
+	local final_dy = math.max(0.05, best_aim_dx * sin_j + best_aim_dy * cos_j)
+	local final_power = best_power * (1.0 + (math.random() - 0.5) * 0.03)
+
+	return {
+		weapon_id = chosen_weapon_id,
+		aim_dx = final_dx,
+		aim_dy = final_dy,
+		power = final_power,
+		target_id = target.id,
+		movement = move_plan,
+		assess_delay = 0.85 + math.random() * 0.35, -- Deliberation to assess position
+		aim_delay = 0.75 + math.random() * 0.30,   -- Aim preview time before firing
+		is_pvp_bot = true,
+	}
+end
+
 return M
+

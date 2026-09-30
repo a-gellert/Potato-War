@@ -58,6 +58,111 @@ local function update_weapon_selection(self, selected_weapon_id)
 	end
 end
 
+local function update_hud_localization(self)
+	pcall(function()
+		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
+		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
+		gui.set_text(gui.get_node("txt_right"), i18n.t("touch_right"))
+		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+		gui.set_text(gui.get_node("txt_inventory"), i18n.t("btn_inventory"))
+		gui.set_text(gui.get_node("inventory_title"), i18n.t("inventory_title"))
+		gui.set_text(gui.get_node("inventory_sub"), i18n.t("inventory_sub"))
+	end)
+end
+
+local function update_inventory_ui(self)
+	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold border / active
+	local def_color = vmath.vector4(0.18, 0.23, 0.30, 0.95) -- Available
+	local dimmed_bg = vmath.vector4(0.06, 0.08, 0.10, 0.40) -- Darkened cell when ammo = 0
+	local dimmed_icon = vmath.vector4(0.20, 0.20, 0.20, 0.25)
+	local dimmed_txt = vmath.vector4(0.35, 0.35, 0.35, 0.40)
+
+	pcall(function()
+		gui.set_text(gui.get_node("inventory_title"), i18n.t("inventory_title"))
+		gui.set_text(gui.get_node("inventory_sub"), i18n.t("inventory_sub"))
+		gui.set_text(gui.get_node("txt_inventory"), i18n.t("btn_inventory"))
+	end)
+
+	for i = 1, 12 do
+		local ok, err = pcall(function()
+			local w = weapons.LIST[i]
+			if not w then return end
+
+			local slot_node = gui.get_node("inv_slot_" .. i)
+			local icon_node = gui.get_node("inv_icon_" .. i)
+			local name_node = gui.get_node("inv_name_" .. i)
+			local count_node = gui.get_node("inv_ammo_" .. i)
+
+			local icon_name = w.icon or w.projectile_sprite or "circle"
+			gui.play_flipbook(icon_node, hash(icon_name))
+
+			local name_txt = (i18n.t("weapon_" .. w.id) ~= "weapon_" .. w.id) and i18n.t("weapon_" .. w.id) or (w.name or w.id)
+			gui.set_text(name_node, name_txt)
+
+			local ammo = game_state.get_ammo(w.id)
+			local is_selected = (game_state.selected_weapon_id == w.id)
+
+			if w.id == "grenade" then
+				gui.set_text(count_node, "INF")
+				gui.set_color(count_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+				gui.set_color(slot_node, is_selected and sel_color or def_color)
+				gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
+				gui.set_color(name_node, vmath.vector4(1, 1, 1, 1))
+			else
+				if ammo > 0 then
+					gui.set_text(count_node, "x" .. ammo)
+					gui.set_color(count_node, vmath.vector4(1, 1, 1, 1))
+					gui.set_color(slot_node, is_selected and sel_color or def_color)
+					gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
+					gui.set_color(name_node, vmath.vector4(1, 1, 1, 1))
+				else
+					-- 0 ammo: Darken the cell, icon, and labels
+					gui.set_text(count_node, "0")
+					gui.set_color(count_node, dimmed_txt)
+					gui.set_color(slot_node, dimmed_bg)
+					gui.set_color(icon_node, dimmed_icon)
+					gui.set_color(name_node, dimmed_txt)
+				end
+			end
+		end)
+		if not ok then
+			constants.log(">>> ERROR IN update_inventory_ui slot " .. i .. ":", err)
+		end
+	end
+end
+
+local function toggle_inventory(self, force_state)
+	if game_state.mode == constants.MODE_CAMPAIGN and force_state ~= false then
+		self.is_inventory_open = false
+		pcall(function()
+			gui.set_enabled(gui.get_node("inventory_overlay"), false)
+		end)
+		return
+	end
+	if force_state ~= nil then
+		self.is_inventory_open = force_state
+	else
+		self.is_inventory_open = not self.is_inventory_open
+	end
+	pcall(function()
+		gui.set_enabled(gui.get_node("inventory_overlay"), self.is_inventory_open)
+	end)
+	if self.is_inventory_open then
+		update_inventory_ui(self)
+	end
+end
+
+local function select_inventory_weapon(self, weapon_id)
+	local ammo = game_state.get_ammo(weapon_id)
+	if weapon_id ~= "grenade" and ammo <= 0 then
+		return -- Cannot select empty dimmed weapon!
+	end
+	game_state.select_weapon(weapon_id)
+	update_weapon_selection(self, weapon_id)
+	update_inventory_ui(self)
+	toggle_inventory(self, false)
+end
+
 local function apply_card_ui(card_idx, card)
 	pcall(function()
 		local pfx = "card_" .. card_idx
@@ -197,17 +302,45 @@ function init(self)
 		msg.post("/main#main", "show_menu")
 	end, { slop = 12 })
 
-	-- Update static labels
+	-- Register Inventory button and close button
+	self.is_inventory_open = false
 	pcall(function()
-		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
-		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
-		gui.set_text(gui.get_node("txt_right"), i18n.t("touch_right"))
-		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+		gui.set_enabled(gui.get_node("inventory_overlay"), false)
 	end)
+
+	self.ui:button("btn_inventory", function()
+		if game_state.mode ~= constants.MODE_CAMPAIGN then
+			msg.post("/aim_guide#aim_guide", "hide_aim")
+			toggle_inventory(self)
+		end
+	end, { slop = 12 })
+
+	self.ui:button("btn_inv_close", function()
+		msg.post("/aim_guide#aim_guide", "hide_aim")
+		toggle_inventory(self, false)
+	end, { slop = 12 })
+
+	-- Register 12 inventory slots
+	for i = 1, 12 do
+		local slot_idx = i
+		local w = weapons.LIST[slot_idx]
+		if w then
+			self.ui:button("inv_slot_" .. slot_idx, function()
+				msg.post("/aim_guide#aim_guide", "hide_aim")
+				select_inventory_weapon(self, w.id)
+			end, { slop = 10 })
+		end
+	end
+
+	-- Update static labels with localization
+	update_hud_localization(self)
 
 	-- Hook ammo changes from game state
 	game_state.on_ammo_changed = function()
 		update_weapon_selection(self, game_state.selected_weapon_id)
+		if self.is_inventory_open then
+			update_inventory_ui(self)
+		end
 	end
 
 	-- Cards overlay disabled by default
@@ -219,13 +352,25 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
+	-- Key Q / inventory hotkey
+	if action_id == hash("inventory") and action.pressed then
+		if game_state.mode ~= constants.MODE_CAMPAIGN then
+			toggle_inventory(self)
+		end
+		return true
+	end
+
 	local handled = self.ui:on_input(action_id, action)
 	if handled then
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		return true
 	end
 
-	-- Block background aiming when cards overlay is visible or when touching HUD control panels
+	-- Block background aiming when inventory or cards overlay is visible or when touching HUD control panels
+	if self.is_inventory_open then
+		return true
+	end
+
 	if action_id == hash("touch") or action_id == hash("touch_multi") then
 		local ok_cards, cards_open = pcall(function()
 			return gui.is_enabled(gui.get_node("cards_overlay"))
@@ -308,7 +453,9 @@ function update(self, dt)
 					gui.set_text(banner, i18n.t("turn_blue"))
 					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
 				else
-					if game_state.mode == constants.MODE_QUICK_PVP then
+					if game_state.mode == constants.MODE_PVP_BOTS then
+						gui.set_text(banner, i18n.t("turn_red_pvp_bot"))
+					elseif game_state.mode == constants.MODE_QUICK_PVP then
 						gui.set_text(banner, i18n.t("turn_red_pvp"))
 					else
 						gui.set_text(banner, i18n.t("turn_red_bot"))
@@ -319,13 +466,23 @@ function update(self, dt)
 			end)
 		end
 
-		-- Animated tutorial hand: semi-transparent hand that presses and moves to the left over the active potato
+		-- Animated tutorial hand: semi-transparent hand that presses and moves towards enemy over the active potato
+		local is_arena_1 = (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1) or (game_state.mode ~= constants.MODE_CAMPAIGN)
 		local should_show_hand = not self.tutorial_hand_done
+			and is_arena_1
 			and game_state.state == constants.STATE_TURN_ACTIVE
 			and game_state.active_team == constants.TEAM_BLUE
 			and not game_state.is_aiming
 
 		if should_show_hand then
+			pcall(function()
+				local hint_node = gui.get_node("tutorial_hint")
+				if hint_node then
+					gui.set_enabled(hint_node, true)
+					gui.set_text(hint_node, i18n.t("tutorial_hint"))
+				end
+			end)
+
 			local p = game_state.active_potato
 			if p and p.is_alive then
 				self.tutorial_hand_timer = (self.tutorial_hand_timer or 0) + dt
@@ -351,20 +508,20 @@ function update(self, dt)
 					ripple_alpha = 0.55 * (1.0 - t)
 					ripple_scale = 0.3 + 0.5 * t
 				elseif cycle < 1.00 then
-					-- 2. Drag to the left (slingshot pull-back)
+					-- 2. Drag towards enemy (to the right & slightly up)
 					local t = (cycle - 0.25) / 0.75
 					local eased = (t < 0.5) and (2 * t * t) or (-1 + (4 - 2 * t) * t)
 					alpha = 0.75
 					scale = 0.62
-					x_off = 11 - 70 * eased
-					y_off = -17 + 8 * math.sin(eased * math.pi)
+					x_off = 11 + 75 * eased
+					y_off = -17 + 24 * math.sin(eased * math.pi * 0.5)
 				elseif cycle < 1.30 then
 					-- 3. Release & fade out
 					local t = (cycle - 1.00) / 0.30
 					alpha = 0.75 * (1.0 - t)
 					scale = 0.62 + 0.14 * t
-					x_off = 11 - 70
-					y_off = -17
+					x_off = 11 + 75
+					y_off = -17 + 24
 				else
 					-- 4. Pause before repeating
 					alpha = 0
@@ -409,9 +566,19 @@ function update(self, dt)
 		pcall(function()
 			local wp_node = gui.get_node("weapon_panel")
 			local tc_node = gui.get_node("touch_controls")
+			local inv_btn = gui.get_node("btn_inventory")
 			local is_player_turn = not game_state.is_bot_turn() and game_state.state == constants.STATE_TURN_ACTIVE
-			gui.set_enabled(wp_node, is_player_turn)
+			local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
+
+			local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN)
+			if is_pvp then
+				gui.set_enabled(wp_node, false)
+			else
+				gui.set_enabled(wp_node, is_player_turn)
+			end
+
 			gui.set_enabled(tc_node, is_player_turn)
+			gui.set_enabled(inv_btn, (not is_campaign) and is_player_turn)
 		end)
 
 		if game_state.selected_weapon_id ~= self.last_weapon then
@@ -424,8 +591,7 @@ function update(self, dt)
 		if pts ~= self.last_points then
 			self.last_points = pts
 			pcall(function()
-				local pts_lbl = (i18n.current_lang == "ru") and "Очки: " or "Points: "
-				gui.set_text(gui.get_node("points_text"), pts_lbl .. tostring(pts))
+				gui.set_text(gui.get_node("points_text"), i18n.t("points_lbl") .. tostring(pts))
 			end)
 		end
 
@@ -436,6 +602,8 @@ function update(self, dt)
 				local hp_str = p and tostring(p.hp) or "100"
 				local arena_prefix = (i18n.current_lang == "ru") and "Арена " or "Arena "
 				gui.set_text(mode_node, arena_prefix .. tostring(game_state.campaign_level or 1) .. " (HP:" .. hp_str .. ")")
+			elseif game_state.mode == constants.MODE_PVP_BOTS then
+				gui.set_text(mode_node, i18n.t("mode_pvp_bots"))
 			elseif game_state.mode == constants.MODE_QUICK_BOT then
 				gui.set_text(mode_node, i18n.t("mode_bot"))
 			elseif game_state.mode == constants.MODE_QUICK_PVP then
@@ -449,6 +617,11 @@ function on_message(self, message_id, message, sender)
 	if message_id == hash("match_started") then
 		self.tutorial_hand_done = false
 		self.tutorial_hand_timer = 0
+		update_hud_localization(self)
+		toggle_inventory(self, false)
+		update_inventory_ui(self)
+	elseif message_id == hash("toggle_inventory") then
+		toggle_inventory(self)
 	elseif message_id == hash("show_cards") then
 		self.tutorial_hand_done = false
 		self.tutorial_hand_timer = 0
@@ -472,12 +645,13 @@ function on_message(self, message_id, message, sender)
 		pcall(function()
 			gui.set_enabled(gui.get_node("cards_overlay"), false)
 		end)
-	elseif message_id == hash("hide_tutorial") then
+	elseif message_id == hash("hide_tutorial") or message_id == hash("tutorial_shot_fired") then
 		hide_tutorial_hint(self)
 	elseif message_id == hash("show_damage") then
 		pcall(function()
-			local x = message.x or 480
-			local y = (message.y or 270) + 18
+			local sx, sy = camera_controller.world_to_screen(message.x or 480, message.y or 270)
+			local x = sx
+			local y = sy + 18
 			local amt = message.amount or 0
 			local is_heal = (message.is_heal == true)
 			local is_crit = (not is_heal) and (amt >= 45)

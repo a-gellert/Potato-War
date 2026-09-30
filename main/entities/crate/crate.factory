@@ -1,0 +1,2 @@
+prototype: "/main/entities/crate/crate.go"
+load_dynamically: false

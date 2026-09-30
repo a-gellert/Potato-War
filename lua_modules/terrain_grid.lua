@@ -425,6 +425,14 @@ end
 
 function M.generate(preset_type, campaign_level)
 	preset_type = preset_type or "hills"
+	local all_presets = {
+		"hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese",
+		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves"
+	}
+	if preset_type == "random" then
+		preset_type = all_presets[math.random(1, #all_presets)]
+	end
+
 	local w = M.width
 	local h = M.height
 	local total = w * h
@@ -723,6 +731,81 @@ function M.generate(preset_type, campaign_level)
 				end
 			end
 		end
+
+	elseif preset_type == "pyramid_temple" then
+		-- Stepped Ziggurat / Pyramid Terraces with central fighting valley and obelisk pillars
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wx = warp_coord_1d(nx, seed, 0.06, 3.0)
+			local height_val = 16
+
+			if nx >= 0.08 and nx <= 0.42 then
+				local dist_edge = math.min(nx - 0.08, 0.42 - nx)
+				local wall = math.min(1.0, dist_edge / 0.16)
+				local pyramid = stepped_terrace(wall * (h * 0.26), 14)
+				height_val = h * 0.16 + pyramid + (fractal_noise(wx * 8, 2, seed) - 0.5) * 3
+			elseif nx >= 0.58 and nx <= 0.92 then
+				local dist_edge = math.min(nx - 0.58, 0.92 - nx)
+				local wall = math.min(1.0, dist_edge / 0.16)
+				local pyramid = stepped_terrace(wall * (h * 0.26), 14)
+				height_val = h * 0.16 + pyramid + (fractal_noise(wx * 8, 2, seed + 20) - 0.5) * 3
+			elseif nx > 0.42 and nx < 0.58 then
+				-- Central temple valley with obelisk spikes
+				local obelisk1 = math.exp(-((nx - 0.47) * 45) ^ 2) * (h * 0.15)
+				local obelisk2 = math.exp(-((nx - 0.53) * 45) ^ 2) * (h * 0.15)
+				local valley_floor = h * 0.18
+				height_val = math.max(16, valley_floor + obelisk1 + obelisk2 + (fractal_noise(wx * 6, 2, seed) - 0.5) * 3)
+			else
+				height_val = h * 0.16 + fractal_noise(wx * 4, 2, seed) * 4
+			end
+
+			local max_gy = math.floor(math.max(16, math.min(math.floor(h * 0.46), height_val)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+		-- Procedural crypt tunnel through pyramid bases
+		carve_worm_tunnel(w * 0.20, h * 0.24, 22, 0.1, 12, 0.35, seed + 11)
+		carve_worm_tunnel(w * 0.80, h * 0.24, 22, 3.14, 12, 0.35, seed + 22)
+
+	elseif preset_type == "twin_peaks" then
+		-- Two towering peaks flanking a deep chasm with an elevated rock bridge
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wx = warp_coord_1d(nx, seed, 0.09, 3.5)
+			local p1 = math.exp(-((wx - 0.24) * 5.0) ^ 2) * (h * 0.30)
+			local p2 = math.exp(-((wx - 0.76) * 5.0) ^ 2) * (h * 0.30)
+			local peak = math.max(p1, p2)
+			local ridged = ridged_noise(wx * 10.0, 3, seed) * (h * 0.08)
+
+			local max_gy = math.floor(math.max(14, math.min(math.floor(h * 0.48), h * 0.14 + peak + ridged)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+		-- Suspended high rock bridge connecting both peaks
+		add_arch(w * 0.50, h * 0.30, w * 0.18, h * 0.07, h * 0.04, seed + 55)
+
+	elseif preset_type == "valley_caves" then
+		-- Rolling hillside with 3 interconnecting underground cavern tunnels
+		local base_h = h * 0.28
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wx = warp_coord_1d(nx, seed, 0.08, 3.2)
+			local roll = math.sin(wx * 6.28 * 1.5 + seed) * (h * 0.08)
+			local micro = fractal_noise(nx * 10.0, 3, seed + 9) * (h * 0.04)
+			local max_gy = math.floor(math.max(16, math.min(math.floor(h * 0.44), base_h + roll + micro)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+		-- Winding underground cave network
+		carve_worm_tunnel(w * 0.25, h * 0.22, 28, 0.3, 14, 0.4, seed + 101)
+		carve_worm_tunnel(w * 0.75, h * 0.22, 28, 2.8, 14, 0.4, seed + 202)
+		carve_worm_tunnel(w * 0.50, h * 0.26, 24, 0.0, 16, 0.3, seed + 303)
 
 	else -- "hills" (Arena 1: Rolling meadow hills with domain warping, terraces, and overhang rock ledge)
 		local base_h = h * 0.22

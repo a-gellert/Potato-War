@@ -1,0 +1,162 @@
+-- main/entities/crate/crate.script
+-- Procedural Airdrop Crate (Medkit / Weapon) with parachute physics and collection logic
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+local game_state = require("lua_modules.game_state")
+local sound_manager = require("lua_modules.sound_manager")
+local weapons = require("lua_modules.weapons")
+local i18n = require("lua_modules.i18n")
+
+go.property("crate_type", hash("medkit"))
+go.property("amount", 30)
+go.property("weapon_id", hash("bazooka"))
+
+function init(self)
+	self.pos = go.get_position()
+	self.is_grounded = false
+	self.sway_time = math.random() * 6.28
+	self.is_collected = false
+
+	local type_str = (self.crate_type == hash("weapon")) and "weapon" or "medkit"
+	self.type_str = type_str
+
+	-- Visual setup
+	if type_str == "medkit" then
+		-- Green cross / medkit box tint
+		pcall(function()
+			go.set("#box_sprite", "tint", vmath.vector4(0.20, 0.88, 0.40, 1.0))
+			go.set("#icon_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
+			sprite.play_flipbook("#icon_sprite", hash("circle"))
+			go.set_scale(vmath.vector3(0.4, 0.4, 1.0), "#icon_sprite")
+		end)
+	else
+		-- Gold weapon crate tint
+		pcall(function()
+			go.set("#box_sprite", "tint", vmath.vector4(0.95, 0.72, 0.15, 1.0))
+			local wpn_name = "masher_bazooka"
+			local w = weapons.get(self.weapon_id and tostring(self.weapon_id) or "bazooka")
+			if w and w.icon then
+				wpn_name = w.icon
+			end
+			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
+			go.set_scale(vmath.vector3(0.5, 0.5, 1.0), "#icon_sprite")
+		end)
+	end
+end
+
+local function collect_crate(self, potato)
+	if self.is_collected then return end
+	self.is_collected = true
+
+	local is_ru = (i18n.current_lang == "ru")
+
+	if self.type_str == "medkit" then
+		sound_manager.play_heal()
+		local heal_amt = self.amount or math.random(20, 50)
+		local was_full = (potato.hp >= potato.max_hp)
+
+		if was_full then
+			-- At 100% HP: increases BOTH max HP and current HP!
+			potato.max_hp = potato.max_hp + heal_amt
+			potato.hp = potato.hp + heal_amt
+		else
+			potato.hp = math.min(potato.max_hp, potato.hp + heal_amt)
+		end
+
+		if potato.url then
+			msg.post(potato.url, "apply_heal", { amount = heal_amt })
+		end
+
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = potato.pos.x,
+			y = potato.pos.y,
+			amount = heal_amt,
+			is_heal = true,
+			is_max_hp = was_full
+		})
+
+		local title = is_ru and ("Аптечка +" .. heal_amt .. (was_full and " МАКС HP!" or " HP!")) or ("Medkit +" .. heal_amt .. (was_full and " MAX HP!" or " HP!"))
+		msg.post("/gui_hud#gui", "show_achievement_toast", {
+			icon = "❤️",
+			title = title,
+			points = 0
+		})
+	else
+		sound_manager.play_shot()
+		local w_name = tostring(self.weapon_id)
+		local w = weapons.get(w_name)
+		local count = self.amount or 2
+		game_state.add_ammo(w.id, count)
+
+		local title = is_ru and ("Ящик: +" .. count .. " " .. (w.name or w.id) .. "!") or ("Crate: +" .. count .. " " .. (w.name or w.id) .. "!")
+		msg.post("/gui_hud#gui", "show_achievement_toast", {
+			icon = "📦",
+			title = title,
+			points = 0
+		})
+	end
+
+	msg.post("/main#main", "crate_collected", { url = msg.url() })
+	go.delete()
+end
+
+function update(self, dt)
+	if self.is_collected then return end
+
+	self.pos = go.get_position()
+	self.sway_time = self.sway_time + dt
+
+	-- Parachute descent physics
+	if not self.is_grounded then
+		self.pos.y = self.pos.y - 75.0 * dt
+		self.pos.x = self.pos.x + math.sin(self.sway_time * 2.5) * 16.0 * dt
+
+		local gy = terrain_grid.get_smooth_ground_y(self.pos.x, 3.0)
+		if self.pos.y <= gy + 11.0 then
+			self.pos.y = gy + 11.0
+			self.is_grounded = true
+			pcall(function()
+				go.animate("#parachute_sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0, 0, 0), go.EASING_INQUAD, 0.25, 0, function()
+					pcall(msg.post, "#parachute_sprite", "disable")
+				end)
+			end)
+		end
+
+		-- Sinks in water
+		if self.pos.y < constants.WATER_LEVEL + 4.0 then
+			msg.post("/main#main", "crate_destroyed", { url = msg.url() })
+			go.delete()
+			return
+		end
+
+		go.set_position(self.pos)
+	end
+
+	-- Check proximity to living potatoes for pickup
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive then
+			local dx = math.abs(p.pos.x - self.pos.x)
+			local dy = math.abs(p.pos.y - self.pos.y)
+			if dx < 22.0 and dy < 26.0 then
+				collect_crate(self, p)
+				return
+			end
+		end
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("check_blast") then
+		local bx = message.x or 0
+		local by = message.y or 0
+		local br = message.radius or 30
+		local dx = self.pos.x - bx
+		local dy = self.pos.y - by
+		if (dx * dx + dy * dy) <= (br * br) then
+			-- Destroyed in explosion
+			msg.post("/main#main", "crate_destroyed", { url = msg.url() })
+			go.delete()
+		end
+	end
+end

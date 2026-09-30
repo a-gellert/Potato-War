@@ -1,0 +1,104 @@
+-- main/game.render_script
+-- Custom render pipeline for Potato War with dynamic world camera, zoom, screenshake and UI pass
+
+local camera_controller = require("lua_modules.camera_controller")
+
+local MSG_CLEAR_COLOR = hash("clear_color")
+local MSG_WINDOW_RESIZED = hash("window_resized")
+local MSG_SET_VIEW_PROJ = hash("set_view_projection")
+
+function init(self)
+	self.predicates = {
+		tile = render.predicate({ "tile" }),
+		gui = render.predicate({ "gui" }),
+		particle = render.predicate({ "particle" }),
+		model = render.predicate({ "model" }),
+		debug_text = render.predicate({ "debug_text" }),
+	}
+
+	local color_bit = (graphics and (graphics.BUFFER_TYPE_COLOR0_BIT or graphics.BUFFER_COLOR0_BIT or graphics.BUFFER_COLOR_BIT))
+		or (render and (render.BUFFER_COLOR0_BIT or render.BUFFER_COLOR_BIT))
+
+	local depth_bit = (graphics and (graphics.BUFFER_TYPE_DEPTH_BIT or graphics.BUFFER_DEPTH_BIT))
+		or (render and render.BUFFER_DEPTH_BIT)
+
+	local stencil_bit = (graphics and (graphics.BUFFER_TYPE_STENCIL_BIT or graphics.BUFFER_STENCIL_BIT))
+		or (render and render.BUFFER_STENCIL_BIT)
+
+	self.color_buffer_bit = color_bit
+	self.clear_buffers = {}
+	if color_bit then
+		self.clear_buffers[color_bit] = vmath.vector4(0, 0, 0, 1)
+	end
+	if depth_bit then
+		self.clear_buffers[depth_bit] = 1
+	end
+	if stencil_bit then
+		self.clear_buffers[stencil_bit] = 0
+	end
+
+	self.window_width = render.get_window_width()
+	self.window_height = render.get_window_height()
+	self.view = vmath.matrix4()
+end
+
+function update(self)
+	self.window_width = render.get_window_width()
+	self.window_height = render.get_window_height()
+	if self.window_width <= 0 or self.window_height <= 0 then
+		return
+	end
+
+	render.set_depth_mask(true)
+	render.set_stencil_mask(0xff)
+	render.clear(self.clear_buffers)
+
+	-- 1. World Pass: Apply dynamic camera view and orthographic world projection
+	render.set_viewport(0, 0, self.window_width, self.window_height)
+
+	local world_view = camera_controller.get_view_matrix() or self.view
+	render.set_view(world_view)
+	render.set_projection(vmath.matrix4_orthographic(0, 960, 0, 540, -1000, 1000))
+
+	local blend_src = (graphics and (graphics.BLEND_FACTOR_SRC_ALPHA or graphics.BLEND_SRC_ALPHA)) or (render and render.BLEND_SRC_ALPHA)
+	local blend_dst = (graphics and (graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA or graphics.BLEND_ONE_MINUS_SRC_ALPHA)) or (render and render.BLEND_ONE_MINUS_SRC_ALPHA)
+	if blend_src and blend_dst then
+		render.set_blend_func(blend_src, blend_dst)
+	end
+
+	local state_depth = (graphics and graphics.STATE_DEPTH_TEST) or (render and render.STATE_DEPTH_TEST)
+	local state_blend = (graphics and graphics.STATE_BLEND) or (render and render.STATE_BLEND)
+	local state_stencil = (graphics and graphics.STATE_STENCIL_TEST) or (render and render.STATE_STENCIL_TEST)
+
+	if state_depth then render.enable_state(state_depth) end
+	if state_blend then render.enable_state(state_blend) end
+
+	render.draw(self.predicates.tile)
+	render.draw(self.predicates.particle)
+	render.draw(self.predicates.model)
+	if state_depth then render.disable_state(state_depth) end
+
+	render.draw_debug3d()
+
+	-- 2. GUI Pass: Fixed screen overlay
+	render.set_view(vmath.matrix4())
+	render.set_projection(vmath.matrix4_orthographic(0, self.window_width, 0, self.window_height, -1000, 1000))
+
+	if state_stencil then render.enable_state(state_stencil) end
+	render.draw(self.predicates.gui)
+	render.draw(self.predicates.debug_text)
+	if state_stencil then render.disable_state(state_stencil) end
+	if state_blend then render.disable_state(state_blend) end
+end
+
+function on_message(self, message_id, message)
+	if message_id == MSG_CLEAR_COLOR then
+		if self.color_buffer_bit and message.color then
+			self.clear_buffers[self.color_buffer_bit] = message.color
+		end
+	elseif message_id == MSG_SET_VIEW_PROJ then
+		if message.view then
+			self.view = message.view
+		end
+	end
+end

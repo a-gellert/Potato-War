@@ -22,8 +22,9 @@ local function update_localized_menu(self)
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local camp_lbl = is_ru and "В БОЙ!" or "TO BATTLE!"
+		local camp_lbl = is_ru and "В БОЙ (КАМПАНИЯ)" or "CAMPAIGN BATTLE"
 		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
+		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_quick_pvp"))
 		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_upgrades"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
 		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
@@ -199,35 +200,43 @@ function init(self)
 
 	-- Setup main menu buttons
 	pcall(function()
-		gui.set_enabled(gui.get_node("btn_quick_pvp"), false)
-
-		-- Central large Campaign button
+		-- Central Campaign button
 		local camp_btn = gui.get_node("btn_campaign")
-		gui.set_position(camp_btn, vmath.vector3(480, 305, 0))
-		gui.set_size(camp_btn, vmath.vector3(440, 64, 0))
+		gui.set_enabled(camp_btn, true)
+		gui.set_position(camp_btn, vmath.vector3(480, 335, 0))
+		gui.set_size(camp_btn, vmath.vector3(420, 52, 0))
 		gui.set_color(camp_btn, vmath.vector4(0.18, 0.72, 0.38, 1.0)) -- Vibrant Hero Green!
+
+		-- PvP vs Bots (3v3) button
+		local pvp_btn = gui.get_node("btn_quick_pvp")
+		gui.set_enabled(pvp_btn, true)
+		gui.set_position(pvp_btn, vmath.vector3(480, 275, 0))
+		gui.set_size(pvp_btn, vmath.vector3(420, 48, 0))
+		gui.set_color(pvp_btn, vmath.vector4(0.85, 0.28, 0.22, 1.0)) -- Intense Battle Crimson!
 
 		-- Upgrades button (reusing btn_quick_bot node)
 		local upg_btn = gui.get_node("btn_quick_bot")
 		gui.set_enabled(upg_btn, true)
-		gui.set_position(upg_btn, vmath.vector3(480, 240, 0))
-		gui.set_size(upg_btn, vmath.vector3(360, 48, 0))
+		gui.set_position(upg_btn, vmath.vector3(480, 218, 0))
+		gui.set_size(upg_btn, vmath.vector3(360, 44, 0))
 		gui.set_color(upg_btn, vmath.vector4(0.95, 0.65, 0.15, 1.0)) -- Radiant Meta Gold!
 
 		-- Centered Shop button below
 		local shop_btn = gui.get_node("btn_shop")
-		gui.set_position(shop_btn, vmath.vector3(480, 175, 0))
-		gui.set_size(shop_btn, vmath.vector3(360, 46, 0))
+		gui.set_enabled(shop_btn, true)
+		gui.set_position(shop_btn, vmath.vector3(480, 162, 0))
+		gui.set_size(shop_btn, vmath.vector3(360, 44, 0))
 		gui.set_color(shop_btn, vmath.vector4(0.18, 0.50, 0.82, 1.0)) -- Cool Blue
 
 		-- Controls hint below buttons
 		local hint = gui.get_node("hint_text")
-		gui.set_position(hint, vmath.vector3(480, 105, 0))
+		gui.set_position(hint, vmath.vector3(480, 92, 0))
 	end)
 
 	local function set_background_menu_enabled(enabled)
 		pcall(function()
 			gui.set_enabled(gui.get_node("btn_campaign"), enabled)
+			gui.set_enabled(gui.get_node("btn_quick_pvp"), enabled)
 			gui.set_enabled(gui.get_node("btn_quick_bot"), enabled)
 			gui.set_enabled(gui.get_node("btn_shop"), enabled)
 			gui.set_enabled(gui.get_node("btn_lang"), enabled)
@@ -238,6 +247,12 @@ function init(self)
 	self.ui:button("btn_campaign", function()
 		msg.post(".", "disable")
 		msg.post("/main#main", "start_match", { mode = constants.MODE_CAMPAIGN, level = 1 })
+	end)
+
+	-- Mode selection button (PvP vs Bots 3v3)
+	self.ui:button("btn_quick_pvp", function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_match", { mode = constants.MODE_PVP_BOTS })
 	end)
 
 	-- Meta Upgrades button

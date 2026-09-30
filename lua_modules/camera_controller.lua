@@ -1,5 +1,5 @@
 -- lua_modules/camera_controller.lua
--- Smooth camera tracking, screenshake, and viewport adaptation for Potato War
+-- Smooth camera tracking, projectile chase zoom, screenshake, and viewport adaptation for Potato War
 
 local constants = require("lua_modules.constants")
 
@@ -12,6 +12,7 @@ M.shake_timer = 0
 M.zoom = 1.0
 M.target_zoom = 1.0
 M.camera_id = nil
+M.view_matrix = vmath.matrix4()
 
 function M.init(camera_url)
 	M.camera_id = camera_url or msg.url("camera")
@@ -21,12 +22,34 @@ function M.init(camera_url)
 	M.shake_timer = 0
 	M.zoom = 1.0
 	M.target_zoom = 1.0
+	M.view_matrix = vmath.matrix4()
+end
+
+function M.get_view_matrix()
+	return M.view_matrix or vmath.matrix4()
 end
 
 -- Focus camera on a target coordinate
 function M.follow(x, y, immediate)
-	x = math.max(constants.SCREEN_WIDTH * 0.4, math.min(constants.WORLD_WIDTH - constants.SCREEN_WIDTH * 0.4, x))
-	y = math.max(constants.SCREEN_HEIGHT * 0.4, math.min(constants.WORLD_HEIGHT - constants.SCREEN_HEIGHT * 0.4, y))
+	local ok, gs = pcall(require, "lua_modules.game_state")
+	local cur_w = (ok and gs and gs.mode) and constants.get_world_width(gs.mode) or constants.WORLD_WIDTH
+
+	local effective_zoom = math.max(0.7, M.target_zoom or M.zoom or 1.0)
+	local half_w = (constants.SCREEN_WIDTH * 0.5) / effective_zoom
+	local half_h = (constants.SCREEN_HEIGHT * 0.5) / effective_zoom
+
+	local is_pvp = (cur_w > constants.WORLD_WIDTH)
+	-- In PvP, background extends 240px horizontally and 80px vertically above 540
+	local extra_x = is_pvp and 90 or 0
+	local extra_top = is_pvp and 65 or 0
+
+	local min_x = math.min(cur_w * 0.5, half_w - extra_x)
+	local max_x = math.max(cur_w * 0.5, cur_w - half_w + extra_x)
+	local min_y = math.min(constants.WORLD_HEIGHT * 0.5, half_h)
+	local max_y = math.max(constants.WORLD_HEIGHT * 0.5, constants.WORLD_HEIGHT - half_h + extra_top)
+
+	x = math.max(min_x, math.min(max_x, x))
+	y = math.max(min_y, math.min(max_y, y))
 
 	M.target_pos.x = x
 	M.target_pos.y = y
@@ -43,20 +66,38 @@ function M.shake(amount, duration)
 	M.shake_timer = math.max(M.shake_timer, duration or 0.3)
 end
 
--- Set target zoom level
+-- Set target zoom level (1.0 = normal, >1.0 = zoomed in on projectile)
 function M.set_zoom(z)
-	M.target_zoom = math.max(0.75, math.min(1.5, z or 1.0))
+	M.target_zoom = math.max(0.85, math.min(1.45, z or 1.0))
 end
 
--- Update camera position and shake
+-- Convert world coordinates to screen (GUI) coordinates
+function M.world_to_screen(wx, wy)
+	local sw = constants.SCREEN_WIDTH
+	local sh = constants.SCREEN_HEIGHT
+	local sx = (wx - M.pos.x) * M.zoom + sw * 0.5
+	local sy = (wy - M.pos.y) * M.zoom + sh * 0.5
+	return sx, sy
+end
+
+-- Convert screen (GUI) coordinates to world coordinates
+function M.screen_to_world(sx, sy)
+	local sw = constants.SCREEN_WIDTH
+	local sh = constants.SCREEN_HEIGHT
+	local wx = (sx - sw * 0.5) / M.zoom + M.pos.x
+	local wy = (sy - sh * 0.5) / M.zoom + M.pos.y
+	return wx, wy
+end
+
+-- Update camera position, zoom, screenshake, and apply view matrix to render pipeline
 function M.update(dt)
-	-- Smooth position interpolation
-	local lerp_speed = 6.0
+	-- Smooth position interpolation (5.5x for responsive yet smooth tracking)
+	local lerp_speed = 5.5
 	M.pos.x = M.pos.x + (M.target_pos.x - M.pos.x) * math.min(1.0, lerp_speed * dt)
 	M.pos.y = M.pos.y + (M.target_pos.y - M.pos.y) * math.min(1.0, lerp_speed * dt)
 
-	-- Smooth zoom interpolation
-	M.zoom = M.zoom + (M.target_zoom - M.zoom) * math.min(1.0, 4.0 * dt)
+	-- Smooth zoom interpolation (3.5x for gradual cinematic zoom-in/out)
+	M.zoom = M.zoom + (M.target_zoom - M.zoom) * math.min(1.0, 3.5 * dt)
 
 	-- Calculate shake offset
 	local shake_x = 0
@@ -80,6 +121,23 @@ function M.update(dt)
 			go.set_position(vmath.vector3(render_x, render_y, 0), M.camera_id)
 		end)
 	end
+
+	-- Apply view matrix to Defold render pipeline
+	local sw = constants.SCREEN_WIDTH
+	local sh = constants.SCREEN_HEIGHT
+	local z = M.zoom
+
+	local view = vmath.matrix4_translation(vmath.vector3(sw * 0.5, sh * 0.5, 0))
+		* vmath.matrix4_scale(vmath.vector3(z, z, 1))
+		* vmath.matrix4_translation(vmath.vector3(-render_x, -render_y, 0))
+
+	M.view_matrix = view
+
+	pcall(function()
+		msg.post("@render:", "set_view_projection", {
+			view = view
+		})
+	end)
 
 	return render_x, render_y, M.zoom
 end

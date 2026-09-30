@@ -120,7 +120,7 @@ M.LEVELS = {
 		name_en = "Arena 1: Green Hills",
 		desc = "Быстрая дуэль 1 на 1 среди цветущих лугов!",
 		desc_en = "Fast 1v1 duel across rolling meadow hills!",
-		enemy_hp = 50,
+		enemy_hp = 80,
 		enemy_count = 1,
 		terrain_type = "hills",
 		biome = "grass",
@@ -132,11 +132,11 @@ M.LEVELS = {
 		name_en = "Arena 2: Arctic Archipelago",
 		desc = "Дуэль на парящих в воздухе ледяных островах!",
 		desc_en = "Aerial battle on floating icebergs and glaciers!",
-		enemy_hp = 60,
+		enemy_hp = 110,
 		enemy_count = 1,
 		terrain_type = "bunkers",
 		biome = "arctic",
-		enemy_skill = "normal",
+		enemy_skill = "easy",
 	},
 	{
 		level = 3,
@@ -144,8 +144,8 @@ M.LEVELS = {
 		name_en = "Arena 3: Canyon & Stone Bridge",
 		desc = "Сражение на гигантской каменной арке над пустынным ущельем.",
 		desc_en = "Epic clash on a sandstone arch across a desert chasm.",
-		enemy_hp = 65,
-		enemy_count = 1,
+		enemy_hp = 70,
+		enemy_count = 2,
 		terrain_type = "canyon_bridge",
 		biome = "desert",
 		enemy_skill = "normal",
@@ -156,11 +156,11 @@ M.LEVELS = {
 		name_en = "Arena 4: Lava Catacombs",
 		desc = "1 против 2 ботов в вулканическом кратере с лавой!",
 		desc_en = "1 vs 2 bots in an active volcanic crater!",
-		enemy_hp = 50,
+		enemy_hp = 85,
 		enemy_count = 2,
 		terrain_type = "cavern",
 		biome = "volcano",
-		enemy_skill = "hard",
+		enemy_skill = "normal",
 	},
 	{
 		level = 5,
@@ -168,11 +168,11 @@ M.LEVELS = {
 		name_en = "Arena 5: Alien Citadel",
 		desc = "Финальный штурм: 1 против 2 ботов в изрезанной кавернами цитадели!",
 		desc_en = "Assault against 2 bots in a bio-cavern fortress!",
-		enemy_hp = 60,
+		enemy_hp = 95,
 		enemy_count = 2,
 		terrain_type = "swiss_cheese",
 		biome = "alien",
-		enemy_skill = "hard",
+		enemy_skill = "normal",
 	},
 	{
 		level = 6,
@@ -180,7 +180,7 @@ M.LEVELS = {
 		name_en = "Arena 6: Desert Bunkers",
 		desc = "Окопная война среди песчаных дюн и укрепленных бункеров!",
 		desc_en = "Trench warfare among fortified concrete pillboxes!",
-		enemy_hp = 110,
+		enemy_hp = 140,
 		enemy_count = 1,
 		terrain_type = "bunkers",
 		biome = "desert",
@@ -204,7 +204,7 @@ M.LEVELS = {
 		name_en = "Arena 8: Molten Inferno",
 		desc = "Финальная битва: 1 против 3 элитных ботов-ветеранов!",
 		desc_en = "Final boss showdown: 1 vs 3 veteran elite spuds!",
-		enemy_hp = 120,
+		enemy_hp = 125,
 		enemy_count = 3,
 		terrain_type = "cavern",
 		biome = "volcano",
@@ -302,18 +302,30 @@ end
 
 -- Quick match configurations (Quick Bot & Quick PvP)
 function M.get_quick_match(mode)
-	local pool = {
-		{ preset = "hills", biome = "grass" },
-		{ preset = "floating_islands", biome = "arctic" },
-		{ preset = "canyon_bridge", biome = "desert" },
-		{ preset = "cavern", biome = "volcano" },
-		{ preset = "swiss_cheese", biome = "alien" },
-		{ preset = "islands", biome = "grass" },
-		{ preset = "bunkers", biome = "desert" },
+	local pool_presets = {
+		"hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese",
+		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves"
 	}
-	local pick = pool[math.random(1, #pool)]
+	local pool_biomes = { "grass", "arctic", "desert", "volcano", "alien" }
+	local pick_preset = pool_presets[math.random(1, #pool_presets)]
+	local pick_biome = pool_biomes[math.random(1, #pool_biomes)]
 
-	if mode == "quick_pvp" then
+	if mode == "pvp_bots" or mode == "quick_pvp_bots" then
+		return {
+			name = "PvP vs Боты (3 на 3)",
+			name_en = "PvP vs Bots (3v3)",
+			enemy_hp = 100,
+			enemy_count = 3,
+			red_count = 3,
+			player_count = 3,
+			blue_count = 3,
+			terrain_type = pick_preset,
+			terrain_preset = pick_preset,
+			biome = pick_biome,
+			enemy_skill = "hard",
+			bot_difficulty = "hard",
+		}
+	elseif mode == "quick_pvp" then
 		return {
 			name = "Быстрый бой: 2 Игрока",
 			enemy_hp = 100,
@@ -321,9 +333,9 @@ function M.get_quick_match(mode)
 			red_count = 2,
 			player_count = 2,
 			blue_count = 2,
-			terrain_type = pick.preset,
-			terrain_preset = pick.preset,
-			biome = pick.biome,
+			terrain_type = pick_preset,
+			terrain_preset = pick_preset,
+			biome = pick_biome,
 			enemy_skill = "none",
 			bot_difficulty = "none",
 		}
@@ -335,9 +347,9 @@ function M.get_quick_match(mode)
 			red_count = 2,
 			player_count = 2,
 			blue_count = 2,
-			terrain_type = pick.preset,
-			terrain_preset = pick.preset,
-			biome = pick.biome,
+			terrain_type = pick_preset,
+			terrain_preset = pick_preset,
+			biome = pick_biome,
 			enemy_skill = "normal",
 			bot_difficulty = "normal",
 		}

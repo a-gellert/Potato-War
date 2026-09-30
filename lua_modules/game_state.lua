@@ -116,14 +116,14 @@ function M.get_ammo(weapon_id)
 	if weapon_id == "grenade" then
 		return -1 -- Unlimited
 	end
-	if M.mode ~= constants.MODE_CAMPAIGN then
-		local w = weapons.get(weapon_id)
-		return w and (w.default_ammo or 2) or 2
-	end
 	if not M.player_ammo then
 		M.player_ammo = { grenade = -1 }
 	end
-	return M.player_ammo[weapon_id] or 0
+	if M.player_ammo[weapon_id] ~= nil then
+		return M.player_ammo[weapon_id]
+	end
+	local w = weapons.get(weapon_id)
+	return (w and w.default_ammo) or 0
 end
 
 function M.is_in_loadout(weapon_id)
@@ -149,7 +149,7 @@ function M.add_ammo(weapon_id, count)
 		if #M.player_loadout < M.MAX_LOADOUT_SLOTS then
 			table.insert(M.player_loadout, weapon_id)
 		else
-			-- Stack is full (5 weapons): replace the oldest special weapon in slot 2 (FIFO), keeping Grenade at slot 1
+			-- Stack is full (5 weapons): replace slot 2 (keeping Grenade at slot 1)
 			table.remove(M.player_loadout, 2)
 			table.insert(M.player_loadout, weapon_id)
 		end
@@ -164,36 +164,34 @@ function M.consume_ammo(weapon_id)
 	if weapon_id == "grenade" then
 		return true
 	end
-	if M.mode == constants.MODE_CAMPAIGN then
-		if not M.player_ammo then M.player_ammo = { grenade = -1 } end
-		local cur = M.player_ammo[weapon_id] or 0
-		if cur > 0 then
-			M.player_ammo[weapon_id] = cur - 1
-			if M.player_ammo[weapon_id] <= 0 then
-				-- Remove depleted weapon from active 5-slot loadout
-				if M.player_loadout then
-					for idx, w_id in ipairs(M.player_loadout) do
-						if w_id == weapon_id and w_id ~= "grenade" then
-							table.remove(M.player_loadout, idx)
-							break
-						end
+
+	if not M.player_ammo then M.player_ammo = { grenade = -1 } end
+	local cur = M.player_ammo[weapon_id] or 0
+	if cur > 0 then
+		M.player_ammo[weapon_id] = cur - 1
+		if M.player_ammo[weapon_id] <= 0 then
+			-- Remove depleted weapon from active 5-slot loadout
+			if M.player_loadout then
+				for idx, w_id in ipairs(M.player_loadout) do
+					if w_id == weapon_id and w_id ~= "grenade" then
+						table.remove(M.player_loadout, idx)
+						break
 					end
 				end
-				M.select_weapon("grenade")
 			end
-			if M.on_ammo_changed then
-				M.on_ammo_changed()
-			end
-			return true
-		else
 			M.select_weapon("grenade")
-			if M.on_ammo_changed then
-				M.on_ammo_changed()
-			end
-			return false
 		end
+		if M.on_ammo_changed then
+			M.on_ammo_changed()
+		end
+		return true
+	else
+		M.select_weapon("grenade")
+		if M.on_ammo_changed then
+			M.on_ammo_changed()
+		end
+		return false
 	end
-	return true
 end
 
 function M.has_perk(perk_id)
@@ -205,10 +203,7 @@ function M.is_weapon_unlocked(weapon_id)
 	if weapon_id == "grenade" then
 		return true
 	end
-	if M.mode ~= constants.MODE_CAMPAIGN then
-		return M.is_in_loadout(weapon_id)
-	end
-	return M.is_in_loadout(weapon_id) and (M.get_ammo(weapon_id) > 0)
+	return M.get_ammo(weapon_id) > 0
 end
 
 function M.unlock_weapon(weapon_id)
@@ -236,8 +231,20 @@ function M.select_weapon(weapon_id)
 		return
 	end
 	M.selected_weapon_id = weapon_id
+	if not M.is_in_loadout(weapon_id) then
+		if not M.player_loadout then M.player_loadout = { "grenade" } end
+		if #M.player_loadout < M.MAX_LOADOUT_SLOTS then
+			table.insert(M.player_loadout, weapon_id)
+		else
+			table.remove(M.player_loadout, 2)
+			table.insert(M.player_loadout, weapon_id)
+		end
+	end
 	if M.on_weapon_changed then
 		M.on_weapon_changed(weapon_id)
+	end
+	if M.on_ammo_changed then
+		M.on_ammo_changed()
 	end
 end
 
@@ -267,14 +274,14 @@ function M.start_match(mode, campaign_lvl)
 	if M.mode == constants.MODE_CAMPAIGN then
 		if M.campaign_level == 1 then
 			player_profile.reset_campaign_hp()
-			M.player_loadout = { "grenade" }
+			M.player_loadout = { "grenade", "bazooka", "molotov" }
 			M.player_ammo = {
 				grenade = -1,
 				rifle = 0,
 				knife = 0,
-				molotov = 0,
+				molotov = 2,
 				burst = 0,
-				bazooka = 0,
+				bazooka = 2,
 				shotgun = 0,
 				holy_grenade = 0,
 				beetle = 0,
@@ -289,14 +296,21 @@ function M.start_match(mode, campaign_lvl)
 			meta_progression.apply_starting_loadout(M)
 		end
 	else
-		-- Quick Battle vs Bot or PvP: provide a rich 5-weapon arsenal
-		M.player_loadout = { "grenade", "bazooka", "shotgun", "drill", "pepper" }
+		-- Quick Battle vs Bot, PvP 3v3, or Quick PvP: provide complete arsenal
+		M.player_loadout = { "grenade", "bazooka", "shotgun", "rifle", "drill" }
 		M.player_ammo = {
-			grenade = -1,
-			bazooka = 2,
-			shotgun = 3,
-			drill = 2,
-			pepper = 2,
+			grenade = -1, -- Unlimited!
+			rifle = 3,
+			knife = 4,
+			molotov = 3,
+			burst = 3,
+			bazooka = 3,
+			shotgun = 4,
+			holy_grenade = 1,
+			beetle = 2,
+			drill = 3,
+			pepper = 3,
+			garlic = 2,
 		}
 	end
 
@@ -453,8 +467,8 @@ function M.next_turn()
 			M.winner_team = constants.TEAM_BLUE
 			if M.mode == constants.MODE_CAMPAIGN and blue_potato then
 				current_hp = blue_potato.hp
-				-- +35% max HP bonus on winning arena (at least +35 HP)
-				hp_healed = math.max(35, math.floor(blue_potato.max_hp * 0.35))
+				-- +70% max HP bonus on winning arena (at least +65 HP)
+				hp_healed = math.max(65, math.floor(blue_potato.max_hp * 0.70))
 				next_hp = math.min(blue_potato.max_hp, current_hp + hp_healed)
 				player_profile.set_campaign_hp(next_hp)
 

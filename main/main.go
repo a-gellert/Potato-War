@@ -27,6 +27,10 @@ components {
   component: "/main/entities/airship/airship.factory"
 }
 components {
+  id: "crate_factory"
+  component: "/main/entities/crate/crate.factory"
+}
+components {
   id: "sound_click"
   component: "/main/assets/sounds/sound_click.sound"
 }

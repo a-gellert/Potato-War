@@ -112,11 +112,17 @@ function on_message(self, message_id, message, sender)
 		gui.set_text(revive_txt, i18n.t("btn_revive"))
 		gui.set_text(menu_txt, i18n.t("btn_menu"))
 
+		local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
+
 		if winner == constants.TEAM_BLUE then
 			-- VICTORY
 			gui.set_text(title_node, i18n.t("victory"))
 			gui.set_color(title_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			gui.set_text(sub_node, is_ru and "Раунд выигран!" or "Round won!")
+			if is_pvp then
+				gui.set_text(sub_node, i18n.t("sub_victory"))
+			else
+				gui.set_text(sub_node, is_ru and "Раунд выигран!" or "Round won!")
+			end
 
 			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
 			if ach_bonus > 0 then
@@ -137,28 +143,47 @@ function on_message(self, message_id, message, sender)
 				gui.set_enabled(achieve_node, true)
 			end
 
-			gui.set_text(next_txt, i18n.t("btn_next_level"))
+			if is_pvp then
+				gui.set_text(rematch_txt, i18n.t("btn_play_again"))
+				gui.set_enabled(rematch_btn, true)
+				gui.set_enabled(rematch_txt, true)
+				gui.set_position(rematch_btn, vmath.vector3(380, 92, 0))
+
+				gui.set_enabled(next_btn, false)
+				gui.set_enabled(next_txt, false)
+			else
+				gui.set_text(next_txt, i18n.t("btn_next_level"))
+				gui.set_enabled(next_btn, true)
+				gui.set_enabled(next_txt, true)
+				gui.set_enabled(rematch_btn, false)
+				gui.set_enabled(rematch_txt, false)
+			end
 
 			gui.set_enabled(reward_bg, true)
 			gui.set_enabled(reward_txt, true)
-			gui.set_enabled(next_btn, true)
-			gui.set_enabled(next_txt, true)
-
 			gui.set_enabled(revive_btn, false)
 			gui.set_enabled(revive_txt, false)
-			gui.set_enabled(rematch_btn, false)
-			gui.set_enabled(rematch_txt, false)
 
 			gui.set_enabled(shop_btn, true)
-			gui.set_position(shop_btn, vmath.vector3(480, 92, 0))
+			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
 			gui.set_enabled(menu_btn, true)
 
 		elseif winner == constants.TEAM_RED then
 			-- DEFEAT
 			gui.set_text(title_node, i18n.t("defeat"))
 			gui.set_color(title_node, vmath.vector4(0.91, 0.30, 0.24, 1.0))
-			gui.set_text(sub_node, is_ru and "Ваша картошка уничтожена." or "Your potato was destroyed.")
-			gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+			if is_pvp then
+				gui.set_text(sub_node, i18n.t("sub_defeat"))
+				gui.set_text(rematch_txt, i18n.t("btn_play_again"))
+				gui.set_enabled(revive_btn, false)
+				gui.set_enabled(revive_txt, false)
+				gui.set_position(rematch_btn, vmath.vector3(380, 92, 0))
+			else
+				gui.set_text(sub_node, is_ru and "Ваша картошка уничтожена." or "Your potato was destroyed.")
+				gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+				gui.set_enabled(revive_btn, true)
+				gui.set_enabled(revive_txt, true)
+			end
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)
@@ -166,15 +191,9 @@ function on_message(self, message_id, message, sender)
 			gui.set_enabled(next_btn, false)
 			gui.set_enabled(next_txt, false)
 
-			-- Revive option (Second Chance)
-			gui.set_enabled(revive_btn, true)
-			gui.set_enabled(revive_txt, true)
-
-			-- Restart run
 			gui.set_enabled(rematch_btn, true)
 			gui.set_enabled(rematch_txt, true)
 
-			-- Shop
 			gui.set_enabled(shop_btn, true)
 			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
 
@@ -184,7 +203,7 @@ function on_message(self, message_id, message, sender)
 			gui.set_text(title_node, i18n.t("draw"))
 			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
 			gui.set_text(sub_node, i18n.t("sub_draw"))
-			gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+			gui.set_text(rematch_txt, is_pvp and i18n.t("btn_play_again") or i18n.t("btn_rematch"))
 
 			gui.set_enabled(reward_bg, false)
 			gui.set_enabled(reward_txt, false)

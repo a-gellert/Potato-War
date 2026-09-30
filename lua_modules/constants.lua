@@ -3,20 +3,36 @@
 
 local M = {}
 
--- Screen & World configuration (Landscape 960x540)
+-- Screen & World configuration (Landscape 960x540 viewport)
 M.SCREEN_WIDTH = 960
 M.SCREEN_HEIGHT = 540
-M.WORLD_WIDTH = 960
+M.WORLD_WIDTH = 960 -- Default / campaign width
+M.PVP_WORLD_WIDTH = 1920 -- Expanded 2x PvP width
 M.WORLD_HEIGHT = 540
 M.WATER_LEVEL = 28
 
 -- Terrain Grid Configuration
-M.TERRAIN_WIDTH = 480
+M.TERRAIN_WIDTH = 480 -- Default / campaign grid width
+M.PVP_TERRAIN_WIDTH = 960 -- Expanded 2x PvP grid width
 M.TERRAIN_HEIGHT = 270
 M.TERRAIN_SCALE = 2.0 -- 1 terrain cell = 2x2 world pixels
 
+function M.get_world_width(mode)
+	if mode == M.MODE_PVP_BOTS or mode == M.MODE_QUICK_PVP then
+		return 1920
+	end
+	return 960
+end
+
+function M.get_terrain_width(mode)
+	if mode == M.MODE_PVP_BOTS or mode == M.MODE_QUICK_PVP then
+		return 960
+	end
+	return 480
+end
+
 -- Turn & Match rules
-M.TURN_DURATION = 15.0 -- 15 seconds per turn
+M.TURN_DURATION = 20.0 -- 20 seconds per turn
 M.SETTLE_TIMEOUT = 2.5 -- Fast physics settle timeout for Poki pacing
 
 -- Physics
@@ -44,6 +60,7 @@ M.TEAM_COLORS = {
 M.MODE_CAMPAIGN = "campaign"
 M.MODE_QUICK_BOT = "quick_bot"
 M.MODE_QUICK_PVP = "quick_pvp"
+M.MODE_PVP_BOTS = "pvp_bots"
 
 -- Game States
 M.STATE_MENU = "menu"

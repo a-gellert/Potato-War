@@ -15,18 +15,23 @@ local ATLAS_BG_PATH = "/dynamic_bg.texturesetc"
 local BIOME_THEMES = {
 	grass = {
 		water = vmath.vector4(0.10, 0.65, 0.96, 0.95),
+		sky_clear = vmath.vector4(0.22, 0.53, 0.93, 1.0),
 	},
 	desert = {
 		water = vmath.vector4(0.08, 0.82, 0.78, 0.95),
+		sky_clear = vmath.vector4(0.61, 0.20, 0.43, 1.0),
 	},
 	arctic = {
 		water = vmath.vector4(0.14, 0.48, 0.88, 0.95),
+		sky_clear = vmath.vector4(0.09, 0.11, 0.27, 1.0),
 	},
 	volcano = {
 		water = vmath.vector4(1.00, 0.42, 0.06, 0.96),
+		sky_clear = vmath.vector4(0.19, 0.07, 0.11, 1.0),
 	},
 	alien = {
 		water = vmath.vector4(0.12, 0.95, 0.58, 0.95),
+		sky_clear = vmath.vector4(0.07, 0.04, 0.14, 1.0),
 	},
 }
 
@@ -299,17 +304,45 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 end
 
 local function fill_full_stream(self)
+	local is_campaign = (self.mode == constants.MODE_CAMPAIGN)
 	local w = self.w
 	local h = self.h
 	local stream = self.stream
 	local grid = terrain_grid.grid
 	local biome = self.current_biome or "grass"
 
-	local idx = 1
-	for gy = 0, h - 1 do
-		for gx = 0, w - 1 do
-			write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
-			idx = idx + 4
+	local total = w * h * 4
+	for i = 1, total do
+		stream[i] = 0
+	end
+
+	if is_campaign then
+		-- In Campaign mode, terrain_grid has constants.TERRAIN_WIDTH = 480 cells.
+		-- Each cell (gx) maps to 2 horizontal pixels in the 960x270 texture:
+		-- px0 = gx * 2, px1 = gx * 2 + 1 at row stride self.w (960).
+		local grid_w = constants.TERRAIN_WIDTH
+		for gy = 0, h - 1 do
+			local row_offset = gy * w * 4
+			for gx = 0, grid_w - 1 do
+				local px0 = gx * 2
+				local idx0 = row_offset + px0 * 4 + 1
+				write_terrain_pixel(stream, idx0, gx, gy, grid_w, h, grid, biome)
+				-- Duplicate pixel to px1 for exact 2x scaling
+				local idx1 = idx0 + 4
+				stream[idx1]     = stream[idx0]
+				stream[idx1 + 1] = stream[idx0 + 1]
+				stream[idx1 + 2] = stream[idx0 + 2]
+				stream[idx1 + 3] = stream[idx0 + 3]
+			end
+		end
+	else
+		-- In PvP mode, terrain_grid has constants.PVP_TERRAIN_WIDTH = 960 cells.
+		local idx = 1
+		for gy = 0, h - 1 do
+			for gx = 0, w - 1 do
+				write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
+				idx = idx + 4
+			end
 		end
 	end
 end
@@ -324,6 +357,14 @@ local function generate_base_background(self, biome)
 	local stream = self.bg_base_stream
 	local seed = math.random(1, 99999)
 	self.horizon_profile = {}
+
+	local total = self.w * self.h * 4
+	for i = 1, total do
+		stream[i] = 0
+		if self.bg_stream then
+			self.bg_stream[i] = 0
+		end
+	end
 
 	-- Helper: Draw filled circle on bg stream
 	local function draw_bg_circle(cx, cy, r_val, cr, cg, cb, max_a)
@@ -431,38 +472,39 @@ local function generate_base_background(self, biome)
 
 	-- 2. Celestial Bodies (Sun, Moon, Ringed Planet, Aurora)
 	if biome == "grass" then
-		-- Radiant golden sun at (360, 205)
-		draw_bg_circle(360, 205, 45, 255, 245, 180, 0.45)
-		draw_bg_circle(360, 205, 22, 255, 252, 220, 0.95)
+		-- Radiant golden sun
+		draw_bg_circle(math.floor(w * 0.75), 205, 45, 255, 245, 180, 0.45)
+		draw_bg_circle(math.floor(w * 0.75), 205, 22, 255, 252, 220, 0.95)
 	elseif biome == "desert" then
-		-- Giant setting sun at (130, 145)
-		draw_bg_circle(130, 145, 55, 255, 140, 50, 0.55)
-		draw_bg_circle(130, 145, 28, 255, 230, 120, 0.95)
+		-- Giant setting sun
+		draw_bg_circle(math.floor(w * 0.28), 145, 55, 255, 140, 50, 0.55)
+		draw_bg_circle(math.floor(w * 0.28), 145, 28, 255, 230, 120, 0.95)
 	elseif biome == "arctic" then
-		-- Crescent moon at (380, 210) + Aurora Borealis glow
-		draw_bg_circle(380, 210, 18, 220, 245, 255, 0.90)
+		-- Crescent moon + Aurora Borealis glow
+		draw_bg_circle(math.floor(w * 0.80), 210, 18, 220, 245, 255, 0.90)
 		for gx = 0, w - 1 do
-			local wave = math.sin(gx * 0.03 + seed) * 15 + math.cos(gx * 0.06) * 8
+			local wave = math.sin(gx * 0.02 + seed) * 15 + math.cos(gx * 0.04) * 8
 			local ay = math.floor(195 + wave)
 			draw_bg_circle(gx, ay, 12, 65, 235, 215, 0.28)
 			draw_bg_circle(gx, ay + 6, 10, 225, 115, 255, 0.20)
 		end
 	elseif biome == "volcano" then
-		-- Blood moon at (240, 210) obscured by smoke
-		draw_bg_circle(240, 210, 32, 245, 55, 25, 0.65)
-		draw_bg_circle(240, 210, 16, 255, 140, 55, 0.92)
+		-- Blood moon obscured by smoke
+		draw_bg_circle(math.floor(w * 0.50), 210, 32, 245, 55, 25, 0.65)
+		draw_bg_circle(math.floor(w * 0.50), 210, 16, 255, 140, 55, 0.92)
 	elseif biome == "alien" then
-		-- Ringed Saturn-like gas giant at (340, 195) + twinkling stars
-		draw_bg_circle(340, 195, 26, 175, 75, 215, 0.92)
+		-- Ringed Saturn-like gas giant + twinkling stars
+		local cx = math.floor(w * 0.70)
+		draw_bg_circle(cx, 195, 26, 175, 75, 215, 0.92)
 		-- Ring
 		for rx = -44, 44 do
 			local ry = math.floor(rx * 0.28)
-			draw_bg_circle(340 + rx, 195 + ry, 3, 225, 165, 255, 0.75)
+			draw_bg_circle(cx + rx, 195 + ry, 3, 225, 165, 255, 0.75)
 		end
 		-- Moonlet
-		draw_bg_circle(110, 220, 9, 55, 235, 215, 0.95)
+		draw_bg_circle(math.floor(w * 0.22), 220, 9, 55, 235, 215, 0.95)
 		-- Twinkling stars
-		for i = 1, 45 do
+		for i = 1, 65 do
 			local sx = math.floor((bg_noise(i * 12.3, seed + 1) * 0.95) * w)
 			local sy = math.floor((bg_noise(i * 23.7, seed + 2) * 0.35 + 0.65) * h)
 			draw_bg_circle(sx, sy, 1.5, 255, 255, 255, 0.85)
@@ -499,9 +541,12 @@ local function generate_base_background(self, biome)
 		local max_gy = math.floor(mid_h_base + r1 + r2)
 
 		-- Add silhouette towers / outposts
-		if (gx >= 90 and gx <= 98) or (gx >= 380 and gx <= 388) then
+		local tw1 = math.floor(w * 0.18)
+		local tw2 = math.floor(w * 0.82)
+		local twc = math.floor(w * 0.50)
+		if (gx >= tw1 and gx <= tw1 + 8) or (gx >= tw2 and gx <= tw2 + 8) then
 			max_gy = max_gy + 14 -- Watchtower silhouette
-		elseif (gx >= 235 and gx <= 245) then
+		elseif (gx >= twc - 5 and gx <= twc + 5) then
 			max_gy = max_gy + 8  -- Central bunker
 		end
 
@@ -536,6 +581,9 @@ local function apply_biome_environment(self, biome)
 
 	pcall(function()
 		go.set("#water", "tint", theme.water)
+		if theme.sky_clear then
+			msg.post("@render:", "clear_color", { color = theme.sky_clear })
+		end
 	end)
 end
 
@@ -561,8 +609,9 @@ end
 
 function init(self)
 	constants.log(">>> TERRAIN INIT STARTED WITH DYNAMIC BG AND WARFARE")
-	self.w = constants.TERRAIN_WIDTH
+	self.w = constants.PVP_TERRAIN_WIDTH
 	self.h = constants.TERRAIN_HEIGHT
+	self.mode = constants.MODE_CAMPAIGN
 	self.is_initialized = false
 	self.current_biome = "grass"
 	self.current_preset = "hills"
@@ -596,11 +645,11 @@ function init(self)
 	generate_base_background(self, "grass")
 	bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
 
-	terrain_grid.init(self.w, self.h, constants.TERRAIN_SCALE)
+	terrain_grid.init(constants.TERRAIN_WIDTH, self.h, constants.TERRAIN_SCALE)
 	terrain_grid.generate("hills")
 	fill_full_stream(self)
 
-	-- 3. Create dynamic texture and atlas for Foreground Terrain
+	-- 3. Create dynamic texture and atlas for Foreground Terrain (960x270 base quad)
 	local t_params = {
 		width = self.w,
 		height = self.h,
@@ -617,7 +666,22 @@ function init(self)
 				id = "terrain",
 				width = self.w,
 				height = self.h,
-				frames = { 1 }
+				frame_start = 1,
+				frame_end = 2
+			},
+			{
+				id = "terrain_pvp",
+				width = self.w,
+				height = self.h,
+				frame_start = 1,
+				frame_end = 2
+			},
+			{
+				id = "terrain_campaign",
+				width = self.w,
+				height = self.h,
+				frame_start = 1,
+				frame_end = 2
 			}
 		},
 		geometries = {
@@ -641,7 +705,7 @@ function init(self)
 		sprite.play_flipbook("#sprite", "terrain")
 	end
 
-	-- 4. Create dynamic texture and atlas for Procedural Background
+	-- 4. Create dynamic texture and atlas for Procedural Background (960x270 base quad)
 	local bg_t_params = {
 		width = self.w,
 		height = self.h,
@@ -658,7 +722,22 @@ function init(self)
 				id = "bg",
 				width = self.w,
 				height = self.h,
-				frames = { 1 }
+				frame_start = 1,
+				frame_end = 2
+			},
+			{
+				id = "bg_pvp",
+				width = self.w,
+				height = self.h,
+				frame_start = 1,
+				frame_end = 2
+			},
+			{
+				id = "bg_campaign",
+				width = self.w,
+				height = self.h,
+				frame_start = 1,
+				frame_end = 2
 			}
 		},
 		geometries = {
@@ -685,6 +764,14 @@ function init(self)
 	else
 		constants.log(">>> BG ATLAS ERROR:", ok_bga, tostring(bg_atlas_res), ok_bgt, tostring(bg_tex_res))
 	end
+
+	-- Initial setup for default 960x540 screen
+	go.set_position(vmath.vector3(480, 270, 0))
+	go.set("#sprite", "scale", vmath.vector3(1.0, 2.0, 1.0))
+	go.set("#sky", "scale", vmath.vector3(1.0, 2.0, 1.0))
+	go.set("#sky", "position", vmath.vector3(0, 0, -0.3))
+	go.set("#water", "scale.x", 2.5)
+	go.set("#water", "scale.y", 2.0)
 end
 
 function update(self, dt)
@@ -728,9 +815,36 @@ function on_message(self, message_id, message, sender)
 			end
 		end
 
+		local is_campaign = (message.mode == constants.MODE_CAMPAIGN)
+		self.mode = message.mode
+
+		if is_campaign then
+			-- Campaign mode: 960x540 world centered at (480, 270)
+			go.set_position(vmath.vector3(480, 270, 0))
+			pcall(function()
+				go.set("#sprite", "scale", vmath.vector3(1.0, 2.0, 1.0))
+				go.set("#sky", "scale", vmath.vector3(1.0, 2.0, 1.0))
+				go.set("#sky", "position", vmath.vector3(0, 0, -0.3))
+				go.set("#water", "scale.x", 2.5)
+				go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.15, go.EASING_INOUTSINE, 1.8)
+			end)
+		else
+			-- PvP mode: 1920x540 expanded world centered at (960, 270)
+			go.set_position(vmath.vector3(960, 270, 0))
+			pcall(function()
+				go.set("#sprite", "scale", vmath.vector3(2.0, 2.0, 1.0))
+				-- Extend PvP sky background horizontally and vertically so camera tracking/shake never reveals empty space
+				go.set("#sky", "scale", vmath.vector3(2.5, 2.4, 1.0))
+				go.set("#sky", "position", vmath.vector3(0, 25, -0.3))
+				-- Extend water width and depth well beyond 1920 map edges
+				go.set("#water", "scale.x", 6.0)
+				go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 4.30, go.EASING_INOUTSINE, 1.8)
+			end)
+		end
+
 		self.current_preset = preset
 		self.current_biome = biome
-		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome)
+		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome, "mode:", message.mode)
 		apply_biome_environment(self, biome)
 
 		-- Re-generate base procedural background and warfare simulation for this biome
@@ -764,34 +878,73 @@ function on_message(self, message_id, message, sender)
 
 		local min_gx, min_gy, max_gx, max_gy, cleared = terrain_grid.carve_circle(cx, cy, r)
 		if cleared > 0 and self.is_initialized then
-			local sub_w = max_gx - min_gx + 1
-			local sub_h = max_gy - min_gy + 1
-
-			local sub_buf = buffer.create(sub_w * sub_h, {
-				{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
-			})
-			local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
-
-			local s_idx = 1
+			local is_campaign = (self.mode == constants.MODE_CAMPAIGN)
 			local grid = terrain_grid.grid
 			local biome = self.current_biome or "grass"
-			for gy = min_gy, max_gy do
-				for gx = min_gx, max_gx do
-					write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, biome)
-					s_idx = s_idx + 4
-				end
-			end
 
-			pcall(function()
-				resource.set_texture(TEXTURE_PATH, {
-					x = min_gx,
-					y = min_gy,
-					width = sub_w,
-					height = sub_h,
-					type = graphics.TEXTURE_TYPE_2D,
-					format = graphics.TEXTURE_FORMAT_RGBA
-				}, sub_buf)
-			end)
+			if is_campaign then
+				local grid_w = constants.TERRAIN_WIDTH
+				local tex_min_x = min_gx * 2
+				local tex_max_x = max_gx * 2 + 1
+				local sub_w = tex_max_x - tex_min_x + 1
+				local sub_h = max_gy - min_gy + 1
+
+				local sub_buf = buffer.create(sub_w * sub_h, {
+					{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+				})
+				local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
+
+				local s_idx = 1
+				for gy = min_gy, max_gy do
+					for gx = min_gx, max_gx do
+						write_terrain_pixel(sub_stream, s_idx, gx, gy, grid_w, self.h, grid, biome)
+						-- Duplicate pixel to second horizontal pixel in sub-buffer
+						sub_stream[s_idx + 4] = sub_stream[s_idx]
+						sub_stream[s_idx + 5] = sub_stream[s_idx + 1]
+						sub_stream[s_idx + 6] = sub_stream[s_idx + 2]
+						sub_stream[s_idx + 7] = sub_stream[s_idx + 3]
+						s_idx = s_idx + 8
+					end
+				end
+
+				pcall(function()
+					resource.set_texture(TEXTURE_PATH, {
+						x = tex_min_x,
+						y = min_gy,
+						width = sub_w,
+						height = sub_h,
+						type = graphics.TEXTURE_TYPE_2D,
+						format = graphics.TEXTURE_FORMAT_RGBA
+					}, sub_buf)
+				end)
+			else
+				local sub_w = max_gx - min_gx + 1
+				local sub_h = max_gy - min_gy + 1
+
+				local sub_buf = buffer.create(sub_w * sub_h, {
+					{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+				})
+				local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
+
+				local s_idx = 1
+				for gy = min_gy, max_gy do
+					for gx = min_gx, max_gx do
+						write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, biome)
+						s_idx = s_idx + 4
+					end
+				end
+
+				pcall(function()
+					resource.set_texture(TEXTURE_PATH, {
+						x = min_gx,
+						y = min_gy,
+						width = sub_w,
+						height = sub_h,
+						type = graphics.TEXTURE_TYPE_2D,
+						format = graphics.TEXTURE_FORMAT_RGBA
+					}, sub_buf)
+				end)
+			end
 		end
 	end
 end

@@ -41,8 +41,8 @@ M.LIST = {
 		fuse_time     = 3.0,
 		-- damage
 		blast_radius  = 36,
-		max_damage    = 50,
-		blast_force   = 320,
+		max_damage    = 30,
+		blast_force   = 300,
 		-- firing
 		max_power     = 600,
 		power_scale   = 3.2,

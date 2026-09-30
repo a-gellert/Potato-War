@@ -17,6 +17,9 @@ const files = [
     'lua_modules/terrain_grid.lua',
     'lua_modules/game_state.lua',
     'lua_modules/bot_ai.lua',
+    'main/entities/crate/crate.script',
+    'main/game.render_script',
+    'lua_modules/camera_controller.lua',
     'lua_modules/physics_sim.lua'
 ];
 
