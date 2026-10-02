@@ -6,29 +6,23 @@ local M = {}
 -- Screen & World configuration (Landscape 960x540 viewport)
 M.SCREEN_WIDTH = 960
 M.SCREEN_HEIGHT = 540
-M.WORLD_WIDTH = 960 -- Default / campaign width
-M.PVP_WORLD_WIDTH = 1920 -- Expanded 2x PvP width
+M.WORLD_WIDTH = 1920 -- Expanded 1920 world width for full camera tracking
+M.PVP_WORLD_WIDTH = 1920
 M.WORLD_HEIGHT = 540
 M.WATER_LEVEL = 28
 
 -- Terrain Grid Configuration
-M.TERRAIN_WIDTH = 480 -- Default / campaign grid width
-M.PVP_TERRAIN_WIDTH = 960 -- Expanded 2x PvP grid width
+M.TERRAIN_WIDTH = 960 -- Expanded grid width
+M.PVP_TERRAIN_WIDTH = 960
 M.TERRAIN_HEIGHT = 270
 M.TERRAIN_SCALE = 2.0 -- 1 terrain cell = 2x2 world pixels
 
 function M.get_world_width(mode)
-	if mode == M.MODE_PVP_BOTS or mode == M.MODE_QUICK_PVP then
-		return 1920
-	end
-	return 960
+	return 1920
 end
 
 function M.get_terrain_width(mode)
-	if mode == M.MODE_PVP_BOTS or mode == M.MODE_QUICK_PVP then
-		return 960
-	end
-	return 480
+	return 960
 end
 
 -- Turn & Match rules

@@ -163,6 +163,7 @@ function on_input(self, action_id, action)
 
 			if len > 16 then
 				-- Fire weapon!
+				game_state.tutorial_first_shot_done = true
 				msg.post("/gui_hud#gui", "tutorial_shot_fired")
 				msg.post("/main#main", "fire_weapon", {
 					origin_x = potato.pos.x,
@@ -172,6 +173,12 @@ function on_input(self, action_id, action)
 					weapon_id = weapon.id,
 					owner_id = potato.id
 				})
+			else
+				-- Short tap without drag: trigger helpful reminder
+				msg.post("/gui_hud#gui", "tutorial_tap_hint")
+				if potato.url then
+					msg.post(potato.url, "on_jump")
+				end
 			end
 		end
 		return true

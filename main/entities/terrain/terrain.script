@@ -59,6 +59,9 @@ end
 ---------------------------------------------------------
 
 local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
+	if idx < 1 or (idx + 3) > (w * h * 4) then
+		return
+	end
 	local row = gy * w
 	local solid = (grid[row + gx + 1] == 1)
 	if not solid then
@@ -304,7 +307,6 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 end
 
 local function fill_full_stream(self)
-	local is_campaign = (self.mode == constants.MODE_CAMPAIGN)
 	local w = self.w
 	local h = self.h
 	local stream = self.stream
@@ -316,33 +318,12 @@ local function fill_full_stream(self)
 		stream[i] = 0
 	end
 
-	if is_campaign then
-		-- In Campaign mode, terrain_grid has constants.TERRAIN_WIDTH = 480 cells.
-		-- Each cell (gx) maps to 2 horizontal pixels in the 960x270 texture:
-		-- px0 = gx * 2, px1 = gx * 2 + 1 at row stride self.w (960).
-		local grid_w = constants.TERRAIN_WIDTH
-		for gy = 0, h - 1 do
-			local row_offset = gy * w * 4
-			for gx = 0, grid_w - 1 do
-				local px0 = gx * 2
-				local idx0 = row_offset + px0 * 4 + 1
-				write_terrain_pixel(stream, idx0, gx, gy, grid_w, h, grid, biome)
-				-- Duplicate pixel to px1 for exact 2x scaling
-				local idx1 = idx0 + 4
-				stream[idx1]     = stream[idx0]
-				stream[idx1 + 1] = stream[idx0 + 1]
-				stream[idx1 + 2] = stream[idx0 + 2]
-				stream[idx1 + 3] = stream[idx0 + 3]
-			end
-		end
-	else
-		-- In PvP mode, terrain_grid has constants.PVP_TERRAIN_WIDTH = 960 cells.
-		local idx = 1
-		for gy = 0, h - 1 do
-			for gx = 0, w - 1 do
-				write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
-				idx = idx + 4
-			end
+	local grid_w = terrain_grid.width or w
+	local idx = 1
+	for gy = 0, h - 1 do
+		for gx = 0, w - 1 do
+			write_terrain_pixel(stream, idx, gx, gy, grid_w, h, grid, biome)
+			idx = idx + 4
 		end
 	end
 end
@@ -772,6 +753,12 @@ function init(self)
 	go.set("#sky", "position", vmath.vector3(0, 0, -0.3))
 	go.set("#water", "scale.x", 2.5)
 	go.set("#water", "scale.y", 2.0)
+
+	-- Initially disable foreground terrain and water for main menu
+	pcall(function()
+		msg.post("#sprite", "disable")
+		msg.post("#water", "disable")
+	end)
 end
 
 function update(self, dt)
@@ -817,6 +804,12 @@ function on_message(self, message_id, message, sender)
 
 		local is_campaign = (message.mode == constants.MODE_CAMPAIGN)
 		self.mode = message.mode
+
+		-- Enable foreground terrain and water for battle
+		pcall(function()
+			msg.post("#sprite", "enable")
+			msg.post("#water", "enable")
+		end)
 
 		if is_campaign then
 			-- Campaign mode: 960x540 world centered at (480, 270)
@@ -868,7 +861,26 @@ function on_message(self, message_id, message, sender)
 		if not message.already_generated then
 			terrain_grid.generate(preset, message.campaign_level)
 		end
+		bg_battle.set_menu_mode(false, function(gx) return self.horizon_profile[gx] or 75 end)
 		update_full_texture(self)
+
+	elseif message_id == hash("set_menu_mode") then
+		local is_menu = (message.is_menu ~= false)
+		if is_menu then
+			pcall(function()
+				msg.post("#sprite", "disable")
+				msg.post("#water", "disable")
+			end)
+		else
+			pcall(function()
+				msg.post("#sprite", "enable")
+				msg.post("#water", "enable")
+			end)
+		end
+		bg_battle.set_menu_mode(is_menu, function(gx) return self.horizon_profile[gx] or 75 end)
+
+	elseif message_id == hash("victory_salute") then
+		bg_battle.trigger_victory_salute()
 
 	elseif message_id == hash("carve_crater") then
 		local cx = message.x or 0
@@ -878,73 +890,35 @@ function on_message(self, message_id, message, sender)
 
 		local min_gx, min_gy, max_gx, max_gy, cleared = terrain_grid.carve_circle(cx, cy, r)
 		if cleared > 0 and self.is_initialized then
-			local is_campaign = (self.mode == constants.MODE_CAMPAIGN)
 			local grid = terrain_grid.grid
 			local biome = self.current_biome or "grass"
 
-			if is_campaign then
-				local grid_w = constants.TERRAIN_WIDTH
-				local tex_min_x = min_gx * 2
-				local tex_max_x = max_gx * 2 + 1
-				local sub_w = tex_max_x - tex_min_x + 1
-				local sub_h = max_gy - min_gy + 1
+			local sub_w = max_gx - min_gx + 1
+			local sub_h = max_gy - min_gy + 1
 
-				local sub_buf = buffer.create(sub_w * sub_h, {
-					{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
-				})
-				local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
+			local sub_buf = buffer.create(sub_w * sub_h, {
+				{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+			})
+			local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
 
-				local s_idx = 1
-				for gy = min_gy, max_gy do
-					for gx = min_gx, max_gx do
-						write_terrain_pixel(sub_stream, s_idx, gx, gy, grid_w, self.h, grid, biome)
-						-- Duplicate pixel to second horizontal pixel in sub-buffer
-						sub_stream[s_idx + 4] = sub_stream[s_idx]
-						sub_stream[s_idx + 5] = sub_stream[s_idx + 1]
-						sub_stream[s_idx + 6] = sub_stream[s_idx + 2]
-						sub_stream[s_idx + 7] = sub_stream[s_idx + 3]
-						s_idx = s_idx + 8
-					end
+			local s_idx = 1
+			for gy = min_gy, max_gy do
+				for gx = min_gx, max_gx do
+					write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, biome)
+					s_idx = s_idx + 4
 				end
-
-				pcall(function()
-					resource.set_texture(TEXTURE_PATH, {
-						x = tex_min_x,
-						y = min_gy,
-						width = sub_w,
-						height = sub_h,
-						type = graphics.TEXTURE_TYPE_2D,
-						format = graphics.TEXTURE_FORMAT_RGBA
-					}, sub_buf)
-				end)
-			else
-				local sub_w = max_gx - min_gx + 1
-				local sub_h = max_gy - min_gy + 1
-
-				local sub_buf = buffer.create(sub_w * sub_h, {
-					{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
-				})
-				local sub_stream = buffer.get_stream(sub_buf, hash("rgba"))
-
-				local s_idx = 1
-				for gy = min_gy, max_gy do
-					for gx = min_gx, max_gx do
-						write_terrain_pixel(sub_stream, s_idx, gx, gy, self.w, self.h, grid, biome)
-						s_idx = s_idx + 4
-					end
-				end
-
-				pcall(function()
-					resource.set_texture(TEXTURE_PATH, {
-						x = min_gx,
-						y = min_gy,
-						width = sub_w,
-						height = sub_h,
-						type = graphics.TEXTURE_TYPE_2D,
-						format = graphics.TEXTURE_FORMAT_RGBA
-					}, sub_buf)
-				end)
 			end
+
+			pcall(function()
+				resource.set_texture(TEXTURE_PATH, {
+					x = min_gx,
+					y = min_gy,
+					width = sub_w,
+					height = sub_h,
+					type = graphics.TEXTURE_TYPE_2D,
+					format = graphics.TEXTURE_FORMAT_RGBA
+				}, sub_buf)
+			end)
 		end
 	end
 end

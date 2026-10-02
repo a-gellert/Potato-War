@@ -171,16 +171,31 @@ local function apply_card_ui(card_idx, card)
 		local desc_node = gui.get_node(pfx .. "_desc")
 		local badge_bg = gui.get_node(pfx .. "_badge_bg")
 		local badge_txt = gui.get_node(pfx .. "_badge_txt")
+		local icon_node = gui.get_node(pfx .. "_icon")
 		local btn_txt = gui.get_node("txt_card_" .. card_idx)
 
-		local title = card.title or (i18n.current_lang == "ru" and "КАРТА" or "CARD")
-		local badge = card.badge or (i18n.current_lang == "ru" and "Оружие" or "Weapon")
-		local btn_lbl = card.btn_label or (i18n.current_lang == "ru" and "ВЫБРАТЬ" or "SELECT")
+		local is_ru = (i18n.current_lang == "ru")
+		local title = card.title or (is_ru and "КАРТА" or "CARD")
+		local badge = card.badge or (is_ru and "ОРУЖИЕ" or "WEAPON")
+		local btn_lbl = card.btn_label or (is_ru and "ВЫБРАТЬ" or "SELECT")
+
+		local dmg_text = ""
+		if card.dmg_str then
+			if card.type == "weapon" then
+				dmg_text = (is_ru and "💥 УРОН: " or "💥 DMG: ") .. tostring(card.dmg_str)
+			else
+				dmg_text = tostring(card.dmg_str)
+			end
+		end
 
 		gui.set_text(title_node, title)
-		gui.set_text(desc_node, card.desc or "")
+		gui.set_text(desc_node, dmg_text)
 		gui.set_text(badge_txt, badge)
 		gui.set_text(btn_txt, btn_lbl)
+
+		if icon_node and card.icon then
+			gui.play_flipbook(icon_node, hash(card.icon))
+		end
 
 		if card.bg_color then
 			gui.set_color(bg_node, vmath.vector4(card.bg_color[1], card.bg_color[2], card.bg_color[3], card.bg_color[4] or 1))
@@ -198,8 +213,12 @@ local function hide_tutorial_hint(self)
 		if h_node then gui.set_enabled(h_node, false) end
 		local r_node = gui.get_node("tutorial_ripple")
 		if r_node then gui.set_enabled(r_node, false) end
-		local hint_node = gui.get_node("tutorial_hint")
-		if hint_node then gui.set_enabled(hint_node, false) end
+		local hint_panel = gui.get_node("tutorial_hint_panel")
+		if hint_panel then gui.set_enabled(hint_panel, false) end
+		local mp = gui.get_node("marker_player_bg")
+		if mp then gui.set_enabled(mp, false) end
+		local me = gui.get_node("marker_enemy_bg")
+		if me then gui.set_enabled(me, false) end
 	end)
 end
 
@@ -215,12 +234,15 @@ function init(self)
 	self.last_points = -1
 	self.tutorial_hand_done = false
 	self.tutorial_hand_timer = 0
+	self.tap_hint_timer = 0
 
 	-- Hide tutorial elements initially
 	pcall(function()
-		gui.set_enabled(gui.get_node("tutorial_hint"), false)
+		gui.set_enabled(gui.get_node("tutorial_hint_panel"), false)
 		gui.set_enabled(gui.get_node("tutorial_hand"), false)
 		gui.set_enabled(gui.get_node("tutorial_ripple"), false)
+		gui.set_enabled(gui.get_node("marker_player_bg"), false)
+		gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
 	end)
 
 	-- Register weapon buttons dynamically (instant press on touch for 5 slots)
@@ -475,23 +497,64 @@ function update(self, dt)
 			and not game_state.is_aiming
 
 		if should_show_hand then
+			self.tutorial_hand_timer = (self.tutorial_hand_timer or 0) + dt
+			local is_ru = (i18n.current_lang == "ru")
+
+			if self.tap_hint_timer and self.tap_hint_timer > 0 then
+				self.tap_hint_timer = self.tap_hint_timer - dt
+			end
+
 			pcall(function()
-				local hint_node = gui.get_node("tutorial_hint")
-				if hint_node then
-					gui.set_enabled(hint_node, true)
-					gui.set_text(hint_node, i18n.t("tutorial_hint"))
+				local hint_panel = gui.get_node("tutorial_hint_panel")
+				local hint_text = gui.get_node("tutorial_hint_text")
+				if hint_panel and hint_text then
+					gui.set_enabled(hint_panel, true)
+					if self.tap_hint_timer and self.tap_hint_timer > 0 then
+						local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
+						gui.set_text(hint_text, tap_msg)
+						gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
+					else
+						gui.set_text(hint_text, i18n.t("tutorial_hint"))
+						gui.set_color(hint_text, vmath.vector4(1.0, 0.90, 0.25, 1.0))
+					end
 				end
 			end)
 
 			local p = game_state.active_potato
 			if p and p.is_alive then
-				self.tutorial_hand_timer = (self.tutorial_hand_timer or 0) + dt
 				local cycle = self.tutorial_hand_timer % 1.55
 
 				local cx = camera_controller.pos and camera_controller.pos.x or 480
 				local cy = camera_controller.pos and camera_controller.pos.y or 270
 				local sx = p.pos.x - (cx - 480)
 				local sy = p.pos.y - (cy - 270)
+
+				-- Render floating "YOU / ТЫ" marker above player
+				pcall(function()
+					local mp = gui.get_node("marker_player_bg")
+					local mp_txt = gui.get_node("marker_player_text")
+					local bounce_y = math.sin(self.tutorial_hand_timer * 4.0) * 4.0
+					gui.set_enabled(mp, true)
+					gui.set_position(mp, vmath.vector3(sx, sy + 38 + bounce_y, 0))
+					gui.set_text(mp_txt, is_ru and "ТЫ ⬇" or "YOU ⬇")
+				end)
+
+				-- Render floating "ENEMY / ВРАГ" marker above enemy
+				pcall(function()
+					local me = gui.get_node("marker_enemy_bg")
+					local me_txt = gui.get_node("marker_enemy_text")
+					for _, ep in ipairs(game_state.potatoes) do
+						if ep.is_alive and ep.team ~= constants.TEAM_BLUE then
+							local esx = ep.pos.x - (cx - 480)
+							local esy = ep.pos.y - (cy - 270)
+							local ebounce_y = math.sin(self.tutorial_hand_timer * 4.0 + 1.57) * 4.0
+							gui.set_enabled(me, true)
+							gui.set_position(me, vmath.vector3(esx, esy + 38 + ebounce_y, 0))
+							gui.set_text(me_txt, is_ru and "ВРАГ 🎯" or "ENEMY 🎯")
+							break
+						end
+					end
+				end)
 
 				local alpha = 0
 				local scale = 0.62
@@ -553,12 +616,17 @@ function update(self, dt)
 				pcall(function()
 					gui.set_enabled(gui.get_node("tutorial_hand"), false)
 					gui.set_enabled(gui.get_node("tutorial_ripple"), false)
+					gui.set_enabled(gui.get_node("marker_player_bg"), false)
+					gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
 				end)
 			end
 		else
 			pcall(function()
 				gui.set_enabled(gui.get_node("tutorial_hand"), false)
 				gui.set_enabled(gui.get_node("tutorial_ripple"), false)
+				gui.set_enabled(gui.get_node("tutorial_hint_panel"), false)
+				gui.set_enabled(gui.get_node("marker_player_bg"), false)
+				gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
 			end)
 		end
 
@@ -647,6 +715,8 @@ function on_message(self, message_id, message, sender)
 		end)
 	elseif message_id == hash("hide_tutorial") or message_id == hash("tutorial_shot_fired") then
 		hide_tutorial_hint(self)
+	elseif message_id == hash("tutorial_tap_hint") then
+		self.tap_hint_timer = 2.5
 	elseif message_id == hash("show_damage") then
 		pcall(function()
 			local sx, sy = camera_controller.world_to_screen(message.x or 480, message.y or 270)

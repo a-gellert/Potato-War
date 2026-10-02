@@ -38,14 +38,25 @@ function M.update_potato(p, dt, terrain)
 		p.vel.x = 0
 	end
 
-	-- Check water level (drowning)
+	-- Check water level (splash rescue or drowning)
 	if p.pos.y < constants.WATER_LEVEL or new_y < constants.WATER_LEVEL then
-		p.pos.x = new_x
-		p.pos.y = math.min(p.pos.y, constants.WATER_LEVEL - 5)
-		p.hp = 0
-		p.is_alive = false
-		p.is_grounded = false
-		return "drowned"
+		if p.hp > 30 then
+			-- Water Splash Rescue: takes 30 water damage and bounces back up toward the map!
+			p.hp = p.hp - 30
+			local to_center_dir = (new_x < constants.WORLD_WIDTH * 0.5) and 1 or -1
+			p.vel.y = 380.0
+			p.vel.x = to_center_dir * 160.0
+			p.pos.y = constants.WATER_LEVEL + 6
+			p.is_grounded = false
+			return "water_splash"
+		else
+			p.pos.x = new_x
+			p.pos.y = math.min(p.pos.y, constants.WATER_LEVEL - 5)
+			p.hp = 0
+			p.is_alive = false
+			p.is_grounded = false
+			return "drowned"
+		end
 	end
 
 	if not p.is_grounded then

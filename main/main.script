@@ -103,11 +103,20 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 	msg.post(url, "set_facing", { facing = initial_facing })
 	msg.post(url, "set_weapon", { weapon_id = "grenade" })
 
-	-- Apply skin if player potato (Team Blue)
-	if team == constants.TEAM_BLUE then
-		local skin = player_profile.get_equipped_skin()
-		if skin and skin.tint then
-			msg.post(url, "set_skin", { tint = skin.tint })
+	-- Apply skin from lobby match configuration or player profile
+	local match_cfg = game_state.match_config
+	if match_cfg then
+		local s_id = (team == constants.TEAM_BLUE) and match_cfg.skin_blue or match_cfg.skin_red
+		local s_obj = player_profile.SKINS_BY_ID[s_id] or player_profile.SKINS[1]
+		if s_obj and s_obj.tint then
+			msg.post(url, "set_skin", { tint = s_obj.tint })
+		end
+	else
+		if team == constants.TEAM_BLUE then
+			local skin = player_profile.get_equipped_skin()
+			if skin and skin.tint then
+				msg.post(url, "set_skin", { tint = skin.tint })
+			end
 		end
 	end
 
@@ -116,10 +125,17 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 	return record
 end
 
-local function start_game_match(self, mode, level)
+local function start_game_match(self, mode, level, lobby_config)
 	clear_match_entities(self)
+	self.victory_celebration = false
+	self.pending_game_over_data = nil
 	achievements.reset_match()
-	game_state.start_match(mode, level)
+
+	if lobby_config then
+		game_state.start_battle(lobby_config)
+	else
+		game_state.start_match(mode, level)
+	end
 
 	local config = game_state.get_current_config()
 	local terrain_preset = config.terrain_type or config.terrain_preset or "hills"
@@ -180,16 +196,13 @@ local function start_game_match(self, mode, level)
 	-- Point active_potato to first blue potato so weapon card selection equips the new instance
 	game_state.active_potato = game_state.potatoes[1]
 
-	-- Reset camera
+	-- Reset camera to guaranteed default state at start of level
 	if is_campaign then
-		camera_controller.follow(480, 270, true)
-		camera_controller.set_zoom(1.0)
+		camera_controller.reset(480, 270)
 	elseif game_state.active_potato then
-		camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
-		camera_controller.set_zoom(1.0)
+		camera_controller.reset(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
 	else
-		camera_controller.follow(world_w * 0.5, constants.WORLD_HEIGHT * 0.5, true)
-		camera_controller.set_zoom(1.0)
+		camera_controller.reset(world_w * 0.5, constants.WORLD_HEIGHT * 0.5)
 	end
 
 	-- Update GUI visibility
@@ -219,6 +232,11 @@ function init(self)
 	self.touch_move_timer = 0
 	self.key_left_held = false
 	self.key_right_held = false
+	self.victory_celebration = false
+	self.victory_timer = 0
+	self.victory_jump_timer = 0
+	self.victory_potato = nil
+	self.pending_game_over_data = nil
 
 	-- Hook turn changed callback
 	game_state.on_turn_changed = function(active_team, active_potato)
@@ -255,7 +273,6 @@ function init(self)
 	-- Hook game over callback
 	game_state.on_game_over = function(winner_team, points_earned, hp_healed, current_hp, next_hp)
 		msg.post("/aim_guide#aim_guide", "hide_aim")
-		msg.post("/gui_game_over", "enable")
 
 		local player_hp = current_hp or (game_state.potatoes[1] and game_state.potatoes[1].hp) or 100
 		local ach_list, ach_bonus = achievements.evaluate_match_end(winner_team, player_hp)
@@ -265,7 +282,7 @@ function init(self)
 			player_profile.add_points(ach_bonus)
 		end
 
-		msg.post("/gui_game_over#gui", "show_result", {
+		local game_over_data = {
 			winner = winner_team,
 			points = total_pts,
 			base_points = points_earned,
@@ -274,13 +291,49 @@ function init(self)
 			hp_healed = hp_healed,
 			current_hp = current_hp,
 			next_hp = next_hp,
-		})
+		}
+
+		if winner_team == constants.TEAM_BLUE then
+			-- Victory Celebration: Camera Zoom on victorious potato & background fireworks salute!
+			local winning_potato = nil
+			for _, p in ipairs(game_state.potatoes) do
+				if p.team == constants.TEAM_BLUE and p.is_alive then
+					winning_potato = p
+					break
+				end
+			end
+
+			self.victory_celebration = true
+			self.victory_timer = 2.4
+			self.victory_jump_timer = 0.55
+			self.victory_potato = winning_potato
+			self.pending_game_over_data = game_over_data
+
+			if winning_potato then
+				camera_controller.follow(winning_potato.pos.x, winning_potato.pos.y)
+				camera_controller.set_zoom(1.42)
+				if winning_potato.url then
+					msg.post(winning_potato.url, "on_jump")
+				end
+			end
+
+			-- Trigger fireworks salute in background
+			msg.post("/terrain#terrain", "victory_salute")
+			sound_manager.play_heal()
+		else
+			self.victory_celebration = false
+			msg.post("/gui_game_over", "enable")
+			msg.post("/gui_game_over#gui", "show_result", game_over_data)
+		end
 	end
 
 	-- Show menu at launch
+	clear_match_entities(self)
+	camera_controller.reset(480, 270)
 	msg.post("/gui_hud", "disable")
 	msg.post("/gui_game_over", "disable")
 	msg.post("/gui_menu", "enable")
+	msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 end
 
 function update(self, dt)
@@ -379,7 +432,15 @@ function update(self, dt)
 		if p.is_alive then
 			local was_grounded = p.is_grounded
 			local result = physics_sim.update_potato(p, dt, terrain_grid)
-			if result == "drowned" and p.url then
+			if result == "water_splash" and p.url then
+				camera_controller.shake(4, 0.15)
+				msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
+				msg.post("/gui_hud#gui", "show_damage", {
+					x = p.pos.x,
+					y = p.pos.y + 12,
+					amount = 30
+				})
+			elseif result == "drowned" and p.url then
 				msg.post(p.url, "drowned")
 				p.url = nil
 				camera_controller.shake(5, 0.2)
@@ -612,16 +673,37 @@ function update(self, dt)
 	end
 
 	-- 5. Camera follow active projectile during flight with gradual zoom-in, or follow active potato
-	if game_state.mode == constants.MODE_CAMPAIGN then
-		camera_controller.follow(480, 270, true)
-		camera_controller.set_zoom(1.0)
+	if self.victory_celebration then
+		self.victory_timer = self.victory_timer - dt
+		self.victory_jump_timer = (self.victory_jump_timer or 0.55) - dt
+		if self.victory_jump_timer <= 0 then
+			self.victory_jump_timer = 0.55
+			if self.victory_potato and self.victory_potato.url then
+				msg.post(self.victory_potato.url, "on_jump")
+			end
+		end
+
+		if self.victory_potato and self.victory_potato.is_alive then
+			camera_controller.follow(self.victory_potato.pos.x, self.victory_potato.pos.y)
+			camera_controller.set_zoom(1.42)
+		end
+
+		if self.victory_timer <= 0 then
+			self.victory_celebration = false
+			msg.post("/gui_game_over", "enable")
+			if self.pending_game_over_data then
+				msg.post("/gui_game_over#gui", "show_result", self.pending_game_over_data)
+				self.pending_game_over_data = nil
+			end
+		end
 	else
-		if game_state.state == constants.STATE_ACTION and #self.active_projectiles > 0 then
+		-- Active Battle Camera Tracking (Worms style: dynamic tracking for projectiles & active potatoes)
+		if (game_state.state == constants.STATE_ACTION or game_state.state == constants.STATE_SETTLING) and #self.active_projectiles > 0 then
 			local lead_proj = self.active_projectiles[#self.active_projectiles]
 			local ok, ppos = pcall(go.get_position, lead_proj)
 			if ok and ppos then
 				camera_controller.follow(ppos.x, ppos.y)
-				camera_controller.set_zoom(1.30)
+				camera_controller.set_zoom(1.25)
 			end
 		elseif game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato and game_state.active_potato.is_alive then
 			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
@@ -684,23 +766,29 @@ function on_input(self, action_id, action)
 end
 
 function on_message(self, message_id, message, sender)
-	if message_id == hash("start_match") then
+	if message_id == hash("start_battle") then
+		start_game_match(self, nil, 1, message)
+
+	elseif message_id == hash("start_match") then
 		start_game_match(self, message.mode, message.level)
 
 	elseif message_id == hash("select_card") then
 		game_state.select_card(message.card_index)
 
 	elseif message_id == hash("show_menu") then
+		self.victory_celebration = false
+		self.pending_game_over_data = nil
+		clear_match_entities(self)
 		self.touch_move_dir = 0
 		self.touch_move_timer = 0
 		self.key_left_held = false
 		self.key_right_held = false
-		camera_controller.follow(480, 270, true)
-		camera_controller.set_zoom(1.0)
+		camera_controller.reset(480, 270)
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		msg.post("/gui_hud", "disable")
 		msg.post("/gui_game_over", "disable")
 		msg.post("/gui_menu", "enable")
+		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 		game_state.set_state(constants.STATE_MENU)
 
 	elseif message_id == hash("player_move_state") then

@@ -477,21 +477,21 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	end
 
 	-- C. SITUATION: DIRECT LINE OF SIGHT (LOS CLEAR)
-	if clear_los and difficulty == "hard" then
-		-- Close-medium range: Shotgun or Assault Rifle (Burst)
+	if clear_los then
+		-- Close-medium range: Shotgun, Assault Rifle (Burst), Knife, or Bazooka direct shot
 		if dist < 140.0 then
 			local roll = math.random()
-			if roll < 0.50 then
+			if roll < 0.35 then
 				local sg = weapons.get(weapons.TYPES.SHOTGUN)
 				local len = math.sqrt(dx * dx + dy * dy)
 				return {
 					weapon_id = sg.id,
 					aim_dx = dx / len,
-					aim_dy = dy / len + 0.06,
+					aim_dy = dy / len + 0.05,
 					power = sg.max_power * 0.75,
 					is_breaching = false,
 				}
-			else
+			elseif roll < 0.70 then
 				local burst = weapons.get(weapons.TYPES.BURST)
 				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
 				local eff_dy = dy + drop
@@ -503,11 +503,23 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = burst.max_power,
 					is_breaching = false,
 				}
+			else
+				local baz = weapons.get(weapons.TYPES.BAZOOKA)
+				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
+				local eff_dy = dy + drop
+				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
+				return {
+					weapon_id = baz.id,
+					aim_dx = dx / len,
+					aim_dy = eff_dy / len,
+					power = baz.max_power * 0.85,
+					is_breaching = false,
+				}
 			end
-		elseif dist < 420.0 then
-			-- Medium to long range direct fire: Sniper Rifle or Burst
+		elseif dist < 450.0 then
+			-- Medium to long range direct fire: Sniper Rifle, Burst, or Bazooka
 			local roll = math.random()
-			if roll < 0.55 then
+			if roll < 0.45 then
 				local rifle = weapons.get(weapons.TYPES.RIFLE)
 				local drop = 0.5 * constants.GRAVITY * rifle.gravity_mult * math.pow(dist / rifle.speed, 2)
 				local eff_dy = dy + drop
@@ -519,7 +531,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = rifle.max_power,
 					is_breaching = false,
 				}
-			else
+			elseif roll < 0.75 then
 				local burst = weapons.get(weapons.TYPES.BURST)
 				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
 				local eff_dy = dy + drop
@@ -531,11 +543,23 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = burst.max_power,
 					is_breaching = false,
 				}
+			else
+				local baz = weapons.get(weapons.TYPES.BAZOOKA)
+				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
+				local eff_dy = dy + drop
+				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
+				return {
+					weapon_id = baz.id,
+					aim_dx = dx / len,
+					aim_dy = eff_dy / len,
+					power = baz.max_power,
+					is_breaching = false,
+				}
 			end
 		end
 	end
 
-	-- D. SITUATION: NO LOS OR INDIRECT PARABOLIC LOB
+	-- D. SITUATION: LOW-ARC SEARCH & INDIRECT PARABOLIC LOB
 	local candidate_weapons = {
 		weapons.get(weapons.TYPES.GRENADE),
 		weapons.get(weapons.TYPES.BAZOOKA),
@@ -557,34 +581,40 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	local chosen_weapon = candidate_weapons[math.random(1, #candidate_weapons)]
 	local best_score = -999999
 	local best_aim_dx = dir_to_target
-	local best_aim_dy = 0.6
+	local best_aim_dy = 0.35
 	local best_power = 400
 
-	-- Ballistic search over launch angles and powers
-	for angle_deg = 32, 74, 4 do
+	-- Ballistic search starting from LOW angles (14° to 76°)
+	-- Strongly prioritizes shallow/low-arc trajectories to eliminate long waiting times!
+	for angle_deg = 14, 76, 3 do
 		local rad = math.rad(angle_deg)
 		local grav = constants.GRAVITY * (chosen_weapon.gravity_mult or 1.0)
 		local sin2 = math.max(0.1, math.sin(2 * rad))
 		local ideal_v = math.sqrt(math.max(100, (dist * grav) / sin2))
 
-		for _, p_mult in ipairs({ 0.85, 1.0, 1.15 }) do
+		for _, p_mult in ipairs({ 0.88, 1.0, 1.12 }) do
 			local test_v = math.min(chosen_weapon.max_power, math.max(140, ideal_v * p_mult))
 			local aim_x = dir_to_target * math.cos(rad)
 			local aim_y = math.sin(rad)
 
 			local score, ix, iy = eval_shot(chosen_weapon, aim_x, aim_y, test_v)
-			if score > best_score then
-				best_score = score
-				best_aim_dx = aim_x
-				best_aim_dy = aim_y
-				best_power = test_v
+			if score > -800000 then
+				-- Bonus for low launch angle and fast flight:
+				local angle_penalty = (angle_deg / 90.0) * 200.0
+				local scored_v = score - angle_penalty
+				if scored_v > best_score then
+					best_score = scored_v
+					best_aim_dx = aim_x
+					best_aim_dy = aim_y
+					best_power = test_v
+				end
 			end
 		end
 	end
 
-	-- Fallback if no clean score found
+	-- Fallback if no clean score found: shallow 35° arc rather than high mortar
 	if best_score < -900000 then
-		local rad = math.rad(60)
+		local rad = math.rad(35)
 		best_aim_dx = dir_to_target * math.cos(rad)
 		best_aim_dy = math.sin(rad)
 		best_power = 420
@@ -862,8 +892,8 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 		best_aim_dy = eff_dy / len
 		best_power = weapon.max_power
 	else
-		-- Parabolic solver (lob angles 35° to 78°)
-		for angle_deg = 35, 78, 3 do
+		-- Parabolic solver (low angles first: 14° to 76°)
+		for angle_deg = 14, 76, 3 do
 			local rad = math.rad(angle_deg)
 			local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
 			local sin2 = math.max(0.12, math.sin(2 * rad))
@@ -889,8 +919,10 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 					if hit_p and hit_p.team ~= bot.team then
 						s = s + 1000
 					end
-					if s > best_shot_score then
-						best_shot_score = s
+					-- Prioritize low arc / fast flight over high lobbing
+					local scored_v = s - (angle_deg / 90.0) * 180.0
+					if scored_v > best_shot_score then
+						best_shot_score = scored_v
 						best_aim_dx = ax
 						best_aim_dy = ay
 						best_power = test_v

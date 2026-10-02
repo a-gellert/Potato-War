@@ -16,13 +16,22 @@ M.view_matrix = vmath.matrix4()
 
 function M.init(camera_url)
 	M.camera_id = camera_url or msg.url("camera")
-	M.pos = vmath.vector3(constants.SCREEN_WIDTH * 0.5, constants.SCREEN_HEIGHT * 0.5, 0)
-	M.target_pos = vmath.vector3(constants.SCREEN_WIDTH * 0.5, constants.SCREEN_HEIGHT * 0.5, 0)
+	M.reset(constants.SCREEN_WIDTH * 0.5, constants.SCREEN_HEIGHT * 0.5)
+end
+
+-- Reset camera to standard default zoom and position
+function M.reset(x, y)
+	x = x or (constants.SCREEN_WIDTH * 0.5)
+	y = y or (constants.SCREEN_HEIGHT * 0.5)
+	M.pos.x = x
+	M.pos.y = y
+	M.target_pos.x = x
+	M.target_pos.y = y
 	M.shake_amount = 0
 	M.shake_timer = 0
 	M.zoom = 1.0
 	M.target_zoom = 1.0
-	M.view_matrix = vmath.matrix4()
+	M.follow(x, y, true)
 end
 
 function M.get_view_matrix()
@@ -31,22 +40,17 @@ end
 
 -- Focus camera on a target coordinate
 function M.follow(x, y, immediate)
-	local ok, gs = pcall(require, "lua_modules.game_state")
-	local cur_w = (ok and gs and gs.mode) and constants.get_world_width(gs.mode) or constants.WORLD_WIDTH
-
-	local effective_zoom = math.max(0.7, M.target_zoom or M.zoom or 1.0)
+	local effective_zoom = math.max(0.65, M.target_zoom or M.zoom or 1.0)
 	local half_w = (constants.SCREEN_WIDTH * 0.5) / effective_zoom
 	local half_h = (constants.SCREEN_HEIGHT * 0.5) / effective_zoom
 
-	local is_pvp = (cur_w > constants.WORLD_WIDTH)
-	-- In PvP, background extends 240px horizontally and 80px vertically above 540
-	local extra_x = is_pvp and 90 or 0
-	local extra_top = is_pvp and 65 or 0
+	local cur_w = constants.WORLD_WIDTH -- 1920
+	local max_h = 750 -- High sky altitude for flying projectiles
 
-	local min_x = math.min(cur_w * 0.5, half_w - extra_x)
-	local max_x = math.max(cur_w * 0.5, cur_w - half_w + extra_x)
-	local min_y = math.min(constants.WORLD_HEIGHT * 0.5, half_h)
-	local max_y = math.max(constants.WORLD_HEIGHT * 0.5, constants.WORLD_HEIGHT - half_h + extra_top)
+	local min_x = half_w - 60
+	local max_x = cur_w - half_w + 60
+	local min_y = half_h - 40
+	local max_y = max_h - half_h + 80
 
 	x = math.max(min_x, math.min(max_x, x))
 	y = math.max(min_y, math.min(max_y, y))
@@ -68,7 +72,7 @@ end
 
 -- Set target zoom level (1.0 = normal, >1.0 = zoomed in on projectile)
 function M.set_zoom(z)
-	M.target_zoom = math.max(0.85, math.min(1.45, z or 1.0))
+	M.target_zoom = math.max(0.75, math.min(1.45, z or 1.0))
 end
 
 -- Convert world coordinates to screen (GUI) coordinates
@@ -91,8 +95,8 @@ end
 
 -- Update camera position, zoom, screenshake, and apply view matrix to render pipeline
 function M.update(dt)
-	-- Smooth position interpolation (5.5x for responsive yet smooth tracking)
-	local lerp_speed = 5.5
+	-- Smooth position interpolation (8.5x for quick & responsive tracking)
+	local lerp_speed = 8.5
 	M.pos.x = M.pos.x + (M.target_pos.x - M.pos.x) * math.min(1.0, lerp_speed * dt)
 	M.pos.y = M.pos.y + (M.target_pos.y - M.pos.y) * math.min(1.0, lerp_speed * dt)
 

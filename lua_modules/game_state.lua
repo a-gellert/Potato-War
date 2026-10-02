@@ -269,6 +269,9 @@ function M.start_match(mode, campaign_lvl)
 	M.winner_team = nil
 	M.settle_timer = 0
 	M.current_cards = nil
+	if (campaign_lvl or 1) == 1 then
+		M.tutorial_first_shot_done = false
+	end
 
 	-- Setup inventory loadout (up to 5 weapons)
 	if M.mode == constants.MODE_CAMPAIGN then
@@ -316,8 +319,9 @@ function M.start_match(mode, campaign_lvl)
 
 	M.poki_gameplay_start()
 
-	-- Offer bonus card selection at the beginning of each level in campaign mode!
-	if M.mode == constants.MODE_CAMPAIGN then
+	-- Offer bonus card selection in campaign mode only for subsequent levels (level > 1)
+	-- Level 1 starts INSTANTLY with 0 friction into battle!
+	if M.mode == constants.MODE_CAMPAIGN and M.campaign_level > 1 then
 		local max_p_hp = meta_progression.get_player_max_hp()
 		local p_hp = player_profile.get_campaign_hp() or max_p_hp
 		local c1, c2 = cards.draw_2_cards(p_hp, max_p_hp, M.campaign_level, M.player_perks)
@@ -331,9 +335,62 @@ function M.start_match(mode, campaign_lvl)
 	end
 end
 
+-- Start custom battle configured from Lobby
+function M.start_battle(lobby_config)
+	lobby_config = lobby_config or {}
+	M.mode = (lobby_config.opponent_type == "human") and constants.MODE_QUICK_PVP or constants.MODE_QUICK_BOT
+	M.campaign_level = 1
+	M.potatoes = {}
+	M.active_team = constants.TEAM_BLUE
+	M.team_turn_index[constants.TEAM_BLUE] = 1
+	M.team_turn_index[constants.TEAM_RED] = 1
+	M.turn_timer = constants.TURN_DURATION
+	M.selected_weapon_id = weapons.TYPES.GRENADE
+	M.active_potato = nil
+	M.winner_team = nil
+	M.settle_timer = 0
+	M.current_cards = nil
+	M.match_config = lobby_config
+
+	-- Worms full arsenal for team battles!
+	M.player_loadout = { "grenade", "bazooka", "shotgun", "rifle", "drill" }
+	M.player_ammo = {
+		grenade = -1, -- Unlimited!
+		rifle = 4,
+		knife = 5,
+		molotov = 4,
+		burst = 4,
+		bazooka = 4,
+		shotgun = 5,
+		holy_grenade = 2,
+		beetle = 3,
+		drill = 4,
+		pepper = 4,
+		garlic = 3,
+	}
+	M.player_perks = {}
+
+	M.poki_gameplay_start()
+	M.set_state(constants.STATE_INTRO)
+end
+
 -- Get current match configuration
 function M.get_current_config()
-	if M.mode == constants.MODE_CAMPAIGN then
+	if M.match_config and M.match_config.potato_count then
+		return {
+			name = "Командный Бой",
+			enemy_hp = 100,
+			enemy_count = M.match_config.potato_count,
+			red_count = M.match_config.potato_count,
+			player_count = M.match_config.potato_count,
+			blue_count = M.match_config.potato_count,
+			terrain_type = M.match_config.terrain_type or "hills",
+			terrain_preset = M.match_config.terrain_type or "hills",
+			biome = M.match_config.biome or "grass",
+			enemy_skill = "normal",
+			bot_difficulty = "normal",
+		}
+	elseif M.mode == constants.MODE_CAMPAIGN then
 		return level_config.get(M.campaign_level)
 	else
 		return level_config.get_quick_match(M.mode)
@@ -342,7 +399,7 @@ end
 
 -- Check if current turn belongs to a bot
 function M.is_bot_turn()
-	if M.mode == constants.MODE_QUICK_PVP then
+	if M.mode == constants.MODE_QUICK_PVP or (M.match_config and M.match_config.opponent_type == "human") then
 		return false
 	end
 	return M.active_team == constants.TEAM_RED
@@ -516,7 +573,13 @@ function M.update(dt, active_projectiles_count)
 		-- No timeout pressure during card selection
 
 	elseif M.state == constants.STATE_TURN_ACTIVE then
-		M.turn_timer = M.turn_timer - dt
+		local is_tutorial_turn = (M.mode == constants.MODE_CAMPAIGN and (M.campaign_level or 1) == 1 and not M.tutorial_first_shot_done and M.active_team == constants.TEAM_BLUE)
+		if not is_tutorial_turn then
+			M.turn_timer = M.turn_timer - dt
+		else
+			M.turn_timer = constants.TURN_DURATION
+		end
+
 		if M.on_timer_updated then
 			M.on_timer_updated(math.max(0, math.ceil(M.turn_timer)), M.turn_timer / constants.TURN_DURATION)
 		end

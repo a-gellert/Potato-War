@@ -1,11 +1,30 @@
 -- gui/main_menu/main_menu.gui_script
--- Handles main menu interactions, mode selection, language toggle, Meta-Upgrades, and Skin Shop
+-- Handles main menu interactions, match lobby, language toggle, Meta-Upgrades, and Skin Shop
 
 local constants = require("lua_modules.constants")
 local ui_manager = require("lua_modules.ui_manager")
 local player_profile = require("lua_modules.player_profile")
 local meta_progression = require("lua_modules.meta_progression")
 local i18n = require("lua_modules.i18n")
+
+local BIOMES = {
+	{ id = "grass", ru = "🌿 Зеленые Холмы", en = "🌿 Green Meadows" },
+	{ id = "arctic", ru = "❄️ Ледяной архипелаг", en = "❄️ Arctic Ice" },
+	{ id = "desert", ru = "🏜️ Пустынные Дюны", en = "🏜️ Desert Dunes" },
+	{ id = "volcano", ru = "🌋 Лавовые Пещеры", en = "🌋 Lava Caverns" },
+	{ id = "alien", ru = "🛸 Инопланетный Мир", en = "🛸 Alien World" },
+}
+
+local RELIEFS = {
+	{ id = "hills", ru = "⛰️ Холмы", en = "⛰️ Hills" },
+	{ id = "floating_islands", ru = "🏝️ Парящие Острова", en = "🏝️ Floating Islands" },
+	{ id = "canyon_bridge", ru = "🌉 Каньон и Мост", en = "🌉 Canyon Bridge" },
+	{ id = "cavern", ru = "🕳️ Пещеры", en = "🕳️ Caverns" },
+	{ id = "bunkers", ru = "🏰 Бункеры", en = "🏰 Bunkers" },
+	{ id = "islands", ru = "🌊 Острова", en = "🌊 Islands" },
+	{ id = "swiss_cheese", ru = "🧀 Сырный Каньон", en = "🧀 Swiss Cheese" },
+	{ id = "flat", ru = "⬛ Равнина", en = "⬛ Flat Field" },
+}
 
 local function update_points_display(self)
 	local pts = player_profile.get_points()
@@ -17,14 +36,59 @@ local function update_points_display(self)
 	end)
 end
 
+local function update_lobby_ui(self)
+	local is_ru = (i18n.current_lang == "ru")
+	pcall(function()
+		gui.set_text(gui.get_node("lobby_title"), i18n.t("lobby_title"))
+		gui.set_text(gui.get_node("lobby_subtitle"), i18n.t("lobby_subtitle"))
+		gui.set_text(gui.get_node("lbl_count"), i18n.t("lbl_potatoes_count"))
+		gui.set_text(gui.get_node("lbl_opponent"), i18n.t("lbl_mode"))
+		gui.set_text(gui.get_node("lbl_skin_blue"), i18n.t("lbl_skin_blue"))
+		gui.set_text(gui.get_node("lbl_skin_red"), i18n.t("lbl_skin_red"))
+		gui.set_text(gui.get_node("lbl_biome"), i18n.t("lbl_location"))
+		gui.set_text(gui.get_node("lbl_relief"), i18n.t("lbl_relief"))
+		gui.set_text(gui.get_node("txt_lobby_start"), i18n.t("btn_start_battle"))
+		gui.set_text(gui.get_node("txt_lobby_back"), i18n.t("btn_back"))
+
+		gui.set_text(gui.get_node("txt_opp_bot"), i18n.t("mode_bot_opt"))
+		gui.set_text(gui.get_node("txt_opp_human"), i18n.t("mode_human_opt"))
+
+		-- Update Count Buttons 1..4 colors
+		local active_col = vmath.vector4(0.18, 0.5, 0.82, 1.0)
+		local inactive_col = vmath.vector4(0.2, 0.25, 0.32, 1.0)
+		for i = 1, 4 do
+			local btn_node = gui.get_node("btn_cnt_" .. i)
+			gui.set_color(btn_node, (self.lobby_count == i) and active_col or inactive_col)
+		end
+
+		-- Update Opponent Mode buttons colors
+		gui.set_color(gui.get_node("btn_opp_bot"), (self.lobby_opponent == "bot") and active_col or inactive_col)
+		gui.set_color(gui.get_node("btn_opp_human"), (self.lobby_opponent == "human") and active_col or inactive_col)
+
+		-- Update Skins values
+		local skins = player_profile.SKINS
+		local s_blue = skins[self.lobby_skin_blue_idx] or skins[1]
+		local s_red = skins[self.lobby_skin_red_idx] or skins[1]
+		gui.set_text(gui.get_node("txt_skin_blue_val"), player_profile.get_skin_name(s_blue, i18n.current_lang))
+		gui.set_text(gui.get_node("txt_skin_red_val"), player_profile.get_skin_name(s_red, i18n.current_lang))
+
+		-- Update Biome value
+		local biome = BIOMES[self.lobby_biome_idx] or BIOMES[1]
+		gui.set_text(gui.get_node("txt_biome_val"), is_ru and biome.ru or biome.en)
+
+		-- Update Relief value
+		local relief = RELIEFS[self.lobby_relief_idx] or RELIEFS[1]
+		gui.set_text(gui.get_node("txt_relief_val"), is_ru and relief.ru or relief.en)
+	end)
+end
+
 local function update_localized_menu(self)
 	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local camp_lbl = is_ru and "В БОЙ (КАМПАНИЯ)" or "CAMPAIGN BATTLE"
-		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
-		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_quick_pvp"))
+		local battle_lbl = is_ru and "⚔️ БОЙ" or "⚔️ BATTLE"
+		gui.set_text(gui.get_node("txt_campaign"), battle_lbl)
 		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_upgrades"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
 		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
@@ -36,6 +100,7 @@ local function update_localized_menu(self)
 		gui.set_text(gui.get_node("txt_shop_back"), back_lbl)
 	end)
 	update_points_display(self)
+	update_lobby_ui(self)
 end
 
 local function update_overlay(self)
@@ -48,19 +113,16 @@ local function update_overlay(self)
 		pcall(function()
 			gui.set_text(gui.get_node("shop_title"), is_ru and "ГЛОБАЛЬНЫЕ УЛУЧШЕНИЯ" or "META UPGRADES")
 
-			-- Hide lower 3 skin slots and their buttons
 			for i = 4, 6 do
 				gui.set_enabled(gui.get_node("skin_bg_" .. i), false)
 				gui.set_enabled(gui.get_node("btn_skin_" .. i), false)
 			end
 
-			-- Enable top 3 upgrade cards and their buttons
 			for i = 1, 3 do
 				gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
 				gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
 			end
 
-			-- Position top 3 upgrade cards centrally
 			gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-260, 20, 0))
 			gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(0, 20, 0))
 			gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(260, 20, 0))
@@ -139,7 +201,6 @@ local function update_overlay(self)
 			gui.set_text(gui.get_node("shop_title"), is_ru and "МАГАЗИН СКИНОВ" or "SKIN SHOP")
 			gui.set_text(gui.get_node("txt_shop_back"), is_ru and "НАЗАД В МЕНЮ" or "BACK TO MENU")
 
-			-- Reset positions of all 6 skin slots
 			gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-260, 85, 0))
 			gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(0, 85, 0))
 			gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(260, 85, 0))
@@ -162,7 +223,7 @@ local function update_overlay(self)
 					local txt_node = gui.get_node("txt_skin_" .. i)
 					local s_name = player_profile.get_skin_name(skin, i18n.current_lang)
 					local s_desc = player_profile.get_skin_desc(skin, i18n.current_lang)
-					gui.set_text(gui.get_node("skin_name_1" .. (i > 1 and ("" .. i) or ""):gsub("1", "")), s_name) -- safe set
+					gui.set_text(gui.get_node("skin_name_1" .. (i > 1 and ("" .. i) or ""):gsub("1", "")), s_name)
 					gui.set_text(gui.get_node("skin_name_" .. i), s_name)
 					gui.set_text(gui.get_node("skin_desc_" .. i), s_desc)
 
@@ -198,61 +259,145 @@ function init(self)
 	self.ui = ui_manager.create(self)
 	self.overlay_mode = "upgrades"
 
+	-- Initialize Match Lobby State
+	self.lobby_count = 2
+	self.lobby_opponent = "bot"
+	self.lobby_skin_blue_idx = 1
+	self.lobby_skin_red_idx = 1
+	self.lobby_biome_idx = 1
+	self.lobby_relief_idx = 1
+
 	-- Setup main menu buttons
 	pcall(function()
-		-- Central Campaign button
+		-- Main BATTLE button ("БОЙ")
 		local camp_btn = gui.get_node("btn_campaign")
 		gui.set_enabled(camp_btn, true)
-		gui.set_position(camp_btn, vmath.vector3(480, 335, 0))
-		gui.set_size(camp_btn, vmath.vector3(420, 52, 0))
-		gui.set_color(camp_btn, vmath.vector4(0.18, 0.72, 0.38, 1.0)) -- Vibrant Hero Green!
+		gui.set_position(camp_btn, vmath.vector3(480, 290, 0))
+		gui.set_size(camp_btn, vmath.vector3(440, 60, 0))
+		gui.set_color(camp_btn, vmath.vector4(0.18, 0.76, 0.38, 1.0)) -- Hero Green!
 
-		-- PvP vs Bots (3v3) button
+		-- PvP vs Bots (3v3) button - HIDDEN
 		local pvp_btn = gui.get_node("btn_quick_pvp")
-		gui.set_enabled(pvp_btn, true)
-		gui.set_position(pvp_btn, vmath.vector3(480, 275, 0))
-		gui.set_size(pvp_btn, vmath.vector3(420, 48, 0))
-		gui.set_color(pvp_btn, vmath.vector4(0.85, 0.28, 0.22, 1.0)) -- Intense Battle Crimson!
+		gui.set_enabled(pvp_btn, false)
 
-		-- Upgrades button (reusing btn_quick_bot node)
+		-- Upgrades button
 		local upg_btn = gui.get_node("btn_quick_bot")
 		gui.set_enabled(upg_btn, true)
-		gui.set_position(upg_btn, vmath.vector3(480, 218, 0))
-		gui.set_size(upg_btn, vmath.vector3(360, 44, 0))
-		gui.set_color(upg_btn, vmath.vector4(0.95, 0.65, 0.15, 1.0)) -- Radiant Meta Gold!
+		gui.set_position(upg_btn, vmath.vector3(480, 212, 0))
+		gui.set_size(upg_btn, vmath.vector3(290, 38, 0))
+		gui.set_color(upg_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
 
-		-- Centered Shop button below
+		-- Shop button
 		local shop_btn = gui.get_node("btn_shop")
 		gui.set_enabled(shop_btn, true)
-		gui.set_position(shop_btn, vmath.vector3(480, 162, 0))
-		gui.set_size(shop_btn, vmath.vector3(360, 44, 0))
-		gui.set_color(shop_btn, vmath.vector4(0.18, 0.50, 0.82, 1.0)) -- Cool Blue
+		gui.set_position(shop_btn, vmath.vector3(480, 160, 0))
+		gui.set_size(shop_btn, vmath.vector3(290, 38, 0))
+		gui.set_color(shop_btn, vmath.vector4(0.18, 0.50, 0.82, 1.0))
 
-		-- Controls hint below buttons
+		-- Controls hint below
 		local hint = gui.get_node("hint_text")
-		gui.set_position(hint, vmath.vector3(480, 92, 0))
+		gui.set_position(hint, vmath.vector3(480, 95, 0))
 	end)
 
 	local function set_background_menu_enabled(enabled)
 		pcall(function()
 			gui.set_enabled(gui.get_node("btn_campaign"), enabled)
-			gui.set_enabled(gui.get_node("btn_quick_pvp"), enabled)
+			gui.set_enabled(gui.get_node("btn_quick_pvp"), false)
 			gui.set_enabled(gui.get_node("btn_quick_bot"), enabled)
 			gui.set_enabled(gui.get_node("btn_shop"), enabled)
 			gui.set_enabled(gui.get_node("btn_lang"), enabled)
 		end)
 	end
 
-	-- Mode selection button (Campaign)
+	-- BATTLE button (Opens Lobby)
 	self.ui:button("btn_campaign", function()
-		msg.post(".", "disable")
-		msg.post("/main#main", "start_match", { mode = constants.MODE_CAMPAIGN, level = 1 })
+		set_background_menu_enabled(false)
+		pcall(function()
+			gui.set_enabled(gui.get_node("lobby_overlay"), true)
+		end)
+		update_lobby_ui(self)
 	end)
 
-	-- Mode selection button (PvP vs Bots 3v3)
-	self.ui:button("btn_quick_pvp", function()
+	-- Register Lobby Potato Count buttons 1..4
+	for i = 1, 4 do
+		local cnt = i
+		self.ui:button("btn_cnt_" .. cnt, function()
+			self.lobby_count = cnt
+			update_lobby_ui(self)
+		end)
+	end
+
+	-- Register Opponent mode buttons
+	self.ui:button("btn_opp_bot", function()
+		self.lobby_opponent = "bot"
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_opp_human", function()
+		self.lobby_opponent = "human"
+		update_lobby_ui(self)
+	end)
+
+	-- Register Skin Selectors
+	local total_skins = #player_profile.SKINS
+	self.ui:button("btn_skin_blue_prev", function()
+		self.lobby_skin_blue_idx = ((self.lobby_skin_blue_idx - 2 + total_skins) % total_skins) + 1
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_skin_blue_next", function()
+		self.lobby_skin_blue_idx = (self.lobby_skin_blue_idx % total_skins) + 1
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_skin_red_prev", function()
+		self.lobby_skin_red_idx = ((self.lobby_skin_red_idx - 2 + total_skins) % total_skins) + 1
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_skin_red_next", function()
+		self.lobby_skin_red_idx = (self.lobby_skin_red_idx % total_skins) + 1
+		update_lobby_ui(self)
+	end)
+
+	-- Register Biome & Relief Selectors
+	local total_biomes = #BIOMES
+	self.ui:button("btn_biome_prev", function()
+		self.lobby_biome_idx = ((self.lobby_biome_idx - 2 + total_biomes) % total_biomes) + 1
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_biome_next", function()
+		self.lobby_biome_idx = (self.lobby_biome_idx % total_biomes) + 1
+		update_lobby_ui(self)
+	end)
+
+	local total_reliefs = #RELIEFS
+	self.ui:button("btn_relief_prev", function()
+		self.lobby_relief_idx = ((self.lobby_relief_idx - 2 + total_reliefs) % total_reliefs) + 1
+		update_lobby_ui(self)
+	end)
+	self.ui:button("btn_relief_next", function()
+		self.lobby_relief_idx = (self.lobby_relief_idx % total_reliefs) + 1
+		update_lobby_ui(self)
+	end)
+
+	-- Lobby Action Buttons (START BATTLE & BACK)
+	self.ui:button("btn_lobby_start", function()
 		msg.post(".", "disable")
-		msg.post("/main#main", "start_match", { mode = constants.MODE_PVP_BOTS })
+		local s_blue = player_profile.SKINS[self.lobby_skin_blue_idx] or player_profile.SKINS[1]
+		local s_red = player_profile.SKINS[self.lobby_skin_red_idx] or player_profile.SKINS[1]
+		msg.post("/main#main", "start_battle", {
+			potato_count = self.lobby_count,
+			opponent_type = self.lobby_opponent,
+			skin_blue = s_blue.id,
+			skin_red = s_red.id,
+			biome = BIOMES[self.lobby_biome_idx].id,
+			terrain_type = RELIEFS[self.lobby_relief_idx].id,
+		})
+	end)
+
+	self.ui:button("btn_lobby_back", function()
+		pcall(function()
+			gui.set_enabled(gui.get_node("lobby_overlay"), false)
+		end)
+		set_background_menu_enabled(true)
+		update_localized_menu(self)
 	end)
 
 	-- Meta Upgrades button
@@ -280,9 +425,10 @@ function init(self)
 		i18n.toggle_lang()
 		update_localized_menu(self)
 		update_overlay(self)
+		update_lobby_ui(self)
 	end)
 
-	-- Back button in overlay
+	-- Back button in shop overlay
 	self.ui:button("btn_shop_back", function()
 		pcall(function()
 			gui.set_enabled(gui.get_node("shop_overlay"), false)
@@ -346,9 +492,10 @@ function init(self)
 		end)
 	end
 
-	-- Shop overlay hidden by default
+	-- Overlays hidden by default
 	pcall(function()
 		gui.set_enabled(gui.get_node("shop_overlay"), false)
+		gui.set_enabled(gui.get_node("lobby_overlay"), false)
 	end)
 
 	update_localized_menu(self)
@@ -367,6 +514,7 @@ function on_message(self, message_id, message, sender)
 		msg.post(".", "enable")
 		pcall(function()
 			gui.set_enabled(gui.get_node("shop_overlay"), false)
+			gui.set_enabled(gui.get_node("lobby_overlay"), false)
 		end)
 		set_background_menu_enabled(true)
 		update_localized_menu(self)

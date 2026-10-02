@@ -8,60 +8,74 @@ local M = {}
 
 local LOCALIZED_CARD_DATA = {
 	bazooka = {
-		ru = { title = "ПЮРЕ-БАЗУКА (+2)", badge = "Оружие", desc = "Ракетница-толкушка: всё в пюре!\n2 снаряда | Урон: 65 | Взрыв: 48", btn_label = "ВЗЯТЬ" },
-		en = { title = "MASH-ZOOKA (+2)", badge = "Weapon", desc = "Heavy rocket masher!\n2 rockets | Damage: 65 | Blast: 48", btn_label = "TAKE" },
+		ru = { title = "БАЗУКА (+2)", badge = "ОРУЖИЕ", dmg_str = "65", btn_label = "ВЗЯТЬ" },
+		en = { title = "BAZOOKA (+2)", badge = "WEAPON", dmg_str = "65", btn_label = "TAKE" },
+		icon = "masher_bazooka",
 	},
 	perk_fire_bullets = {
-		ru = { title = "ОГНЕННЫЕ ПУЛИ", badge = "Перк", desc = "Гранаты заливают землю огнем!\nШипящее масло жарит врагов", btn_label = "ВЫБРАТЬ" },
-		en = { title = "FIRE BULLETS", badge = "Perk", desc = "Grenades splash boiling oil!\nIgnites ground & fries enemies", btn_label = "CHOOSE" },
+		ru = { title = "ОГНЕННЫЕ ПУЛИ", badge = "ПЕРК", dmg_str = "ОГОНЬ ОТ ГРАНАТ", btn_label = "ВЫБРАТЬ" },
+		en = { title = "FIRE BULLETS", badge = "PERK", dmg_str = "FIRE FROM GRENADES", btn_label = "CHOOSE" },
+		icon = "oil_bottle",
 	},
 	perk_triple_jump = {
-		ru = { title = "ТРОЙНОЙ ПРЫЖОК", badge = "Перк", desc = "До 3 прыжков подряд в воздухе!\nЛегко выбирайтесь из любых ям", btn_label = "ВЫБРАТЬ" },
-		en = { title = "TRIPLE JUMP", badge = "Perk", desc = "Up to 3 consecutive jumps in air!\nEasily leap out of deep craters", btn_label = "CHOOSE" },
+		ru = { title = "ТРОЙНОЙ ПРЫЖОК", badge = "ПЕРК", dmg_str = "3 ПРЫЖКА В ВОЗДУХЕ", btn_label = "ВЫБРАТЬ" },
+		en = { title = "TRIPLE JUMP", badge = "PERK", dmg_str = "3 AIR JUMPS", btn_label = "CHOOSE" },
+		icon = "circle",
 	},
 	heal_30 = {
-		ru = { title = "+30% ЗДОРОВЬЯ", badge = "Лечение", desc = "Вкусная заправка для картошки!\nВосстанавливает +30 HP", btn_label = "ВЗЯТЬ" },
-		en = { title = "+30% HEALTH", badge = "Heal", desc = "Delicious potato butter dressing!\nRestores +30 HP", btn_label = "TAKE" },
+		ru = { title = "+30 ЗДОРОВЬЯ", badge = "ЛЕЧЕНИЕ", dmg_str = "+30 HP", btn_label = "ВЗЯТЬ" },
+		en = { title = "+30 HEALTH", badge = "HEAL", dmg_str = "+30 HP", btn_label = "TAKE" },
+		icon = "holy_spud",
 	},
 	burst = {
-		ru = { title = "ФРИ-АВТОМАТ (+3)", badge = "Оружие", desc = "3 очереди картошкой фри подряд!\n3 обоймы | Урон: 3x30 = 90", btn_label = "ВЗЯТЬ" },
-		en = { title = "FRY-O-MATIC (+3)", badge = "Weapon", desc = "3 fast crispy french fry bursts!\n3 bursts | Damage: 3x30 = 90", btn_label = "TAKE" },
+		ru = { title = "АВТОМАТ (+3)", badge = "ОРУЖИЕ", dmg_str = "90 (3x30)", btn_label = "ВЗЯТЬ" },
+		en = { title = "ASSAULT RIFLE (+3)", badge = "WEAPON", dmg_str = "90 (3x30)", btn_label = "TAKE" },
+		icon = "rifle",
 	},
 	holy_grenade = {
-		ru = { title = "ЗОЛОТОЙ КЛУБЕНЬ (+1)", badge = "Легендарное", desc = "Священная картофелина!\n1 бросок | Урон: 80 | Радиус: 55", btn_label = "ВЗЯТЬ" },
-		en = { title = "HOLY SPUD (+1)", badge = "Legendary", desc = "Divine Golden Potato blast!\n1 spud | Damage: 80 | Radius: 55", btn_label = "TAKE" },
+		ru = { title = "МОЩНАЯ ГРАНАТА (+1)", badge = "ОРУЖИЕ", dmg_str = "80", btn_label = "ВЗЯТЬ" },
+		en = { title = "HOLY SPUD (+1)", badge = "WEAPON", dmg_str = "80", btn_label = "TAKE" },
+		icon = "holy_spud",
 	},
 	shotgun = {
-		ru = { title = "КУХОННАЯ ТЁРКА (+3)", badge = "Оружие", desc = "Веер острых картофельных чипсов!\n3 выстрела | 5x22 = 110 макс.", btn_label = "ВЗЯТЬ" },
-		en = { title = "KITCHEN GRATER (+3)", badge = "Weapon", desc = "Sharp potato chip shard blast!\n3 shots | 5x22 = 110 max", btn_label = "TAKE" },
+		ru = { title = "ДРОБОВИК (+3)", badge = "ОРУЖИЕ", dmg_str = "110 (5x22)", btn_label = "ВЗЯТЬ" },
+		en = { title = "SHOTGUN (+3)", badge = "WEAPON", dmg_str = "110 (5x22)", btn_label = "TAKE" },
+		icon = "grater",
 	},
 	rifle = {
-		ru = { title = "ШАМПУР-СНАЙПЕР (+3)", badge = "Оружие", desc = "Заостренная шпажка насквозь!\n3 выстрела | Дальний бой: 45", btn_label = "ВЗЯТЬ" },
-		en = { title = "SKEWER SNIPER (+3)", badge = "Weapon", desc = "Sharp bamboo skewer sniper!\n3 shots | Long range: 45", btn_label = "TAKE" },
+		ru = { title = "ВИНТОВКА (+3)", badge = "ОРУЖИЕ", dmg_str = "45", btn_label = "ВЗЯТЬ" },
+		en = { title = "SNIPER RIFLE (+3)", badge = "WEAPON", dmg_str = "45", btn_label = "TAKE" },
+		icon = "skewer_rifle",
 	},
 	molotov = {
-		ru = { title = "ФРИТЮРНОЕ МАСЛО (+2)", badge = "Оружие", desc = "Бутылки с кипящим маслом!\n2 броска | Урон: 20 + Пепелище", btn_label = "ВЗЯТЬ" },
-		en = { title = "FRYING OIL (+2)", badge = "Weapon", desc = "Boiling deep fry oil bottles!\n2 bottles | Damage: 20 + Burn pool", btn_label = "TAKE" },
+		ru = { title = "МОЛОТОВ (+2)", badge = "ОРУЖИЕ", dmg_str = "20 + ОГОНЬ", btn_label = "ВЗЯТЬ" },
+		en = { title = "MOLOTOV (+2)", badge = "WEAPON", dmg_str = "20 + FIRE", btn_label = "TAKE" },
+		icon = "oil_bottle",
 	},
 	knife = {
-		ru = { title = "КАРТОФЕЛЕЧИСТКА (+3)", badge = "Оружие", desc = "Срезает кожуру в упор!\n3 удара | Урон: 60 + Мега-толчок", btn_label = "ВЗЯТЬ" },
-		en = { title = "POTATO PEELER (+3)", badge = "Weapon", desc = "Close-range deadly slice!\n3 slashes | Dmg: 60 + Push", btn_label = "TAKE" },
+		ru = { title = "НОЖ (+3)", badge = "ОРУЖИЕ", dmg_str = "60 + ТОЛЧОК", btn_label = "ВЗЯТЬ" },
+		en = { title = "KNIFE (+3)", badge = "WEAPON", dmg_str = "60 + PUSH", btn_label = "TAKE" },
+		icon = "peeler",
 	},
 	beetle = {
-		ru = { title = "КОЛОРАДСКИЙ ДЕСАНТ (+2)", badge = "Оружие", desc = "Банка с жуками-диверсантами!\n2 банки | 3 жука x 24 урона", btn_label = "ВЗЯТЬ" },
-		en = { title = "BEETLE SWARM (+2)", badge = "Weapon", desc = "Jar of hungry Colorado beetles!\n2 jars | 3 beetles x 24 dmg", btn_label = "TAKE" },
+		ru = { title = "ЖУКИ (+2)", badge = "ОРУЖИЕ", dmg_str = "72 (3x24)", btn_label = "ВЗЯТЬ" },
+		en = { title = "BEETLES (+2)", badge = "WEAPON", dmg_str = "72 (3x24)", btn_label = "TAKE" },
+		icon = "beetle_crate",
 	},
 	drill = {
-		ru = { title = "ГРЯДКОВЫЙ БУР (+2)", badge = "Оружие", desc = "Пружинный корнеудалитель!\n2 бура | Пробивает грунт | Урон: 60", btn_label = "ВЗЯТЬ" },
-		en = { title = "GARDEN DRILL (+2)", badge = "Weapon", desc = "Heavy spring soil drill!\n2 drills | Pierces terrain | Dmg: 60", btn_label = "TAKE" },
+		ru = { title = "БУР (+2)", badge = "ОРУЖИЕ", dmg_str = "60 (БУРЕНИЕ)", btn_label = "ВЗЯТЬ" },
+		en = { title = "DRILL (+2)", badge = "WEAPON", dmg_str = "60 (PIERCE)", btn_label = "TAKE" },
+		icon = "drill_missile",
 	},
 	pepper = {
-		ru = { title = "ПЕРЦЕМОЛКА «ЧИЛИ» (+2)", badge = "Оружие", desc = "Жгучий помол кайенского перца!\n2 броска | DoT + Чихание", btn_label = "ВЗЯТЬ" },
-		en = { title = "CHILI PEPPER MILL (+2)", badge = "Weapon", desc = "Fiery cayenne pepper cloud DoT!\n2 mills | Sneezing & knockup", btn_label = "TAKE" },
+		ru = { title = "ПЕРЕЦ (+2)", badge = "ОРУЖИЕ", dmg_str = "20 + ЯД", btn_label = "ВЗЯТЬ" },
+		en = { title = "CHILI PEPPER (+2)", badge = "WEAPON", dmg_str = "20 + POISON", btn_label = "TAKE" },
+		icon = "pepper_bomb",
 	},
 	garlic = {
-		ru = { title = "ЧЕСНОЧНЫЙ ДИНАМИТ (+2)", badge = "Оружие", desc = "Связка ядреного чеснока!\n2 броска | Мега-отталкивание в воду!", btn_label = "ВЗЯТЬ" },
-		en = { title = "GARLIC DYNAMITE (+2)", badge = "Weapon", desc = "Nuclear garlic dynamite bundle!\n2 throws | Extreme knockback into water!", btn_label = "TAKE" },
+		ru = { title = "ЧЕСНОК (+2)", badge = "ОРУЖИЕ", dmg_str = "25 + ТОЛЧОК", btn_label = "ВЗЯТЬ" },
+		en = { title = "GARLIC (+2)", badge = "WEAPON", dmg_str = "25 + PUSH", btn_label = "TAKE" },
+		icon = "garlic_bomb",
 	},
 }
 
@@ -91,8 +105,9 @@ local function localize_card(card)
 		local lang_data = loc_entry[i18n.current_lang] or loc_entry.en
 		copy.title = lang_data.title
 		copy.badge = lang_data.badge
-		copy.desc = lang_data.desc
+		copy.dmg_str = lang_data.dmg_str
 		copy.btn_label = lang_data.btn_label
+		copy.icon = loc_entry.icon or card.icon or "circle"
 	end
 	return copy
 end
