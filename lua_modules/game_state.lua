@@ -8,6 +8,8 @@ local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
 local level_config = require("lua_modules.level_config")
 local meta_progression = require("lua_modules.meta_progression")
+local inventory_manager = require("lua_modules.inventory_manager")
+local classes = require("lua_modules.classes")
 
 local M = {}
 
@@ -68,8 +70,9 @@ M.campaign_level = 1
 M.active_team = constants.TEAM_BLUE
 M.turn_timer = constants.TURN_DURATION
 M.selected_weapon_id = weapons.TYPES.GRENADE
+M.wind_vector = vmath.vector3(0, 0, 0) -- Dynamic wind vector { x, y, 0 }
 
-M.potatoes = {} -- list of all potato records { id, team, pos, vel, hp, max_hp, is_alive, is_grounded, url }
+M.potatoes = {} -- list of all potato records { id, team, pos, vel, hp, max_hp, is_alive, is_grounded, url, class_id, statuses }
 M.team_turn_index = {
 	[constants.TEAM_BLUE] = 1,
 	[constants.TEAM_RED] = 1,
@@ -102,6 +105,15 @@ M.player_perks = {
 }
 
 function M.get_slot_weapon(slot_idx)
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		local loadout = inventory_manager.get_loadout(M.active_potato.id)
+		local w_id = loadout[slot_idx]
+		if w_id then
+			return weapons.get(w_id)
+		end
+		return nil
+	end
+
 	if not M.player_loadout then
 		M.player_loadout = { "grenade" }
 	end
@@ -116,6 +128,11 @@ function M.get_ammo(weapon_id)
 	if weapon_id == "grenade" then
 		return -1 -- Unlimited
 	end
+
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		return inventory_manager.get_ammo(M.active_potato.id, weapon_id)
+	end
+
 	if not M.player_ammo then
 		M.player_ammo = { grenade = -1 }
 	end
@@ -127,14 +144,23 @@ function M.get_ammo(weapon_id)
 end
 
 function M.is_in_loadout(weapon_id)
-	if not M.player_loadout then return false end
-	for _, w_id in ipairs(M.player_loadout) do
+	local loadout = M.player_loadout
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		loadout = inventory_manager.get_loadout(M.active_potato.id)
+	end
+	if not loadout then return false end
+	for _, w_id in ipairs(loadout) do
 		if w_id == weapon_id then return true end
 	end
 	return false
 end
 
 function M.add_ammo(weapon_id, count)
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		inventory_manager.add_ammo(M.active_potato.id, weapon_id, count, true)
+		M.player_loadout = inventory_manager.get_loadout(M.active_potato.id)
+	end
+
 	if not M.player_ammo then
 		M.player_ammo = { grenade = -1 }
 	end
@@ -163,6 +189,15 @@ end
 function M.consume_ammo(weapon_id)
 	if weapon_id == "grenade" then
 		return true
+	end
+
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		local res = inventory_manager.consume_ammo(M.active_potato.id, weapon_id)
+		M.player_loadout = inventory_manager.get_loadout(M.active_potato.id)
+		if M.on_ammo_changed then
+			M.on_ammo_changed()
+		end
+		return res
 	end
 
 	if not M.player_ammo then M.player_ammo = { grenade = -1 } end
@@ -259,6 +294,7 @@ end
 function M.start_match(mode, campaign_lvl)
 	M.mode = mode or constants.MODE_CAMPAIGN
 	M.campaign_level = campaign_lvl or 1
+	inventory_manager.reset()
 	M.potatoes = {}
 	M.active_team = constants.TEAM_BLUE
 	M.team_turn_index[constants.TEAM_BLUE] = 1
@@ -340,6 +376,7 @@ function M.start_battle(lobby_config)
 	lobby_config = lobby_config or {}
 	M.mode = (lobby_config.opponent_type == "human") and constants.MODE_QUICK_PVP or constants.MODE_QUICK_BOT
 	M.campaign_level = 1
+	inventory_manager.reset()
 	M.potatoes = {}
 	M.active_team = constants.TEAM_BLUE
 	M.team_turn_index[constants.TEAM_BLUE] = 1
@@ -434,6 +471,23 @@ local function begin_current_turn()
 	M.pick_active_potato()
 	M.turn_timer = constants.TURN_DURATION
 
+	-- Dynamic Wind update for the new turn
+	local wind_dir = (math.random() > 0.5) and 1 or -1
+	local wind_x = wind_dir * math.random(15, 80)
+	local wind_y = math.random(-6, 6)
+	M.wind_vector = vmath.vector3(wind_x, wind_y, 0)
+
+	-- Turn start triggers for active potato: skill cooldown and DoT / debuffs
+	if M.active_potato then
+		if M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+			inventory_manager.update_turn(M.active_potato.id)
+			M.player_loadout = inventory_manager.get_loadout(M.active_potato.id)
+		end
+		if M.active_potato.url then
+			msg.post(M.active_potato.url, "on_turn_start")
+		end
+	end
+
 	if M.on_turn_changed then
 		M.on_turn_changed(M.active_team, M.active_potato)
 	end
@@ -497,6 +551,10 @@ end
 
 -- Advance to next turn
 function M.next_turn()
+	if M.active_potato and M.active_potato.url and M.active_potato.is_alive then
+		pcall(function() msg.post(M.active_potato.url, "on_turn_end") end)
+	end
+
 	-- Check match end
 	local blue_alive = 0
 	local red_alive = 0

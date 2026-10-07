@@ -18,9 +18,12 @@ const files = [
     'lua_modules/game_state.lua',
     'lua_modules/bot_ai.lua',
     'main/entities/crate/crate.script',
-    'main/game.render_script',
     'lua_modules/camera_controller.lua',
-    'lua_modules/physics_sim.lua'
+    'lua_modules/physics_sim.lua',
+    'lua_modules/classes.lua',
+    'lua_modules/inventory_manager.lua',
+    'lua_modules/territory_map.lua',
+    'lua_modules/strategic_campaign.lua'
 ];
 
 for (const filePath of files) {

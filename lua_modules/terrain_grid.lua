@@ -423,7 +423,7 @@ end
 -- Terrain Preset Generators (Domain-warped & noise-rich)
 ---------------------------------------------------------
 
-function M.generate(preset_type, campaign_level)
+function M.generate(preset_type, campaign_level, is_defense)
 	preset_type = preset_type or "hills"
 	local all_presets = {
 		"hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese",
@@ -839,6 +839,79 @@ function M.generate(preset_type, campaign_level)
 			end
 		end
 	end
+
+	if is_defense then
+		M.defense_spawn_points = {}
+		M.apply_defense_fortifications()
+	end
+end
+
+-- Defense Mode Fortification Specialization:
+-- When Blue defends, sculpt elevated bunkers/redoubts on the left with firing parapets
+function M.apply_defense_fortifications()
+	local w = M.width or 960
+	local h = M.height or 540
+	local b_start_gx = math.floor(w * 0.10)
+	local b_end_gx = math.floor(w * 0.38)
+	local parapet_gx = math.floor(w * 0.35)
+
+	for gx = b_start_gx, b_end_gx do
+		local nx = (gx - b_start_gx) / math.max(1, b_end_gx - b_start_gx)
+		-- Elevate hill smoothly
+		local hill_boost = math.floor(math.sin(nx * 3.14159) * 26) + 12
+		local current_top = 0
+		for gy = h - 1, 0, -1 do
+			if M.grid[gy * w + gx + 1] == 1 then
+				current_top = gy
+				break
+			end
+		end
+
+		local new_top = math.min(math.floor(h * 0.48), current_top + hill_boost)
+		-- Protective sandbag / concrete breastwork at the forward edge
+		if gx >= parapet_gx - 4 and gx <= parapet_gx + 2 then
+			new_top = math.min(math.floor(h * 0.52), new_top + 14)
+		end
+
+		for gy = current_top, new_top do
+			M.grid[gy * w + gx + 1] = 1
+		end
+	end
+
+	-- Carve embrasures (firing slots) in the breastwork so defenders can aim through
+	local embrasures = { math.floor(parapet_gx - 2), math.floor(parapet_gx + 1) }
+	for _, egx in ipairs(embrasures) do
+		local top_gy = 0
+		for gy = h - 1, 0, -1 do
+			if M.grid[gy * w + egx + 1] == 1 then
+				top_gy = gy
+				break
+			end
+		end
+		for gy = top_gy - 4, top_gy do
+			if gy >= 0 then
+				M.grid[gy * w + egx + 1] = 0
+			end
+		end
+	end
+end
+
+-- Return recommended high-ground spawn positions for Blue defenders
+function M.get_defense_spawn_points(count)
+	count = count or 3
+	local w = M.width or 960
+	local scale = M.scale or 2.0
+	local pts = {}
+	local start_x = 180
+	local end_x = 360
+	local step = (end_x - start_x) / math.max(1, count)
+
+	for i = 1, count do
+		local cx = start_x + (i - 0.5) * step + (math.random() - 0.5) * 15
+		local gy = M.get_smooth_ground_y(cx, 4.0)
+		table.insert(pts, { x = cx, y = gy })
+	end
+	return pts
 end
 
 return M

@@ -10,6 +10,8 @@ local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local physics_sim = require("lua_modules.physics_sim")
 local level_config = require("lua_modules.level_config")
+local classes = require("lua_modules.classes")
+local inventory_manager = require("lua_modules.inventory_manager")
 
 local M = {}
 
@@ -307,8 +309,122 @@ function M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
 	}
 end
 
+-- Tactical Weapon Evaluation accounting for wind, class affinities, and elemental combos
+function M.score_weapon_tactical(weapon, bot, target, dist, has_los, wind_vector)
+	if not weapon then return -999999 end
+
+	-- Check available ammo if bot has class inventory
+	if bot and bot.id and inventory_manager.inventories[bot.id] then
+		if not inventory_manager.has_weapon(bot.id, weapon.id) then
+			return -999999
+		end
+	end
+
+	local score = 100
+	local w_id = weapon.id
+	local wind_x = wind_vector and (wind_vector.x or 0) or 0
+
+	-- 1. Range & line-of-sight affinity
+	if weapon.fire_mode == "melee" then
+		if dist <= (weapon.melee_range or 42) + 6 then
+			score = score + 450
+		else
+			return -999999
+		end
+	elseif w_id == weapons.TYPES.SHOTGUN then
+		if dist < 120 then
+			score = score + 280
+		else
+			score = score - 80
+		end
+	elseif w_id == weapons.TYPES.RIFLE then
+		if has_los and dist > 140 then
+			score = score + 320
+		end
+	elseif w_id == weapons.TYPES.BURST then
+		if has_los and dist >= 80 and dist <= 380 then
+			score = score + 260
+		end
+	end
+
+	-- 2. Elemental combinations on target
+	local t_statuses = target.statuses or {}
+	local is_glued = t_statuses.glued and (t_statuses.glued.duration or 0) > 0
+	local is_poisoned = t_statuses.poisoned and (t_statuses.poisoned.duration or 0) > 0
+	local is_concussed = t_statuses.concussed and (t_statuses.concussed.duration or 0) > 0
+	local is_burning = t_statuses.burning and (t_statuses.burning.duration or 0) > 0
+
+	-- Combo: Sticky Inferno (Glued + Fire/Explosive) -> huge priority!
+	if is_glued then
+		if w_id == weapons.TYPES.MOLOTOV or w_id == weapons.TYPES.BAZOOKA or w_id == weapons.TYPES.GRENADE then
+			score = score + 420
+		end
+	end
+
+	-- Combo: Toxic Burst (Poisoned + Fire) -> ignite toxic cloud!
+	if is_poisoned then
+		if w_id == weapons.TYPES.MOLOTOV or w_id == weapons.TYPES.GRENADE then
+			score = score + 380
+		end
+	end
+
+	-- Combo: Paralyzed (Concussed + Glued)
+	if is_concussed and not is_glued then
+		if w_id == weapons.TYPES.BAZOOKA then
+			score = score + 340
+		end
+	end
+
+	-- High-HP target without active DoT: initiate Poison or Fire
+	if target.hp > 55 and not is_poisoned and not is_burning then
+		if w_id == weapons.TYPES.PEPPER then
+			score = score + 300
+		elseif w_id == weapons.TYPES.MOLOTOV then
+			score = score + 280
+		end
+	end
+
+	-- Target near water: massive knockback priority
+	if target.pos.y < constants.WATER_LEVEL + 42 and dist < 260 then
+		if w_id == weapons.TYPES.GARLIC then
+			score = score + 450
+		elseif w_id == weapons.TYPES.BAZOOKA then
+			score = score + 260
+		end
+	end
+
+	-- 3. Bot Class Affinity
+	local b_class = bot.class_id or "recruit"
+	if b_class == "sniper" then
+		if w_id == weapons.TYPES.RIFLE then score = score + 350 end
+	elseif b_class == "artillery" or b_class == "artillery_2" or b_class == "rocketeer" then
+		if w_id == weapons.TYPES.BAZOOKA or w_id == weapons.TYPES.AIR_BOMB then score = score + 260 end
+	elseif b_class == "sapper" or b_class == "sapper_2" then
+		if w_id == weapons.TYPES.DRILL or w_id == weapons.TYPES.GARLIC then score = score + 280 end
+	elseif b_class == "commando" then
+		if w_id == weapons.TYPES.KNIFE or w_id == weapons.TYPES.BURST or w_id == weapons.TYPES.MOLOTOV then score = score + 240 end
+	elseif b_class == "medic" or b_class == "surgeon" then
+		if w_id == weapons.TYPES.PEPPER or w_id == weapons.TYPES.MOLOTOV then score = score + 260 end
+	elseif b_class == "assault" or b_class == "assault_2" then
+		if w_id == weapons.TYPES.BURST or w_id == weapons.TYPES.SHOTGUN then score = score + 250 end
+	end
+
+	-- 4. Dynamic Wind factor
+	local wind_mag = math.abs(wind_x)
+	local wind_sens = weapon.wind_sensitivity or 1.0
+	if wind_mag > 35 then
+		if wind_sens < 0.45 then
+			score = score + 120 -- Heavy projectile cuts through wind
+		elseif wind_sens > 1.10 then
+			score = score - 140 -- Light projectile gets blown off target
+		end
+	end
+
+	return score
+end
+
 -- 3. BALLISTICS & SAFE ATTACK: Solves weapon, angle, and power with 100% self-damage protection
-function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty)
+function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
 	local dx = target.pos.x - bot.pos.x
 	local dy = target.pos.y - (bot.pos.y + 8)
 	local dist = math.sqrt(dx * dx + dy * dy)
@@ -322,7 +438,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 		local vx = aim_dx * power
 		local vy = aim_dy * power
 		local impact_x, impact_y, hit_type, hit_potato, path = physics_sim.simulate_shot(
-			bot.pos.x, bot.pos.y + 8, vx, vy, weapon, terrain, all_potatoes, bot.id
+			bot.pos.x, bot.pos.y + 8, vx, vy, weapon, terrain, all_potatoes, bot.id, wind_vector
 		)
 
 		-- Distance from impact to bot
@@ -560,25 +676,30 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	end
 
 	-- D. SITUATION: LOW-ARC SEARCH & INDIRECT PARABOLIC LOB
-	local candidate_weapons = {
-		weapons.get(weapons.TYPES.GRENADE),
-		weapons.get(weapons.TYPES.BAZOOKA),
-		weapons.get(weapons.TYPES.MOLOTOV),
+	local all_candidate_ids = {
+		weapons.TYPES.GRENADE,
+		weapons.TYPES.BAZOOKA,
+		weapons.TYPES.MOLOTOV,
+		weapons.TYPES.PEPPER,
+		weapons.TYPES.GARLIC,
+		weapons.TYPES.DRILL,
+		weapons.TYPES.BEETLE,
+		weapons.TYPES.HOLY_GRENADE,
 	}
-	if difficulty ~= "easy" then
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.DRILL))
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.BEETLE))
-	end
-	if dist > 180.0 then
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.HOLY_GRENADE))
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.GARLIC))
-	end
-	if dist < 260.0 then
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.MOLOTOV))
-		table.insert(candidate_weapons, weapons.get(weapons.TYPES.PEPPER))
+
+	local best_candidate = weapons.get(weapons.TYPES.GRENADE)
+	local highest_tactical_score = -999999
+
+	for _, w_id in ipairs(all_candidate_ids) do
+		local w_obj = weapons.get(w_id)
+		local t_score = M.score_weapon_tactical(w_obj, bot, target, dist, clear_los, wind_vector)
+		if t_score > highest_tactical_score then
+			highest_tactical_score = t_score
+			best_candidate = w_obj
+		end
 	end
 
-	local chosen_weapon = candidate_weapons[math.random(1, #candidate_weapons)]
+	local chosen_weapon = best_candidate
 	local best_score = -999999
 	local best_aim_dx = dir_to_target
 	local best_aim_dy = 0.35
@@ -630,7 +751,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 end
 
 -- 4. MASTER BOT TURN PLANNER: Coordinates perception, movement, and combat
-function M.plan_turn(bot, all_potatoes, terrain, difficulty)
+function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	difficulty = level_config.normalize_skill(difficulty or "normal")
 
 	-- Collect alive enemies
@@ -652,8 +773,8 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty)
 	-- 2. Movement
 	local move_plan = M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
 
-	-- 3. Attack
-	local attack_plan = M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty)
+	-- 3. Attack (accounting for wind, class, and elemental combinations)
+	local attack_plan = M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
 
 	-- 4. Difficulty jitter on attack (only applies to aim, strictly prevents self-damage)
 	local angle_jitter = 0
@@ -699,7 +820,7 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty)
 end
 
 -- 5. DEDICATED SMART PVP BOT AI ("отдельный бот для пвп, который более умный, ходит, выбирает позиции, не сразу стреляет, а оценивает позицию")
-function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
+function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill, wind_vector)
 	-- 1. Gather alive enemies and allies
 	local enemies = {}
 	local allies = {}
@@ -845,30 +966,30 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 	local hit_los, _, _ = terrain.raycast(eval_x, eval_y, target.pos.x, target.pos.y + 8)
 	local has_los = not hit_los
 
-	-- Weapon selection based on tactical assessment
-	local chosen_weapon_id = weapons.TYPES.GRENADE
+	-- Weapon selection based on tactical assessment, class, and elemental combos
+	local candidate_list = {
+		weapons.TYPES.GRENADE,
+		weapons.TYPES.BAZOOKA,
+		weapons.TYPES.MOLOTOV,
+		weapons.TYPES.BURST,
+		weapons.TYPES.RIFLE,
+		weapons.TYPES.SHOTGUN,
+		weapons.TYPES.KNIFE,
+		weapons.TYPES.GARLIC,
+		weapons.TYPES.PEPPER,
+		weapons.TYPES.DRILL,
+		weapons.TYPES.HOLY_GRENADE,
+	}
 
-	if dist_to_target < 44.0 then
-		-- Melee sweet spot: Potato Peeler (knife) or Grater (shotgun)
-		chosen_weapon_id = (math.random() > 0.4) and weapons.TYPES.KNIFE or weapons.TYPES.SHOTGUN
-	elseif target.pos.y < constants.WATER_LEVEL + 40.0 and dist_to_target < 240.0 then
-		-- Target near water: Garlic Dynamite (massive 720 blast knockback to drown them!)
-		chosen_weapon_id = weapons.TYPES.GARLIC
-	elseif not has_los and math.abs(t_dx) > 120.0 and math.random() > 0.45 then
-		-- Obstructed by terrain: Drill Missile or Pepper
-		chosen_weapon_id = (math.random() > 0.5) and weapons.TYPES.DRILL or weapons.TYPES.PEPPER
-	elseif has_los and dist_to_target > 160.0 and dist_to_target < 450.0 then
-		-- Long line-of-sight: Sniper Rifle or Burst Rifle
-		chosen_weapon_id = (math.random() > 0.5) and weapons.TYPES.RIFLE or weapons.TYPES.BURST
-	else
-		-- General combat: Bazooka or Grenade or Molotov
-		local r = math.random()
-		if r < 0.40 then
-			chosen_weapon_id = weapons.TYPES.BAZOOKA
-		elseif r < 0.70 then
-			chosen_weapon_id = weapons.TYPES.GRENADE
-		else
-			chosen_weapon_id = weapons.TYPES.MOLOTOV
+	local chosen_weapon_id = weapons.TYPES.GRENADE
+	local best_tactical_val = -999999
+
+	for _, w_id in ipairs(candidate_list) do
+		local w_obj = weapons.get(w_id)
+		local val = M.score_weapon_tactical(w_obj, bot, target, dist_to_target, has_los, wind_vector)
+		if val > best_tactical_val then
+			best_tactical_val = val
+			chosen_weapon_id = w_id
 		end
 	end
 
@@ -887,8 +1008,12 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 	elseif has_los and (chosen_weapon_id == weapons.TYPES.RIFLE or chosen_weapon_id == weapons.TYPES.BURST) then
 		local drop = 0.5 * constants.GRAVITY * (weapon.gravity_mult or 0.15) * math.pow(dist_to_target / (weapon.speed or 900), 2)
 		local eff_dy = t_dy + drop
-		local len = math.sqrt(t_dx * t_dx + eff_dy * eff_dy)
-		best_aim_dx = t_dx / len
+		local flight_time = dist_to_target / (weapon.speed or 900)
+		local wx = (wind_vector and wind_vector.x or 0)
+		local wind_drift = 0.5 * wx * (weapon.wind_sensitivity or 0.3) * flight_time * flight_time
+		local eff_dx = t_dx - wind_drift
+		local len = math.sqrt(eff_dx * eff_dx + eff_dy * eff_dy)
+		best_aim_dx = eff_dx / len
 		best_aim_dy = eff_dy / len
 		best_power = weapon.max_power
 	else
@@ -907,7 +1032,7 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 				local vx = ax * test_v
 				local vy = ay * test_v
 				local ix, iy, _, hit_p, _ = physics_sim.simulate_shot(
-					eval_x, eval_y, vx, vy, weapon, terrain, all_potatoes, bot.id
+					eval_x, eval_y, vx, vy, weapon, terrain, all_potatoes, bot.id, wind_vector
 				)
 
 				-- Strict self-damage avoidance:
@@ -919,7 +1044,6 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill)
 					if hit_p and hit_p.team ~= bot.team then
 						s = s + 1000
 					end
-					-- Prioritize low arc / fast flight over high lobbing
 					local scored_v = s - (angle_deg / 90.0) * 180.0
 					if scored_v > best_shot_score then
 						best_shot_score = scored_v

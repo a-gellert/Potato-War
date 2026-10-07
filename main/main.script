@@ -14,6 +14,9 @@ local achievements = require("lua_modules.achievements")
 local level_config = require("lua_modules.level_config")
 local meta_progression = require("lua_modules.meta_progression")
 local i18n = require("lua_modules.i18n")
+local classes = require("lua_modules.classes")
+local inventory_manager = require("lua_modules.inventory_manager")
+local strategic_campaign = require("lua_modules.strategic_campaign")
 
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
@@ -49,7 +52,7 @@ local function clear_match_entities(self)
 	self.crate_timer = 60.0
 end
 
-local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy)
+local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy, class_id)
 	local gy = terrain_grid.get_smooth_ground_y(x, 6.0, from_wy)
 	-- If initial x falls into water gap/chasm, find nearest solid ground
 	if gy < constants.WATER_LEVEL + 20 then
@@ -71,12 +74,17 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 	end
 
 	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
-	local pos = vmath.vector3(x, spawn_y, 0.1)
 	constants.log(">>> SPAWNING POTATO:", potato_id, "team:", team, "x:", x, "y:", spawn_y, "hp:", initial_hp)
 
+	-- Resolve class archetype and initialize its inventory
+	class_id = class_id or "recruit"
+	local c_def = classes.get(class_id)
+	inventory_manager.register_potato(potato_id, c_def.id)
+
 	local initial_facing = (team == constants.TEAM_BLUE) and 1 or -1
-	local potato_hp = initial_hp or 100
-	local potato_max_hp = max_hp or potato_hp
+	local potato_hp = initial_hp or c_def.stats.base_hp or 100
+	local potato_max_hp = max_hp or c_def.stats.max_hp or potato_hp
+	local pos = vmath.vector3(x, spawn_y, 0.1)
 
 	local url = factory.create("#potato_factory", pos, nil, {
 		team = team,
@@ -89,7 +97,12 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 	local record = {
 		id = potato_id,
 		team = team,
-		pos = vmath.vector3(pos.x, pos.y, 0.1),
+		class_id = c_def.id,
+		mass = c_def.stats.mass or 1.0,
+		walk_speed_mult = c_def.stats.walk_speed_mult or 1.0,
+		jump_mult = c_def.stats.jump_mult or 1.0,
+		statuses = {},
+		pos = vmath.vector3(x, spawn_y, 0.1),
 		vel = vmath.vector3(0, 0, 0),
 		hp = potato_hp,
 		max_hp = potato_max_hp,
@@ -101,6 +114,7 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 	}
 
 	msg.post(url, "set_facing", { facing = initial_facing })
+	msg.post(url, "set_class", { class_id = c_def.id })
 	msg.post(url, "set_weapon", { weapon_id = "grenade" })
 
 	-- Apply skin from lobby match configuration or player profile
@@ -146,9 +160,13 @@ local function start_game_match(self, mode, level, lobby_config)
 	local world_w = is_campaign and constants.WORLD_WIDTH or constants.PVP_WORLD_WIDTH
 	local grid_w = is_campaign and constants.TERRAIN_WIDTH or constants.PVP_TERRAIN_WIDTH
 
+	local is_defense = (config and config.battle_type == "defense")
+		or (lobby_config and lobby_config.battle_type == "defense")
+		or (strategic_campaign and strategic_campaign.active_battle_type == "defense")
+
 	-- Generate terrain grid synchronously first so spawn_potato uses the new level's terrain
 	terrain_grid.init(grid_w, constants.TERRAIN_HEIGHT, constants.TERRAIN_SCALE)
-	terrain_grid.generate(terrain_preset, level)
+	terrain_grid.generate(terrain_preset, level, is_defense)
 	msg.post("/terrain#terrain", "generate_terrain", {
 		preset = terrain_preset,
 		biome = biome,
@@ -156,7 +174,7 @@ local function start_game_match(self, mode, level, lobby_config)
 		already_generated = true
 	})
 
-	-- Spawn Blue Potatoes (up to 3 for 3v3 PvP)
+	-- Spawn Blue Potatoes (up to 3 for 3v3 PvP, placed on defensive heights if defending)
 	local blue_count = config.player_count or config.blue_count or 1
 	local left_min = 180
 	local left_max = is_campaign and 380 or 680
@@ -165,20 +183,39 @@ local function start_game_match(self, mode, level, lobby_config)
 	local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
 	local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55) or nil
 
-	for i = 1, blue_count do
-		local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 25
-		spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp, player_max_hp, from_wy)
+	if is_defense and terrain_grid.get_defense_spawn_points then
+		local def_pts = terrain_grid.get_defense_spawn_points(blue_count)
+		for i = 1, blue_count do
+			local pt = def_pts[i] or { x = left_min + (i - 0.5) * step_blue }
+			spawn_potato(self, pt.x, constants.TEAM_BLUE, i, player_hp, player_max_hp, from_wy)
+		end
+	else
+		for i = 1, blue_count do
+			local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 25
+			spawn_potato(self, x, constants.TEAM_BLUE, i, player_hp, player_max_hp, from_wy)
+		end
 	end
 
 	-- Spawn Red Potatoes using level configuration (enemy count & enemy HP, up to 3 for 3v3)
 	local red_count = config.enemy_count or config.red_count or 1
-	local right_min = is_campaign and 600 or 1240
-	local right_max = is_campaign and 820 or 1740
+	local right_min = is_campaign and 620 or 1240
+	local right_max = is_campaign and 840 or 1740
 	local step_red = (right_max - right_min) / math.max(1, red_count)
 	for i = 1, red_count do
 		local enemy_hp = level_config.get_enemy_hp(level, i)
 		local x = right_min + (i - 0.5) * step_red + (math.random() - 0.5) * 25
 		spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy)
+	end
+
+	-- Defensive Fortifications: Sandbag & Crate Barricades on the defensive rampart
+	if is_defense then
+		local parapet_x = 350
+		local p_gy = terrain_grid.get_smooth_ground_y(parapet_x, 4.0, from_wy)
+		if p_gy > constants.WATER_LEVEL + 20 then
+			local crate_pos = vmath.vector3(parapet_x, p_gy + 16, 0.15)
+			local c_url = factory.create("#crate_factory", crate_pos, nil, { weapon_id = hash("grenade"), ammo_count = 2 })
+			table.insert(self.spawned_crates, { id = c_url, url = c_url, x = parapet_x, y = crate_pos.y })
+		end
 	end
 
 	-- Spawn TNT Barrels on the battlefield (1-2 barrels in neutral center)
@@ -207,9 +244,14 @@ local function start_game_match(self, mode, level, lobby_config)
 
 	-- Update GUI visibility
 	msg.post("/gui_menu", "disable")
+	msg.post("/gui_campaign_map", "disable")
 	msg.post("/gui_game_over", "disable")
 	msg.post("/gui_hud", "enable")
-	msg.post("/gui_hud#gui", "match_started")
+	msg.post("/gui_hud#gui", "match_started", {
+		battle_type = is_defense and "defense" or "assault",
+		sector_name_ru = config.sector_name_ru or config.name,
+		sector_name_en = config.sector_name_en or config.name_en,
+	})
 end
 
 function init(self)
@@ -282,6 +324,11 @@ function init(self)
 			player_profile.add_points(ach_bonus)
 		end
 
+		local campaign_outcome = nil
+		if strategic_campaign and strategic_campaign.active_battle_sector_id then
+			campaign_outcome = strategic_campaign.resolve_battle(winner_team, total_pts)
+		end
+
 		local game_over_data = {
 			winner = winner_team,
 			points = total_pts,
@@ -291,6 +338,7 @@ function init(self)
 			hp_healed = hp_healed,
 			current_hp = current_hp,
 			next_hp = next_hp,
+			campaign_outcome = campaign_outcome,
 		}
 
 		if winner_team == constants.TEAM_BLUE then
@@ -332,6 +380,7 @@ function init(self)
 	camera_controller.reset(480, 270)
 	msg.post("/gui_hud", "disable")
 	msg.post("/gui_game_over", "disable")
+	msg.post("/gui_campaign_map", "disable")
 	msg.post("/gui_menu", "enable")
 	msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 end
@@ -363,8 +412,8 @@ function update(self, dt)
 			self.crate_timer = 60.0
 			local drop_x = math.random(180, constants.WORLD_WIDTH - 180)
 			local crate_type = (math.random() < 0.5) and hash("medkit") or hash("weapon")
-			local wpn_pool = { "bazooka", "shotgun", "rifle", "molotov", "burst", "holy_grenade", "drill", "pepper", "garlic", "beetle" }
-			local pick_wpn = hash(wpn_pool[math.random(1, #wpn_pool)])
+			local pickup = weapons.get_random_arena_pickup()
+			local pick_wpn = hash(pickup and pickup.id or "molotov")
 			local amt = (crate_type == hash("medkit")) and math.random(20, 50) or math.random(1, 3)
 
 			local c_pos = vmath.vector3(drop_x, constants.WORLD_HEIGHT - 18, 0.2)
@@ -431,7 +480,7 @@ function update(self, dt)
 	for _, p in ipairs(game_state.potatoes) do
 		if p.is_alive then
 			local was_grounded = p.is_grounded
-			local result = physics_sim.update_potato(p, dt, terrain_grid)
+			local result = physics_sim.update_potato(p, dt, terrain_grid, game_state.wind_vector)
 			if result == "water_splash" and p.url then
 				camera_controller.shake(4, 0.15)
 				msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
@@ -515,9 +564,9 @@ function update(self, dt)
 				local config = game_state.get_current_config()
 				local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
 				if game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP or bot_skill == "hard" then
-					self.bot_plan = bot_ai.plan_pvp_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+					self.bot_plan = bot_ai.plan_pvp_turn(bot, game_state.potatoes, terrain_grid, bot_skill, game_state.wind_vector)
 				else
-					self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+					self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill, game_state.wind_vector)
 				end
 				self.bot_phase = "move"
 				self.bot_move_steps_done = 0
@@ -597,7 +646,7 @@ function update(self, dt)
 						else
 							local config = game_state.get_current_config()
 							local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
-							self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill)
+							self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill, game_state.wind_vector)
 							if self.bot_plan then
 								self.bot_plan.movement = { dir = 0, steps = 0, should_jump = false }
 								game_state.select_weapon(self.bot_plan.weapon_id)
@@ -787,7 +836,26 @@ function on_message(self, message_id, message, sender)
 		msg.post("/aim_guide#aim_guide", "hide_aim")
 		msg.post("/gui_hud", "disable")
 		msg.post("/gui_game_over", "disable")
+		msg.post("/gui_campaign_map", "disable")
 		msg.post("/gui_menu", "enable")
+		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+		game_state.set_state(constants.STATE_MENU)
+
+	elseif message_id == hash("show_campaign_map") then
+		self.victory_celebration = false
+		self.pending_game_over_data = nil
+		clear_match_entities(self)
+		self.touch_move_dir = 0
+		self.touch_move_timer = 0
+		self.key_left_held = false
+		self.key_right_held = false
+		camera_controller.reset(480, 270)
+		msg.post("/aim_guide#aim_guide", "hide_aim")
+		msg.post("/gui_hud", "disable")
+		msg.post("/gui_game_over", "disable")
+		msg.post("/gui_menu", "disable")
+		msg.post("/gui_campaign_map", "enable")
+		msg.post("/gui_campaign_map#gui", "show")
 		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 		game_state.set_state(constants.STATE_MENU)
 

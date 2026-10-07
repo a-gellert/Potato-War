@@ -58,6 +58,122 @@ local function update_weapon_selection(self, selected_weapon_id)
 	end
 end
 
+local function update_wind_widget(self)
+	local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
+	local is_ru = (i18n.current_lang == "ru")
+	pcall(function()
+		local val_node = gui.get_node("wind_val")
+		local arrow_node = gui.get_node("wind_arrow")
+		local title_node = gui.get_node("wind_title")
+
+		gui.set_text(title_node, is_ru and "ВЕТЕР:" or "WIND:")
+
+		local spd = math.abs(cur_wind_x)
+		gui.set_text(val_node, tostring(spd) .. (is_ru and " м/с" or " m/s"))
+
+		if cur_wind_x > 3 then
+			gui.set_text(arrow_node, "──►")
+			if spd > 45 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.35, 0.20, 1.0))
+			elseif spd > 20 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+			else
+				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
+			end
+		elseif cur_wind_x < -3 then
+			gui.set_text(arrow_node, "◄──")
+			if spd > 45 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.35, 0.20, 1.0))
+			elseif spd > 20 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+			else
+				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
+			end
+		else
+			gui.set_text(arrow_node, "──•──")
+			gui.set_color(arrow_node, vmath.vector4(0.8, 0.8, 0.8, 1.0))
+		end
+	end)
+end
+
+local function update_phase_widget(self)
+	local is_ru = (i18n.current_lang == "ru")
+	pcall(function()
+		local badge_node = gui.get_node("phase_badge")
+		local text_node = gui.get_node("txt_battle_phase")
+
+		local b_type = self.battle_type or "assault"
+		local sec_name = self.sector_name or (is_ru and "Сектор" or "Sector")
+
+		if b_type == "defense" then
+			gui.set_color(badge_node, vmath.vector4(0.08, 0.16, 0.24, 0.92))
+			gui.set_color(text_node, vmath.vector4(0.20, 0.85, 1.0, 1.0))
+			gui.set_text(text_node, (is_ru and "🛡️ ОБОРОНА: " or "🛡️ DEFENSE: ") .. string.upper(sec_name))
+		else
+			gui.set_color(badge_node, vmath.vector4(0.18, 0.10, 0.10, 0.92))
+			gui.set_color(text_node, vmath.vector4(1.0, 0.80, 0.20, 1.0))
+			gui.set_text(text_node, (is_ru and "⚔️ ШТУРМ: " or "⚔️ ASSAULT: ") .. string.upper(sec_name))
+		end
+	end)
+end
+
+local function update_squad_widget(self)
+	local is_ru = (i18n.current_lang == "ru")
+	pcall(function()
+		local title_node = gui.get_node("squad_title")
+		gui.set_text(title_node, is_ru and "ОТРЯД СИНИХ" or "BLUE SQUAD")
+
+		local blue_spuds = {}
+		for _, p in ipairs(game_state.potatoes or {}) do
+			if p.team == constants.TEAM_BLUE then
+				table.insert(blue_spuds, p)
+			end
+		end
+
+		for i = 1, 4 do
+			local slot = gui.get_node("spud_slot_" .. i)
+			local name_node = gui.get_node("spud_name_" .. i)
+			local hp_bar = gui.get_node("spud_hp_bar_" .. i)
+			local hp_txt = gui.get_node("spud_hp_txt_" .. i)
+
+			local p = blue_spuds[i]
+			if p then
+				gui.set_enabled(slot, true)
+				local cls_label = p.class_name or (is_ru and "Боец" or "Spud")
+				gui.set_text(name_node, tostring(i) .. ". " .. cls_label)
+
+				local is_active = (p == game_state.active_potato and p.is_alive)
+				if is_active then
+					gui.set_color(slot, vmath.vector4(0.25, 0.22, 0.08, 0.95))
+					gui.set_color(name_node, vmath.vector4(1.0, 0.88, 0.25, 1.0))
+				else
+					gui.set_color(slot, vmath.vector4(0.12, 0.15, 0.20, 0.85))
+					gui.set_color(name_node, vmath.vector4(0.9, 0.9, 0.9, 1.0))
+				end
+
+				if p.is_alive and p.hp > 0 then
+					gui.set_text(hp_txt, tostring(p.hp))
+					local frac = math.max(0, math.min(1.0, p.hp / math.max(1, p.max_hp or 100)))
+					gui.set_size(hp_bar, vmath.vector3(60.0 * frac, 8.0, 0))
+					if frac > 0.5 then
+						gui.set_color(hp_bar, vmath.vector4(0.18, 0.80, 0.44, 1.0))
+					elseif frac > 0.25 then
+						gui.set_color(hp_bar, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+					else
+						gui.set_color(hp_bar, vmath.vector4(0.91, 0.30, 0.24, 1.0))
+					end
+				else
+					gui.set_text(hp_txt, "💀")
+					gui.set_size(hp_bar, vmath.vector3(0, 8.0, 0))
+					gui.set_color(name_node, vmath.vector4(0.45, 0.45, 0.45, 0.6))
+				end
+			else
+				gui.set_enabled(slot, false)
+			end
+		end
+	end)
+end
+
 local function update_hud_localization(self)
 	pcall(function()
 		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
@@ -463,30 +579,38 @@ function update(self, dt)
 			end)
 		end
 
-		-- 2. Update Turn Banner & check Turn 1 Tutorial Trigger
-		if game_state.active_team ~= self.last_team then
+		-- 2. Update Turn Banner & Tactical Widgets
+		local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
+		if game_state.active_team ~= self.last_team or self.last_wind_x ~= cur_wind_x then
 			self.last_team = game_state.active_team
+			self.last_wind_x = cur_wind_x
 
 			pcall(function()
 				local banner = gui.get_node("banner_text")
 				local bg = gui.get_node("banner_bg")
 
+				local base_text = ""
 				if game_state.active_team == constants.TEAM_BLUE then
-					gui.set_text(banner, i18n.t("turn_blue"))
+					base_text = i18n.t("turn_blue")
 					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
 				else
 					if game_state.mode == constants.MODE_PVP_BOTS then
-						gui.set_text(banner, i18n.t("turn_red_pvp_bot"))
+						base_text = i18n.t("turn_red_pvp_bot")
 					elseif game_state.mode == constants.MODE_QUICK_PVP then
-						gui.set_text(banner, i18n.t("turn_red_pvp"))
+						base_text = i18n.t("turn_red_pvp")
 					else
-						gui.set_text(banner, i18n.t("turn_red_bot"))
+						base_text = i18n.t("turn_red_bot")
 					end
 					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
 					hide_tutorial_hint(self)
 				end
+				gui.set_text(banner, base_text)
 			end)
 		end
+
+		update_wind_widget(self)
+		update_phase_widget(self)
+		update_squad_widget(self)
 
 		-- Animated tutorial hand: semi-transparent hand that presses and moves towards enemy over the active potato
 		local is_arena_1 = (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1) or (game_state.mode ~= constants.MODE_CAMPAIGN)
@@ -685,7 +809,13 @@ function on_message(self, message_id, message, sender)
 	if message_id == hash("match_started") then
 		self.tutorial_hand_done = false
 		self.tutorial_hand_timer = 0
+		self.battle_type = message and message.battle_type or "assault"
+		local is_ru = (i18n.current_lang == "ru")
+		self.sector_name = (message and ((is_ru and message.sector_name_ru) or message.sector_name_en or message.sector_name)) or (is_ru and "Сектор" or "Sector")
 		update_hud_localization(self)
+		update_phase_widget(self)
+		update_wind_widget(self)
+		update_squad_widget(self)
 		toggle_inventory(self, false)
 		update_inventory_ui(self)
 	elseif message_id == hash("toggle_inventory") then
@@ -725,14 +855,28 @@ function on_message(self, message_id, message, sender)
 			local amt = message.amount or 0
 			local is_heal = (message.is_heal == true)
 			local is_crit = (not is_heal) and (amt >= 45)
+			local label = message.label
 
-			local prefix = is_heal and "+" or "-"
-			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), prefix .. tostring(amt))
+			local text_str = ""
+			if label then
+				text_str = (amt > 0) and (label .. " -" .. tostring(amt)) or label
+			else
+				local prefix = is_heal and "+" or "-"
+				text_str = prefix .. tostring(amt)
+			end
+
+			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), text_str)
 			gui.set_font(txt_node, "system_font")
-			local scale = is_heal and 0.80 or (is_crit and 0.85 or 0.65)
+			local scale = is_heal and 0.80 or (is_crit and 0.85 or (label and 0.70 or 0.65))
 			gui.set_scale(txt_node, vmath.vector3(scale, scale, 1.0))
 			if is_heal then
 				gui.set_color(txt_node, vmath.vector4(0.18, 0.95, 0.35, 1.0)) -- Vibrant emerald green
+			elseif label and string.find(label, "ЯД") then
+				gui.set_color(txt_node, vmath.vector4(0.35, 1.0, 0.30, 1.0)) -- Poison green
+			elseif label and string.find(label, "ОЖОГ") then
+				gui.set_color(txt_node, vmath.vector4(1.0, 0.45, 0.15, 1.0)) -- Fire orange
+			elseif label and string.find(label, "КЛЕЙ") then
+				gui.set_color(txt_node, vmath.vector4(1.0, 0.90, 0.25, 1.0)) -- Honey yellow
 			elseif is_crit then
 				gui.set_color(txt_node, vmath.vector4(1.0, 0.22, 0.15, 1.0)) -- Crit red
 			else

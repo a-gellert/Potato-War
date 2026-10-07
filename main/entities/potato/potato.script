@@ -1,5 +1,7 @@
 -- main/entities/potato/potato.script
--- Controls potato visuals, health bar, weapon attachment, and states
+-- Controls potato visuals, health bar, weapon attachment, elemental statuses, and DoT effects
+
+local weapons = require("lua_modules.weapons")
 
 go.property("team", 1)
 go.property("potato_id", 1)
@@ -32,20 +34,66 @@ local function update_facing(self, facing)
 end
 
 local WEAPON_SPRITE_MAP = {
-	grenade = "grenade",
-	rifle = "skewer_rifle",
-	knife = "peeler",
-	molotov = "oil_bottle",
-	burst = "rifle",
-	bazooka = "masher_bazooka",
-	shotgun = "grater",
-	holy_grenade = "holy_spud",
-	beetle = "beetle_crate",
-	drill = "drill_missile",
-	pepper = "pepper_bomb",
-	garlic = "garlic_bomb",
+	grenade       = "grenade",
+	rifle         = "skewer_rifle",
+	knife         = "knife",
+	peeler        = "peeler",
+	molotov       = "oil_bottle",
+	burst         = "rifle",
+	bazooka       = "masher_bazooka",
+	shotgun       = "grater",
+	holy_grenade  = "holy_spud",
+	beetle        = "beetle_crate",
+	drill         = "drill_missile",
+	pepper        = "pepper_bomb",
+	garlic        = "garlic_bomb",
 	beetle_minion = "beetle_minion",
+	air_bomb      = "air_bomb",
 }
+
+local CLASS_SPRITE_MAP = {
+	recruit     = "potato_base",
+	assault     = "potato_assault",
+	assault_2   = "potato_assault",
+	sniper      = "potato_sniper",
+	sapper      = "potato_sapper",
+	sapper_2    = "potato_sapper",
+	commando    = "potato_sapper",
+	artillery   = "potato_artillery",
+	artillery_2 = "potato_artillery",
+	rocketeer   = "potato_artillery",
+	medic       = "potato_medic",
+	surgeon     = "potato_medic",
+	tank        = "potato_tank",
+}
+
+local function update_class_sprite(self)
+	local base_name = CLASS_SPRITE_MAP[self.class_id] or "potato_base"
+	local team_suffix = (self.team == 1) and "_blue" or "_red"
+	local anim_hash = hash(base_name .. team_suffix)
+	local ok = pcall(function()
+		sprite.play_flipbook("#sprite", anim_hash)
+	end)
+	if not ok then
+		pcall(function()
+			local fallback = (self.team == 1) and hash("potato_blue") or hash("potato_red")
+			sprite.play_flipbook("#sprite", fallback)
+		end)
+	end
+end
+
+local function has_active_status(self, st)
+	return self.statuses and self.statuses[st] and (self.statuses[st].duration or 0) > 0
+end
+
+local function clean_expired_statuses(self)
+	if not self.statuses then return end
+	for k, v in pairs(self.statuses) do
+		if not v or (v.duration or 0) <= 0 then
+			self.statuses[k] = nil
+		end
+	end
+end
 
 function init(self)
 	self.is_alive = (self.hp > 0)
@@ -53,10 +101,12 @@ function init(self)
 	self.hp_bar_timer = 0
 	self.alert_timer = 0
 	self.skin_tint = vmath.vector4(1, 1, 1, 1)
+	self.statuses = {} -- burning, poisoned, glued, concussed
+	self.class_id = "recruit"
 
-	-- Setup team appearance
-	local anim = (self.team == 1) and hash("potato_blue") or hash("potato_red")
-	sprite.play_flipbook("#sprite", anim)
+	-- Setup class & team appearance
+	update_class_sprite(self)
+
 
 	-- Apply initial facing
 	update_facing(self, self.facing or 1)
@@ -88,6 +138,31 @@ function update(self, dt)
 		go.set("#sprite", "scale", vmath.vector3(1.0 - s * 0.7, 1.0 + s, 1.0))
 	end
 
+	-- Visual representation of elemental status effects above / on the fighter
+	if self.is_alive then
+		if has_active_status(self, "burning") then
+			-- Fiery flame flicker & shudder
+			local flame = 0.35 * math.sin(self.breath_timer * 12.0)
+			go.set("#sprite", "tint", vmath.vector4(1.9 + flame, 0.65 - flame * 0.5, 0.25, 1.0))
+		elseif has_active_status(self, "poisoned") then
+			-- Sickly toxic glow
+			local tox = 0.25 * math.sin(self.breath_timer * 8.0)
+			go.set("#sprite", "tint", vmath.vector4(0.45, 1.75 + tox, 0.35, 1.0))
+		elseif has_active_status(self, "glued") then
+			-- Sticky thick amber/yellow coat
+			go.set("#sprite", "tint", vmath.vector4(1.4, 1.35, 0.35, 1.0))
+		elseif has_active_status(self, "concussed") then
+			-- Dizzy wobble / stun rotation
+			local wobble = math.sin(self.breath_timer * 10.0) * 0.12
+			go.set_rotation(vmath.quat_rotation_z(wobble))
+			go.set("#sprite", "tint", vmath.vector4(0.85, 0.85, 1.5, 1.0))
+		else
+			-- Normal skin tint
+			go.set_rotation(vmath.quat_rotation_z(0))
+			go.set("#sprite", "tint", self.skin_tint)
+		end
+	end
+
 	if self.hp_bar_timer > 0 then
 		self.hp_bar_timer = self.hp_bar_timer - dt
 		if self.hp_bar_timer <= 0 then
@@ -101,17 +176,126 @@ function update(self, dt)
 	end
 end
 
+-- Process Turn-Start DoT and Debuffs
+local function process_turn_start(self)
+	if not self.is_alive then return end
+
+	local p_pos = go.get_position()
+	local took_dot = false
+
+	-- 1. Burning DoT
+	if has_active_status(self, "burning") then
+		local burn_data = self.statuses.burning
+		local dmg = burn_data.power or 14
+		self.hp = math.max(0, self.hp - dmg)
+		update_hp_bar(self)
+		took_dot = true
+
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = p_pos.x,
+			y = p_pos.y + 16,
+			amount = dmg,
+			label = "🔥 ОЖОГ"
+		})
+
+		burn_data.duration = (burn_data.duration or 1) - 1
+		if burn_data.duration <= 0 then
+			self.statuses.burning = nil
+		end
+	end
+
+	-- 2. Poisoned DoT
+	if self.is_alive and has_active_status(self, "poisoned") then
+		local poison_data = self.statuses.poisoned
+		local dmg = poison_data.power or 10
+		self.hp = math.max(0, self.hp - dmg)
+		update_hp_bar(self)
+		took_dot = true
+
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = p_pos.x,
+			y = p_pos.y + 16,
+			amount = dmg,
+			label = "☠ ЯД"
+		})
+
+		poison_data.duration = (poison_data.duration or 1) - 1
+		if poison_data.duration <= 0 then
+			self.statuses.poisoned = nil
+		end
+	end
+
+	-- 3. Glued notification
+	if self.is_alive and has_active_status(self, "glued") then
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = p_pos.x,
+			y = p_pos.y + 24,
+			amount = 0,
+			label = "🍯 КЛЕЙ"
+		})
+	end
+
+	-- 4. Concussed notification
+	if self.is_alive and has_active_status(self, "concussed") then
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = p_pos.x,
+			y = p_pos.y + 24,
+			amount = 0,
+			label = "💫 ОГЛУШЕНИЕ"
+		})
+	end
+
+	if took_dot then
+		msg.post("#hp_bg", "enable")
+		msg.post("#hp_fill", "enable")
+		self.hp_bar_timer = 3.0
+
+		if self.hp <= 0 then
+			self.is_alive = false
+			sprite.play_flipbook("#sprite", hash("tombstone"))
+			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
+			go.set_rotation(vmath.quat_rotation_z(0))
+			msg.post("#reticle", "disable")
+			msg.post("#weapon_sprite", "disable")
+			msg.post("#hp_bg", "disable")
+			msg.post("#hp_fill", "disable")
+		end
+	end
+end
+
+-- Process Turn-End Debuffs & Expirations
+local function process_turn_end(self)
+	if not self.is_alive then return end
+
+	-- Decrement glued and concussed durations at end of turn
+	if has_active_status(self, "glued") then
+		self.statuses.glued.duration = self.statuses.glued.duration - 1
+		if self.statuses.glued.duration <= 0 then
+			self.statuses.glued = nil
+		end
+	end
+
+	if has_active_status(self, "concussed") then
+		self.statuses.concussed.duration = self.statuses.concussed.duration - 1
+		if self.statuses.concussed.duration <= 0 then
+			self.statuses.concussed = nil
+		end
+	end
+
+	clean_expired_statuses(self)
+end
+
 function on_message(self, message_id, message, sender)
 	if message_id == hash("alert_aimed") then
 		if self.is_alive and not self.is_active and self.alert_timer <= 0 then
 			self.alert_timer = 1.0
 			self.scale_anim_timer = 0.22
-			-- Quick nervous shudder animation
 			go.animate("#sprite", "scale.y", go.PLAYBACK_ONCE_PINGPONG, 0.80, go.EASING_INOUTSINE, 0.18)
 			go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(1.3, 0.7, 0.7, 1.0), go.EASING_OUTQUAD, 0.22, 0, function()
 				go.set("#sprite", "tint", self.skin_tint)
 			end)
 		end
+
 	elseif message_id == hash("set_active") then
 		self.is_active = message.active
 		if self.is_alive and self.is_active then
@@ -119,17 +303,23 @@ function on_message(self, message_id, message, sender)
 			msg.post("#hp_bg", "enable")
 			msg.post("#hp_fill", "enable")
 			msg.post("#weapon_sprite", "enable")
-			self.hp_bar_timer = 0 -- keep showing while active
+			self.hp_bar_timer = 0
 		else
 			msg.post("#reticle", "disable")
 			msg.post("#weapon_sprite", "disable")
-			self.hp_bar_timer = 2.0 -- fade out after 2 seconds
+			self.hp_bar_timer = 2.0
 		end
 
 	elseif message_id == hash("set_skin") then
 		if message.tint then
 			self.skin_tint = vmath.vector4(message.tint[1] or 1, message.tint[2] or 1, message.tint[3] or 1, message.tint[4] or 1)
 			go.set("#sprite", "tint", self.skin_tint)
+		end
+
+	elseif message_id == hash("set_class") then
+		if message.class_id then
+			self.class_id = message.class_id
+			update_class_sprite(self)
 		end
 
 	elseif message_id == hash("set_weapon") then
@@ -152,60 +342,111 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("apply_heal") then
-		if not self.is_alive then
-			return
-		end
+		if not self.is_alive then return end
 
 		local heal_amt = message.amount or 0
 		self.hp = math.min(self.max_hp, self.hp + heal_amt)
 		update_hp_bar(self)
 
-		-- Show HP bar
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
 
-		-- Green pulse animation on sprite
 		go.set("#sprite", "tint", vmath.vector4(0.3, 2.0, 0.5, 1.0))
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_FORWARD, self.skin_tint, go.EASING_OUTQUAD, 0.4)
+
+	elseif message_id == hash("apply_status") then
+		if not self.is_alive then return end
+
+		local st_type = message.status or "burning"
+		local duration = message.duration or 2
+		local power = message.power or 10
+		local p_pos = go.get_position()
+
+		-- Check elemental combo with existing statuses
+		local combo = weapons.eval_combo(self.statuses, st_type)
+		if combo then
+			-- Combo triggered!
+			if combo.bonus_damage and combo.bonus_damage > 0 then
+				self.hp = math.max(0, self.hp - combo.bonus_damage)
+				update_hp_bar(self)
+				msg.post("/gui_hud#gui", "show_damage", {
+					x = p_pos.x,
+					y = p_pos.y + 24,
+					amount = combo.bonus_damage,
+					label = "💥 " .. combo.name
+				})
+			end
+			if combo.duration_bonus then
+				duration = duration + combo.duration_bonus
+			end
+		else
+			-- Show status overhead icon/label
+			local label_map = {
+				burning   = "🔥 ОЖОГ!",
+				poisoned  = "☠ ЯД!",
+				glued     = "🍯 КЛЕЙ!",
+				concussed = "💫 ОГЛУШЕН!",
+			}
+			msg.post("/gui_hud#gui", "show_damage", {
+				x = p_pos.x,
+				y = p_pos.y + 20,
+				amount = 0,
+				label = label_map[st_type] or st_type
+			})
+		end
+
+		self.statuses[st_type] = {
+			duration = duration,
+			power = power,
+		}
+
+	elseif message_id == hash("remove_status") then
+		if message.status and self.statuses then
+			self.statuses[message.status] = nil
+		end
+
+	elseif message_id == hash("clear_statuses") then
+		self.statuses = {}
+		go.set_rotation(vmath.quat_rotation_z(0))
+		go.set("#sprite", "tint", self.skin_tint)
+
+	elseif message_id == hash("on_turn_start") then
+		process_turn_start(self)
+
+	elseif message_id == hash("on_turn_end") then
+		process_turn_end(self)
 
 	elseif message_id == hash("on_jump") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.25
-			-- Vertical stretch on jump
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.76, 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
 		end
 
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.28
-			-- Juicy bounce squash on landing
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.32, 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
 
 	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.18
-			-- Weapon kick recoil and hide weapon from hands as it has been fired/thrown
 			msg.post("#weapon_sprite", "disable")
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.18, 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
 
 	elseif message_id == hash("apply_damage") then
-		if not self.is_alive then
-			return
-		end
+		if not self.is_alive then return end
 
 		self.hp = math.max(0, self.hp - (message.damage or 0))
 		update_hp_bar(self)
 
-		-- Show HP bar on damage
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
 		self.scale_anim_timer = 0.22
 
-		-- Flash white on hit and juicy impact squash
 		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.30, 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
 			go.set("#sprite", "tint", self.skin_tint)
@@ -213,9 +454,9 @@ function on_message(self, message_id, message, sender)
 
 		if self.hp <= 0 then
 			self.is_alive = false
-			-- Turn into potato grave/tombstone
 			sprite.play_flipbook("#sprite", hash("tombstone"))
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
+			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
 			msg.post("#weapon_sprite", "disable")
 			msg.post("#hp_bg", "disable")
@@ -229,7 +470,6 @@ function on_message(self, message_id, message, sender)
 		msg.post("#weapon_sprite", "disable")
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
-		-- Sinks into water
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
 			go.delete()
 		end)

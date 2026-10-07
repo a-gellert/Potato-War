@@ -121,15 +121,27 @@ M.data = {
 		starting_weapon = 0,
 		hp_regen = 0,
 	},
+	campaign_map = nil,
+	campaign_turn = 1,
+	campaign_stats = {
+		battles_won = 0,
+		battles_lost = 0,
+		sectors_conquered = 0,
+		sectors_lost = 0,
+		counterattacks_repelled = 0,
+	},
 }
 
 local function get_save_path()
-	return sys.get_save_file("potato_war", "profile_save")
+	if sys and sys.get_save_file then
+		return sys.get_save_file("potato_war", "profile_save")
+	end
+	return nil
 end
 
 function M.load()
 	local path = get_save_path()
-	local loaded = sys.load(path)
+	local loaded = (path and sys and sys.load) and sys.load(path) or nil
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
 		M.data.language = loaded.language
 		M.data.points = loaded.points or 0
@@ -138,6 +150,15 @@ function M.load()
 		M.data.campaign_hp = loaded.campaign_hp or 100
 		M.data.campaign_max_hp = loaded.campaign_max_hp or 100
 		M.data.meta_upgrades = loaded.meta_upgrades or { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
+		M.data.campaign_map = loaded.campaign_map
+		M.data.campaign_turn = loaded.campaign_turn or 1
+		M.data.campaign_stats = loaded.campaign_stats or {
+			battles_won = 0,
+			battles_lost = 0,
+			sectors_conquered = 0,
+			sectors_lost = 0,
+			counterattacks_repelled = 0,
+		}
 	else
 		M.data.language = nil
 		M.data.points = 0
@@ -146,13 +167,24 @@ function M.load()
 		M.data.campaign_hp = 100
 		M.data.campaign_max_hp = 100
 		M.data.meta_upgrades = { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
+		M.data.campaign_map = nil
+		M.data.campaign_turn = 1
+		M.data.campaign_stats = {
+			battles_won = 0,
+			battles_lost = 0,
+			sectors_conquered = 0,
+			sectors_lost = 0,
+			counterattacks_repelled = 0,
+		}
 	end
 	return M.data
 end
 
 function M.save()
 	local path = get_save_path()
-	sys.save(path, M.data)
+	if path and sys and sys.save then
+		sys.save(path, M.data)
+	end
 end
 
 function M.get_language()
@@ -260,6 +292,52 @@ function M.get_next_skin_progress()
 		end
 	end
 	return nil
+end
+
+function M.get_campaign_map()
+	return M.data.campaign_map
+end
+
+function M.set_campaign_map(map_data)
+	M.data.campaign_map = map_data
+	M.save()
+end
+
+function M.get_campaign_turn()
+	return M.data.campaign_turn or 1
+end
+
+function M.set_campaign_turn(turn)
+	M.data.campaign_turn = turn or 1
+	M.save()
+end
+
+function M.get_campaign_stats()
+	return M.data.campaign_stats or {
+		battles_won = 0,
+		battles_lost = 0,
+		sectors_conquered = 0,
+		sectors_lost = 0,
+		counterattacks_repelled = 0,
+	}
+end
+
+function M.set_campaign_stats(stats)
+	M.data.campaign_stats = stats
+	M.save()
+end
+
+function M.reset_campaign_progress()
+	M.data.campaign_map = nil
+	M.data.campaign_turn = 1
+	M.data.campaign_stats = {
+		battles_won = 0,
+		battles_lost = 0,
+		sectors_conquered = 0,
+		sectors_lost = 0,
+		counterattacks_repelled = 0,
+	}
+	M.save()
 end
 
 -- Initialize by loading on startup

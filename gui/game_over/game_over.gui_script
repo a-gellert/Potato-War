@@ -1,11 +1,14 @@
 -- gui/game_over/game_over.gui_script
--- Displays round victory with points & Next button, and defeat options
+-- Military Debriefing & Combat Results Controller for Potato War
 
 local constants = require("lua_modules.constants")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
 local player_profile = require("lua_modules.player_profile")
 local i18n = require("lua_modules.i18n")
+local strategic_campaign = require("lua_modules.strategic_campaign")
+local territory_map = require("lua_modules.territory_map")
+local sound_manager = require("lua_modules.sound_manager")
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
@@ -27,11 +30,7 @@ function init(self)
 
 	self.ui:button("btn_next_level", function()
 		msg.post(".", "disable")
-		local next_lvl = game_state.campaign_level + 1
-		msg.post("/main#main", "start_match", {
-			mode = constants.MODE_CAMPAIGN,
-			level = next_lvl
-		})
+		msg.post("/main#main", "show_campaign_map")
 	end)
 
 	self.ui:button("btn_shop", function()
@@ -62,11 +61,24 @@ function on_message(self, message_id, message, sender)
 
 		local winner = message.winner
 		local points = message.points or 0
+		local ach_list = message.achievements or {}
+		local ach_bonus = message.achieve_bonus or 0
+		local outcome = message.campaign_outcome or strategic_campaign.last_battle_outcome
+		local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN) or (outcome ~= nil)
+		local is_ru = (i18n.current_lang == "ru")
 
 		local title_node = gui.get_node("title_text")
 		local sub_node = gui.get_node("subtitle_text")
 		local reward_bg = gui.get_node("reward_bg")
 		local reward_txt = gui.get_node("reward_text")
+		local achieve_node = gui.get_node("achieve_text")
+		local stats_bg = gui.get_node("debrief_stats_bg")
+		local stats_title = gui.get_node("txt_stats_title")
+		local stats_detail = gui.get_node("txt_stats_detail")
+		local stats_front = gui.get_node("txt_stats_front")
+		local skin_bg = gui.get_node("skin_progress_bg")
+		local skin_txt = gui.get_node("skin_progress_txt")
+		local minimap_bg = gui.get_node("minimap_bg")
 		local rematch_btn = gui.get_node("btn_rematch")
 		local rematch_txt = gui.get_node("txt_rematch")
 		local next_btn = gui.get_node("btn_next_level")
@@ -77,18 +89,185 @@ function on_message(self, message_id, message, sender)
 		local shop_txt = gui.get_node("txt_shop")
 		local menu_btn = gui.get_node("btn_menu")
 		local menu_txt = gui.get_node("txt_menu")
+		local header_badge = gui.get_node("header_badge")
 
-		local is_ru = (i18n.current_lang == "ru")
+		gui.set_text(header_badge, i18n.t("debrief_title"))
+		gui.set_text(shop_txt, i18n.t("btn_shop"))
+		gui.set_text(menu_txt, i18n.t("btn_menu"))
 
-		local achieve_node = gui.get_node("achieve_text")
-		local ach_list = message.achievements or {}
-		local ach_bonus = message.achieve_bonus or 0
+		-- 1. Frontline Minimap & Layout Setup
+		if is_campaign then
+			gui.set_enabled(minimap_bg, true)
+			gui.set_position(reward_bg, vmath.vector3(295, 338, 0))
+			gui.set_position(stats_bg, vmath.vector3(295, 238, 0))
+			gui.set_position(skin_bg, vmath.vector3(295, 166, 0))
 
-		-- 1. Skin Progress bar
+			-- Update 18 sector indicators
+			for sid = 1, 18 do
+				local sec = territory_map.get_sector(sid)
+				local dot_node = gui.get_node("m_sec_" .. sid)
+				local is_blue = (sec and sec.owner == "blue")
+				gui.set_color(dot_node, is_blue and vmath.vector4(0.20, 0.62, 0.98, 1.0) or vmath.vector4(0.92, 0.26, 0.24, 1.0))
+			end
+
+			-- Highlight contested sector
+			local active_sid = outcome and outcome.sector_id
+			local pulse_node = gui.get_node("m_sec_pulse")
+			if active_sid and active_sid >= 1 and active_sid <= 18 then
+				local m_dot = gui.get_node("m_sec_" .. active_sid)
+				local dot_pos = gui.get_position(m_dot)
+				gui.set_position(pulse_node, dot_pos)
+				gui.set_enabled(pulse_node, true)
+				gui.set_scale(pulse_node, vmath.vector3(0.7, 0.7, 1))
+				gui.animate(pulse_node, "scale", vmath.vector3(2.2, 2.2, 1), gui.EASING_OUTQUAD, 0.85, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+
+				if outcome.is_victory and outcome.battle_type == "assault" then
+					-- Start Red, then animated flip to Blue
+					gui.set_color(m_dot, vmath.vector4(0.92, 0.26, 0.24, 1.0))
+					gui.animate(m_dot, "scale", vmath.vector3(1.8, 1.8, 1), gui.EASING_OUTBACK, 0.55, 0.2, function()
+						gui.set_color(m_dot, vmath.vector4(0.20, 0.62, 0.98, 1.0))
+						gui.animate(m_dot, "scale", vmath.vector3(1.0, 1.0, 1), gui.EASING_INOUTQUAD, 0.25)
+					end)
+				elseif (not outcome.is_victory) and outcome.battle_type == "defense" then
+					-- Start Blue, then animated flip to Red
+					gui.set_color(m_dot, vmath.vector4(0.20, 0.62, 0.98, 1.0))
+					gui.animate(m_dot, "scale", vmath.vector3(1.8, 1.8, 1), gui.EASING_OUTBACK, 0.55, 0.2, function()
+						gui.set_color(m_dot, vmath.vector4(0.92, 0.26, 0.24, 1.0))
+						gui.animate(m_dot, "scale", vmath.vector3(1.0, 1.0, 1), gui.EASING_INOUTQUAD, 0.25)
+					end)
+				else
+					gui.animate(m_dot, "scale", vmath.vector3(1.4, 1.4, 1), gui.EASING_OUTQUAD, 0.35, 0, function()
+						gui.animate(m_dot, "scale", vmath.vector3(1.0, 1.0, 1), gui.EASING_INQUAD, 0.2)
+					end)
+				end
+			else
+				gui.set_enabled(pulse_node, false)
+			end
+
+			-- Territory control counters
+			local blue_secs = territory_map.get_sectors_by_owner("blue")
+			local blue_cnt = #blue_secs
+			local red_cnt = 18 - blue_cnt
+			local pct = math.floor((blue_cnt / 18) * 100)
+			gui.set_text(gui.get_node("minimap_legend"), string.format(is_ru and "🔵 СИНИЕ: %d    🔴 КРАСНЫЕ: %d" or "🔵 BLUE: %d    🔴 RED: %d", blue_cnt, red_cnt))
+			gui.set_size(gui.get_node("minimap_bar_fill"), vmath.vector3(math.floor(250 * (blue_cnt / 18)), 8, 0))
+			gui.set_text(gui.get_node("minimap_status_lbl"), string.format(i18n.t("frontline_control_fmt"), blue_cnt, pct))
+		else
+			gui.set_enabled(minimap_bg, false)
+			gui.set_position(reward_bg, vmath.vector3(480, 338, 0))
+			gui.set_position(stats_bg, vmath.vector3(480, 238, 0))
+			gui.set_position(skin_bg, vmath.vector3(480, 166, 0))
+		end
+
+		-- 2. Sound Cues
+		if winner == constants.TEAM_BLUE then
+			if outcome and outcome.battle_type == "assault" then
+				sound_manager.play_flag_captured()
+				timer.delay(0.35, false, function() sound_manager.play_victory_march() end)
+			else
+				sound_manager.play_victory_march()
+			end
+		elseif winner == constants.TEAM_RED then
+			if outcome and outcome.battle_type == "defense" then
+				sound_manager.play_siren()
+				timer.delay(0.40, false, function() sound_manager.play_defeat_accent() end)
+			else
+				sound_manager.play_defeat_accent()
+			end
+		end
+
+		-- 3. Title, Subtitle & Outcome Description
+		if winner == constants.TEAM_BLUE then
+			gui.set_color(title_node, vmath.vector4(0.18, 0.82, 0.44, 1.0))
+			if is_campaign and outcome then
+				if outcome.campaign_won then
+					gui.set_text(title_node, i18n.t("debrief_campaign_won"))
+					gui.set_text(sub_node, i18n.t("debrief_sub_camp_won"))
+				elseif outcome.battle_type == "assault" then
+					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					gui.set_text(title_node, string.format(i18n.t("debrief_sector_liberated"), sname:upper()))
+					gui.set_text(sub_node, i18n.t("debrief_sub_liberated"))
+				else
+					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					gui.set_text(title_node, string.format(i18n.t("debrief_attack_repelled"), sname:upper()))
+					gui.set_text(sub_node, i18n.t("debrief_sub_repelled"))
+				end
+			else
+				gui.set_text(title_node, i18n.t("victory"))
+				gui.set_text(sub_node, i18n.t("sub_victory"))
+			end
+		elseif winner == constants.TEAM_RED then
+			gui.set_color(title_node, vmath.vector4(0.92, 0.28, 0.24, 1.0))
+			if is_campaign and outcome then
+				if outcome.campaign_lost then
+					gui.set_text(title_node, i18n.t("debrief_campaign_lost"))
+					gui.set_text(sub_node, i18n.t("debrief_sub_camp_lost"))
+				elseif outcome.battle_type == "defense" then
+					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					gui.set_text(title_node, string.format(i18n.t("debrief_sector_lost"), sname:upper()))
+					gui.set_text(sub_node, i18n.t("debrief_sub_lost"))
+				else
+					gui.set_text(title_node, i18n.t("debrief_assault_failed"))
+					gui.set_text(sub_node, i18n.t("debrief_sub_failed"))
+				end
+			else
+				gui.set_text(title_node, i18n.t("defeat"))
+				gui.set_text(sub_node, i18n.t("sub_defeat"))
+			end
+		else
+			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+			gui.set_text(title_node, i18n.t("draw"))
+			gui.set_text(sub_node, i18n.t("sub_draw"))
+		end
+
+		-- 4. Debrief Stats Box
+		gui.set_text(stats_title, i18n.t("debrief_combat_report"))
+		if is_campaign and outcome then
+			local sec = outcome.sector_id and territory_map.get_sector(outcome.sector_id)
+			local def_lvl = sec and sec.defense_level or 1
+			local stars = (def_lvl == 3 and "★★★" or (def_lvl == 2 and "★★☆" or "★☆☆"))
+			local inc = sec and sec.income or 25
+			local sname = is_ru and (outcome.sector_name_ru or "Сектор") or (outcome.sector_name_en or "Sector")
+			if outcome.is_victory then
+				gui.set_text(stats_detail, is_ru and ("Сектор: " .. sname .. " • Гарнизон противника разбит") or ("Sector: " .. sname .. " • Enemy garrison crushed"))
+				gui.set_text(stats_front, is_ru and ("Укрепления рубежа: " .. stars .. " • Доход базы: +" .. inc .. "🥔/ход") or ("Fortifications: " .. stars .. " • Base income: +" .. inc .. "🥔/turn"))
+			else
+				gui.set_text(stats_detail, is_ru and ("Сектор: " .. sname .. " • Наш отряд понес потери") or ("Sector: " .. sname .. " • Squad sustained casualties"))
+				gui.set_text(stats_front, is_ru and ("Статус рубежа: " .. stars .. " • Под контролем противника") or ("Sector status: " .. stars .. " • Held by enemy"))
+			end
+		else
+			gui.set_text(stats_detail, is_ru and "Бой завершен. Результаты занесены в архив." or "Combat finished. Records archived.")
+			gui.set_text(stats_front, is_ru and "Готовность к следующему раунду 100%" or "Ready for next battle 100%")
+		end
+
+		-- 5. Rewards and Achievements
+		if winner == constants.TEAM_BLUE then
+			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
+			if ach_bonus > 0 then
+				total_str = total_str .. (is_ru and (" (Бонус +" .. tostring(ach_bonus) .. ")") or (" (Bonus +" .. tostring(ach_bonus) .. ")"))
+			end
+			gui.set_text(reward_txt, total_str)
+
+			if #ach_list > 0 then
+				local badges_str = ""
+				for idx, a in ipairs(ach_list) do
+					local separator = (idx > 1) and " • " or ""
+					badges_str = badges_str .. separator .. (a.icon or "🏆") .. " " .. (a.title or "") .. " (+" .. tostring(a.points) .. ")"
+				end
+				gui.set_text(achieve_node, badges_str)
+			else
+				gui.set_text(achieve_node, is_ru and "Совет: Уничтожьте врага без урона или за 1 выстрел для бонуса!" or "Tip: Win with 0 damage or in 1 shot for bonus!")
+			end
+			gui.set_enabled(reward_bg, true)
+		else
+			gui.set_text(reward_txt, "+0 " .. (is_ru and "ОЧКОВ" or "POINTS"))
+			gui.set_text(achieve_node, is_ru and "Враг оказался сильнее. Перегруппируйтесь!" or "Enemy was stronger. Regroup your forces!")
+			gui.set_enabled(reward_bg, true)
+		end
+
+		-- 6. Skin Progress
 		pcall(function()
 			local prog = player_profile.get_next_skin_progress()
-			local skin_bg = gui.get_node("skin_progress_bg")
-			local skin_txt = gui.get_node("skin_progress_txt")
 			if prog and prog.skin then
 				gui.set_enabled(skin_bg, true)
 				local skin_name = is_ru and (prog.skin.name_ru or prog.skin.name) or (prog.skin.name_en or prog.skin.name)
@@ -108,116 +287,57 @@ function on_message(self, message_id, message, sender)
 			end
 		end)
 
-		gui.set_text(shop_txt, i18n.t("btn_shop"))
-		gui.set_text(revive_txt, i18n.t("btn_revive"))
-		gui.set_text(menu_txt, i18n.t("btn_menu"))
+		-- 7. Action Buttons
+		if is_campaign then
+			gui.set_text(next_txt, i18n.t("btn_return_hq"))
+			gui.set_enabled(next_btn, true)
+			gui.set_enabled(next_txt, true)
+			gui.set_position(next_btn, vmath.vector3(480, 95, 0))
 
-		local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
-
-		if winner == constants.TEAM_BLUE then
-			-- VICTORY
-			gui.set_text(title_node, i18n.t("victory"))
-			gui.set_color(title_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			if is_pvp then
-				gui.set_text(sub_node, i18n.t("sub_victory"))
-			else
-				gui.set_text(sub_node, is_ru and "Раунд выигран!" or "Round won!")
-			end
-
-			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
-			if ach_bonus > 0 then
-				total_str = total_str .. (is_ru and (" (Бонус +" .. tostring(ach_bonus) .. ")") or (" (Bonus +" .. tostring(ach_bonus) .. ")"))
-			end
-			gui.set_text(reward_txt, total_str)
-
-			if #ach_list > 0 then
-				local badges_str = ""
-				for idx, a in ipairs(ach_list) do
-					local separator = (idx > 1) and " • " or ""
-					badges_str = badges_str .. separator .. (a.icon or "🏆") .. " " .. (a.title or "") .. " (+" .. tostring(a.points) .. ")"
-				end
-				gui.set_text(achieve_node, badges_str)
-				gui.set_enabled(achieve_node, true)
-			else
-				gui.set_text(achieve_node, is_ru and "Совет: Уничтожьте врага без урона или за 1 выстрел для бонуса!" or "Tip: Win with 0 damage or in 1 shot for bonus!")
-				gui.set_enabled(achieve_node, true)
-			end
-
-			if is_pvp then
-				gui.set_text(rematch_txt, i18n.t("btn_play_again"))
-				gui.set_enabled(rematch_btn, true)
-				gui.set_enabled(rematch_txt, true)
-				gui.set_position(rematch_btn, vmath.vector3(380, 92, 0))
-
-				gui.set_enabled(next_btn, false)
-				gui.set_enabled(next_txt, false)
-			else
-				gui.set_text(next_txt, i18n.t("btn_next_level"))
-				gui.set_enabled(next_btn, true)
-				gui.set_enabled(next_txt, true)
-				gui.set_enabled(rematch_btn, false)
-				gui.set_enabled(rematch_txt, false)
-			end
-
-			gui.set_enabled(reward_bg, true)
-			gui.set_enabled(reward_txt, true)
 			gui.set_enabled(revive_btn, false)
 			gui.set_enabled(revive_txt, false)
 
-			gui.set_enabled(shop_btn, true)
-			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
-			gui.set_enabled(menu_btn, true)
+			gui.set_text(rematch_txt, is_ru and "ПОВТОРИТЬ 🔄" or "RETRY 🔄")
+			gui.set_enabled(rematch_btn, true)
+			gui.set_enabled(rematch_txt, true)
+		else
+			if winner == constants.TEAM_BLUE then
+				gui.set_text(next_txt, i18n.t("btn_next_level"))
+				gui.set_enabled(next_btn, true)
+				gui.set_enabled(next_txt, true)
+				gui.set_position(next_btn, vmath.vector3(480, 95, 0))
 
-		elseif winner == constants.TEAM_RED then
-			-- DEFEAT
-			gui.set_text(title_node, i18n.t("defeat"))
-			gui.set_color(title_node, vmath.vector4(0.91, 0.30, 0.24, 1.0))
-			if is_pvp then
-				gui.set_text(sub_node, i18n.t("sub_defeat"))
-				gui.set_text(rematch_txt, i18n.t("btn_play_again"))
 				gui.set_enabled(revive_btn, false)
 				gui.set_enabled(revive_txt, false)
-				gui.set_position(rematch_btn, vmath.vector3(380, 92, 0))
-			else
-				gui.set_text(sub_node, is_ru and "Ваша картошка уничтожена." or "Your potato was destroyed.")
-				gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+				gui.set_enabled(rematch_btn, false)
+				gui.set_enabled(rematch_txt, false)
+			elseif winner == constants.TEAM_RED then
+				gui.set_enabled(next_btn, false)
+				gui.set_enabled(next_txt, false)
+
+				gui.set_text(revive_txt, i18n.t("btn_revive"))
 				gui.set_enabled(revive_btn, true)
 				gui.set_enabled(revive_txt, true)
+				gui.set_position(revive_btn, vmath.vector3(480, 95, 0))
+
+				gui.set_text(rematch_txt, i18n.t("btn_rematch"))
+				gui.set_enabled(rematch_btn, true)
+				gui.set_enabled(rematch_txt, true)
+			else
+				gui.set_enabled(next_btn, false)
+				gui.set_enabled(next_txt, false)
+				gui.set_enabled(revive_btn, false)
+				gui.set_enabled(revive_txt, false)
+
+				gui.set_text(rematch_txt, i18n.t("btn_play_again"))
+				gui.set_enabled(rematch_btn, true)
+				gui.set_enabled(rematch_txt, true)
 			end
-
-			gui.set_enabled(reward_bg, false)
-			gui.set_enabled(reward_txt, false)
-			gui.set_enabled(achieve_node, false)
-			gui.set_enabled(next_btn, false)
-			gui.set_enabled(next_txt, false)
-
-			gui.set_enabled(rematch_btn, true)
-			gui.set_enabled(rematch_txt, true)
-
-			gui.set_enabled(shop_btn, true)
-			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
-
-			gui.set_enabled(menu_btn, true)
-		else
-			-- DRAW
-			gui.set_text(title_node, i18n.t("draw"))
-			gui.set_color(title_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-			gui.set_text(sub_node, i18n.t("sub_draw"))
-			gui.set_text(rematch_txt, is_pvp and i18n.t("btn_play_again") or i18n.t("btn_rematch"))
-
-			gui.set_enabled(reward_bg, false)
-			gui.set_enabled(reward_txt, false)
-			gui.set_enabled(achieve_node, false)
-			gui.set_enabled(next_btn, false)
-			gui.set_enabled(next_txt, false)
-
-			gui.set_enabled(revive_btn, false)
-			gui.set_enabled(rematch_btn, true)
-			gui.set_enabled(rematch_txt, true)
-			gui.set_enabled(shop_btn, true)
-			gui.set_position(shop_btn, vmath.vector3(580, 92, 0))
-			gui.set_enabled(menu_btn, true)
 		end
+
+		gui.set_enabled(shop_btn, true)
+		gui.set_enabled(shop_txt, true)
+		gui.set_enabled(menu_btn, true)
+		gui.set_enabled(menu_txt, true)
 	end
 end
-

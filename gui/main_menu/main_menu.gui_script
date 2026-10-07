@@ -87,8 +87,10 @@ local function update_localized_menu(self)
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local battle_lbl = is_ru and "⚔️ БОЙ" or "⚔️ BATTLE"
-		gui.set_text(gui.get_node("txt_campaign"), battle_lbl)
+		local camp_lbl = is_ru and "★ КАРТА ВОЙНЫ (КАМПАНИЯ)" or "★ WAR MAP (CAMPAIGN)"
+		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
+		local skirmish_lbl = is_ru and "⚔️ БЫСТРЫЙ БОЙ (ЛОББИ)" or "⚔️ QUICK SKIRMISH (LOBBY)"
+		gui.set_text(gui.get_node("txt_quick_pvp"), skirmish_lbl)
 		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_upgrades"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
 		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
@@ -269,48 +271,59 @@ function init(self)
 
 	-- Setup main menu buttons
 	pcall(function()
-		-- Main BATTLE button ("БОЙ")
+		-- Main CAMPAIGN MAP button
 		local camp_btn = gui.get_node("btn_campaign")
 		gui.set_enabled(camp_btn, true)
-		gui.set_position(camp_btn, vmath.vector3(480, 290, 0))
-		gui.set_size(camp_btn, vmath.vector3(440, 60, 0))
+		gui.set_position(camp_btn, vmath.vector3(480, 312, 0))
+		gui.set_size(camp_btn, vmath.vector3(440, 52, 0))
 		gui.set_color(camp_btn, vmath.vector4(0.18, 0.76, 0.38, 1.0)) -- Hero Green!
 
-		-- PvP vs Bots (3v3) button - HIDDEN
+		-- Skirmish Lobby button
 		local pvp_btn = gui.get_node("btn_quick_pvp")
-		gui.set_enabled(pvp_btn, false)
+		gui.set_enabled(pvp_btn, true)
+		gui.set_position(pvp_btn, vmath.vector3(480, 252, 0))
+		gui.set_size(pvp_btn, vmath.vector3(350, 40, 0))
+		gui.set_color(pvp_btn, vmath.vector4(0.20, 0.48, 0.78, 1.0))
 
 		-- Upgrades button
 		local upg_btn = gui.get_node("btn_quick_bot")
 		gui.set_enabled(upg_btn, true)
-		gui.set_position(upg_btn, vmath.vector3(480, 212, 0))
-		gui.set_size(upg_btn, vmath.vector3(290, 38, 0))
+		gui.set_position(upg_btn, vmath.vector3(480, 198, 0))
+		gui.set_size(upg_btn, vmath.vector3(350, 38, 0))
 		gui.set_color(upg_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
 
 		-- Shop button
 		local shop_btn = gui.get_node("btn_shop")
 		gui.set_enabled(shop_btn, true)
-		gui.set_position(shop_btn, vmath.vector3(480, 160, 0))
-		gui.set_size(shop_btn, vmath.vector3(290, 38, 0))
+		gui.set_position(shop_btn, vmath.vector3(480, 148, 0))
+		gui.set_size(shop_btn, vmath.vector3(350, 38, 0))
 		gui.set_color(shop_btn, vmath.vector4(0.18, 0.50, 0.82, 1.0))
 
 		-- Controls hint below
 		local hint = gui.get_node("hint_text")
-		gui.set_position(hint, vmath.vector3(480, 95, 0))
+		gui.set_position(hint, vmath.vector3(480, 85, 0))
 	end)
 
 	local function set_background_menu_enabled(enabled)
 		pcall(function()
 			gui.set_enabled(gui.get_node("btn_campaign"), enabled)
-			gui.set_enabled(gui.get_node("btn_quick_pvp"), false)
+			gui.set_enabled(gui.get_node("btn_quick_pvp"), enabled)
 			gui.set_enabled(gui.get_node("btn_quick_bot"), enabled)
 			gui.set_enabled(gui.get_node("btn_shop"), enabled)
 			gui.set_enabled(gui.get_node("btn_lang"), enabled)
 		end)
 	end
 
-	-- BATTLE button (Opens Lobby)
+	-- CAMPAIGN MAP button (Opens Global Island Campaign Map)
 	self.ui:button("btn_campaign", function()
+		sound_manager.play_click()
+		msg.post(".", "disable")
+		msg.post("/gui_campaign_map", "enable")
+		msg.post("/gui_campaign_map#gui", "show")
+	end)
+
+	-- SKIRMISH LOBBY button (Opens Quick Match Setup)
+	self.ui:button("btn_quick_pvp", function()
 		set_background_menu_enabled(false)
 		pcall(function()
 			gui.set_enabled(gui.get_node("lobby_overlay"), true)

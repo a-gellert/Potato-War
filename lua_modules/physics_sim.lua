@@ -1,27 +1,55 @@
 -- lua_modules/physics_sim.lua
--- Discrete Physics, Ballistics, and Collision Simulation for Potato War (with multi-level & ceiling support)
+-- Discrete Physics, Ballistics, Dynamic Wind, and Elemental States for Potato War
+-- Includes slope movement, ceiling collision, wind drift, and status effect integration.
 
 local constants = require("lua_modules.constants")
 
 local M = {}
 
--- Update a potato unit's physics
-function M.update_potato(p, dt, terrain)
+-- Helper to extract x/y components from table or vmath vector
+local function get_wind_components(wind_vector)
+	if not wind_vector then
+		return 0, 0
+	end
+	local wx = wind_vector.x or 0
+	local wy = wind_vector.y or 0
+	return wx, wy
+end
+
+-- Update a potato unit's physics (accounting for mass, wind drift, and statuses)
+function M.update_potato(p, dt, terrain, wind_vector)
 	if not p.is_alive then
 		return
 	end
 
 	local check_radius = constants.POTATO_RADIUS
+	local mass = math.max(0.5, p.mass or 1.0)
+	local is_glued = (p.statuses and p.statuses.glued and p.statuses.glued.duration > 0) or p.is_glued
+	local is_concussed = (p.statuses and p.statuses.concussed and p.statuses.concussed.duration > 0) or p.is_concussed
 
 	-- Gravity and friction
 	if not p.is_grounded then
 		p.vel.y = math.max(-constants.MAX_FALL_SPEED, p.vel.y - constants.GRAVITY * dt)
-		p.vel.x = p.vel.x * math.max(0, 1.0 - 2.0 * dt) -- air drag
+		local drag_rate = is_glued and 4.0 or 2.0
+		p.vel.x = p.vel.x * math.max(0, 1.0 - drag_rate * dt) -- air drag
+
+		-- Dynamic horizontal wind drift on airborne potatoes based on mass
+		local wx, _ = get_wind_components(wind_vector)
+		if math.abs(wx) > 0.01 then
+			local wind_accel = (wx * 22.0) / mass
+			p.vel.x = p.vel.x + wind_accel * dt
+		end
 	else
-		-- Strong ground friction to prevent micro-sliding
-		p.vel.x = p.vel.x * math.max(0, 1.0 - 16.0 * dt)
+		-- Ground friction (stronger if glued)
+		local ground_fric = is_glued and 28.0 or 16.0
+		p.vel.x = p.vel.x * math.max(0, 1.0 - ground_fric * dt)
 		if math.abs(p.vel.x) < 2.0 then
 			p.vel.x = 0
+		end
+
+		-- Concussed wobble on ground
+		if is_concussed and math.abs(p.vel.x) > 1.0 then
+			p.vel.x = p.vel.x + (math.random() - 0.5) * 6.0
 		end
 	end
 
@@ -124,26 +152,39 @@ function M.update_potato(p, dt, terrain)
 	p.pos.y = new_y
 end
 
--- Walk potato along terrain slope
+-- Walk potato along terrain slope (accounts for glued, concussed, and class speed multipliers)
 function M.walk_potato(p, dir, dt, terrain)
 	if not p.is_alive then
 		return
 	end
 
 	p.facing = dir
+
+	-- Status modifiers
+	local is_glued = (p.statuses and p.statuses.glued and p.statuses.glued.duration > 0) or p.is_glued
+	local is_concussed = (p.statuses and p.statuses.concussed and p.statuses.concussed.duration > 0) or p.is_concussed
+	local speed_mult = p.walk_speed_mult or 1.0
+
+	if is_glued then
+		speed_mult = speed_mult * 0.40 -- Cut speed by 60%
+	end
+	if is_concussed then
+		speed_mult = speed_mult * 0.80 -- Cut speed by 20%
+	end
+
+	local base_speed = constants.POTATO_WALK_SPEED * speed_mult
+
 	if not p.is_grounded then
 		-- Air control while jumping
-		p.vel.x = dir * constants.POTATO_WALK_SPEED * 0.85
+		p.vel.x = dir * base_speed * 0.85
 		return
 	end
 
 	local radius = constants.POTATO_RADIUS
-	local speed = constants.POTATO_WALK_SPEED
 	local MAX_CLIMB_SLOPE = 1.05 -- ~46 degrees (standard Worms max walkable slope)
 	local MAX_STEP_UP = 3.5      -- small voxel step-up limit (curbs, jagged pixels)
 
 	-- 1. Wall collision check at body level
-	-- If solid rock is directly in front of the potato at waist or chest height, stop
 	local front_check_x = p.pos.x + dir * (radius * 0.75)
 	if terrain.is_solid(front_check_x, p.pos.y) or terrain.is_solid(front_check_x, p.pos.y + 4.0) then
 		p.vel.x = 0
@@ -152,28 +193,23 @@ function M.walk_potato(p, dir, dt, terrain)
 
 	-- 2. Measure ground height under current position and ahead
 	local curr_gy = terrain.get_smooth_ground_y(p.pos.x, 4.0, p.pos.y + 8.0)
-
-	-- Look ahead to evaluate slope of the terrain
 	local look_ahead = 6.0
 	local ahead_x = p.pos.x + dir * look_ahead
 	local ahead_gy = terrain.get_smooth_ground_y(ahead_x, 4.0, p.pos.y + 8.0)
 	local ahead_diff = ahead_gy - curr_gy
 
-	-- If going uphill, check whether the incline is too steep
 	if ahead_diff > MAX_STEP_UP then
 		local slope = ahead_diff / look_ahead
 		if slope > MAX_CLIMB_SLOPE then
-			-- Too steep to walk up (mountain/cliff/wall) - must jump!
 			p.vel.x = 0
 			return
 		end
 	end
 
 	-- 3. Calculate movement speed along surface
-	-- Walking along an incline should maintain surface speed, not teleport vertically
 	local slope_angle = math.atan2(math.max(0, ahead_diff), look_ahead)
-	local speed_mult = math.max(0.75, 1.0 - 0.25 * math.sin(slope_angle))
-	local move_speed = speed * speed_mult
+	local slope_speed_mult = math.max(0.75, 1.0 - 0.25 * math.sin(slope_angle))
+	local move_speed = base_speed * slope_speed_mult
 
 	local ds = move_speed * dt
 	local step_x = dir * ds * math.cos(slope_angle)
@@ -201,7 +237,7 @@ function M.walk_potato(p, dir, dt, terrain)
 	if (curr_gy - target_gy) > 8.0 then
 		p.pos.x = target_x
 		p.is_grounded = false
-		p.vel.x = dir * speed * 0.75
+		p.vel.x = dir * base_speed * 0.75
 		p.vel.y = -10.0
 		return
 	end
@@ -211,23 +247,27 @@ function M.walk_potato(p, dir, dt, terrain)
 	p.pos.y = target_gy + radius
 end
 
--- Jump potato
+-- Jump potato (glued status heavily dampens or blocks jumps)
 function M.jump_potato(p, allow_midair_count)
 	allow_midair_count = allow_midair_count or 1
 	if p.is_grounded then
 		p.air_jumps = 0
 	end
+
+	local is_glued = (p.statuses and p.statuses.glued and p.statuses.glued.duration > 0) or p.is_glued
+	local jump_mult = (p.jump_mult or 1.0) * (is_glued and 0.40 or 1.0)
+
 	if p.is_alive and (p.is_grounded or (p.air_jumps or 0) < allow_midair_count) then
 		p.air_jumps = (p.air_jumps or 0) + 1
-		p.vel.y = constants.POTATO_JUMP_IMPULSE
-		p.vel.x = p.facing * 40.0
+		p.vel.y = constants.POTATO_JUMP_IMPULSE * jump_mult
+		p.vel.x = p.facing * (40.0 * (is_glued and 0.5 or 1.0))
 		p.is_grounded = false
 		return true
 	end
 	return false
 end
 
--- Apply explosive blast to a potato
+-- Apply explosive blast to a potato (mass dampens knockback)
 function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damage)
 	if not p.is_alive then
 		return 0
@@ -250,8 +290,11 @@ function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damag
 		dir_x = dir_x / n_len
 		dir_y = dir_y / n_len
 
-		p.vel.x = p.vel.x + dir_x * blast_force * factor
-		p.vel.y = p.vel.y + dir_y * blast_force * factor
+		local mass = math.max(0.5, p.mass or 1.0)
+		local eff_force = (blast_force * factor) / mass
+
+		p.vel.x = p.vel.x + dir_x * eff_force
+		p.vel.y = p.vel.y + dir_y * eff_force
 		p.is_grounded = false
 
 		p.hp = math.max(0, p.hp - dmg)
@@ -292,22 +335,21 @@ local function check_segment_circle(x0, y0, x1, y1, cx, cy, radius)
 	return false
 end
 
--- Update projectile physics and collisions
-function M.update_projectile(proj, dt, terrain, potatoes)
+-- Update projectile physics, collisions, and dynamic wind
+function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 	if not proj.is_active then
 		return "inactive"
 	end
 
 	proj.fuse_timer = proj.fuse_timer - dt
 
-	-- Fuse timeout check (e.g. Grenade or Holy Grenade)
+	-- Fuse timeout check
 	if proj.fuse_timer <= 0 then
 		return "explode", proj.pos.x, proj.pos.y
 	end
 
 	-- If projectile is resting on ground
 	if proj.is_resting then
-		-- Check collision with potatoes while resting
 		for _, p in ipairs(potatoes) do
 			if p.is_alive and (proj.owner_id == nil or p.id ~= proj.owner_id or proj.fuse_timer < proj.weapon.fuse_time - 0.2) then
 				local pdx = proj.pos.x - p.pos.x
@@ -331,6 +373,12 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 		end
 	end
 
+	-- Dynamic Wind force application
+	local wind_sens = proj.weapon.wind_sensitivity or 1.0
+	local wx, wy = get_wind_components(wind_vector or proj.wind_vector)
+	proj.vel.x = proj.vel.x + wx * wind_sens * dt
+	proj.vel.y = proj.vel.y + wy * wind_sens * dt
+
 	-- Gravity
 	local grav = constants.GRAVITY * (proj.weapon.gravity_mult or 1.0)
 	proj.vel.y = proj.vel.y - grav * dt
@@ -346,7 +394,7 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 		return "water", next_x, constants.WATER_LEVEL
 	end
 
-	-- 1. Check continuous segment collision with all living potatoes (anti-tunneling)
+	-- 1. Check continuous segment collision with living potatoes
 	local hit_potato = nil
 	local closest_potato_dist = 999999
 	local potato_hx, potato_hy = 0, 0
@@ -367,12 +415,10 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 	local terrain_hit, thx, thy, nx, ny = terrain.raycast(x0, y0, next_x, next_y)
 	local terrain_dist = terrain_hit and math.sqrt((thx - x0) * (thx - x0) + (thy - y0) * (thy - y0)) or 999999
 
-	-- If potato was hit before terrain:
 	if hit_potato and closest_potato_dist <= terrain_dist then
 		return "explode", potato_hx, potato_hy, hit_potato
 	end
 
-	-- Otherwise, if terrain was hit:
 	if terrain_hit then
 		if proj.weapon.on_hit == "drill" and not proj.is_drilling then
 			proj.is_drilling = true
@@ -383,7 +429,6 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 				local dir_y = proj.vel.y / speed
 				local final_x = thx + dir_x * drill_dist
 				local final_y = thy + dir_y * drill_dist
-				-- Carve tunnel through terrain
 				if terrain and terrain.carve_circle then
 					terrain.carve_circle(thx + dir_x * 15, thy + dir_y * 15, 10)
 					terrain.carve_circle(thx + dir_x * 35, thy + dir_y * 35, 11)
@@ -395,7 +440,6 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 			end
 			return "explode", thx, thy
 		elseif proj.weapon.bounciness and proj.weapon.bounciness > 0.1 then
-			-- Bounce (Grenade / Holy Grenade)
 			local dot = proj.vel.x * nx + proj.vel.y * ny
 			if dot < 0 then
 				proj.vel.x = (proj.vel.x - (1.0 + proj.weapon.bounciness) * dot * nx) * proj.weapon.friction
@@ -407,7 +451,6 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 			proj.bounces = (proj.bounces or 0) + 1
 
 			local speed = math.sqrt(proj.vel.x * proj.vel.x + proj.vel.y * proj.vel.y)
-			-- Rest condition: low speed and landing on upward-facing ground
 			if (speed < 35.0 and ny > 0.35) or (speed < 15.0) then
 				proj.is_resting = true
 				proj.vel.x = 0
@@ -417,7 +460,6 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 			end
 			return "bounce", thx, thy
 		else
-			-- Explode on impact (Rifle / Rocket / Burst / Shotgun / Molotov / Beetle)
 			return "explode", thx, thy
 		end
 	end
@@ -427,8 +469,8 @@ function M.update_projectile(proj, dt, terrain, potatoes)
 	return "flying", next_x, next_y
 end
 
--- Calculate ballistic trajectory points for Angry Birds slingshot guide
-function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain, max_points)
+-- Calculate ballistic trajectory points with dynamic wind support
+function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain, max_points, wind_vector)
 	max_points = max_points or 18
 	local points = {}
 	local curr_x = start_x
@@ -437,9 +479,13 @@ function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain,
 	local vy = vel_y
 	local dt = 0.045
 	local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
+	local wind_sens = weapon.wind_sensitivity or 1.0
+	local wx, wy = get_wind_components(wind_vector)
 
 	for i = 1, max_points do
-		vy = vy - grav * dt
+		vx = vx + wx * wind_sens * dt
+		vy = vy - grav * dt + wy * wind_sens * dt
+
 		local nx = curr_x + vx * dt
 		local ny = curr_y + vy * dt
 
@@ -462,8 +508,8 @@ function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain,
 	return points
 end
 
--- Full simulated shot trajectory and impact point prediction for Bot AI
-function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potatoes, owner_id)
+-- Full simulated shot trajectory with wind prediction for Bot AI
+function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potatoes, owner_id, wind_vector)
 	potatoes = potatoes or {}
 	local curr_x = start_x
 	local curr_y = start_y
@@ -471,6 +517,8 @@ function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potato
 	local vy = vel_y
 	local dt = 0.035
 	local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
+	local wind_sens = weapon.wind_sensitivity or 1.0
+	local wx, wy = get_wind_components(wind_vector)
 	local fuse_timer = weapon.fuse_time or 3.0
 	local max_steps = math.ceil(math.min(3.5, fuse_timer + 0.5) / dt)
 	local bounciness = weapon.bounciness or 0
@@ -500,7 +548,9 @@ function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potato
 			local gy = terrain.get_smooth_ground_y(curr_x, 3.0, curr_y + 6.0)
 			curr_y = gy + 4.0
 		else
-			vy = vy - grav * dt
+			vx = vx + wx * wind_sens * dt
+			vy = vy - grav * dt + wy * wind_sens * dt
+
 			local next_x = curr_x + vx * dt
 			local next_y = curr_y + vy * dt
 

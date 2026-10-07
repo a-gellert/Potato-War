@@ -23,7 +23,7 @@ local function hide_guide(self)
 end
 
 local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
-	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS)
+	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS, game_state.wind_vector)
 
 	for i = 1, MAX_DOTS do
 		local dot_url = self.dots[i]

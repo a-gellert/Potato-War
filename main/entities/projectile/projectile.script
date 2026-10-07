@@ -54,6 +54,20 @@ local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 		msg.post(p.url, "apply_damage", { damage = dmg })
 		msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
 
+		if self.weapon.status_effect and p.is_alive then
+			msg.post(p.url, "apply_status", {
+				status = self.weapon.status_effect.type,
+				duration = self.weapon.status_effect.duration,
+				power = self.weapon.status_effect.power,
+			})
+			if p.statuses then
+				p.statuses[self.weapon.status_effect.type] = {
+					duration = self.weapon.status_effect.duration,
+					power = self.weapon.status_effect.power,
+				}
+			end
+		end
+
 		if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
 			local triggered = achievements.on_player_hit_enemy(dist, was_full_hp, dmg, is_kill)
 			for _, ach in ipairs(triggered) do
@@ -184,7 +198,7 @@ function update(self, dt)
 		return
 	end
 
-	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes)
+	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
 
 	-- Update camera tracking to follow this projectile
 	camera_controller.follow(self.pos.x, self.pos.y)

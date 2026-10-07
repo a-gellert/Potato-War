@@ -25,72 +25,126 @@ nodes {
   texture: "game/white_pixel"
   id: "overlay"
   inherit_alpha: true
-  alpha: 0.88
+  alpha: 0.92
 }
 nodes {
   position {
     x: 480.0
-    y: 380.0
+    y: 502.0
   }
   scale {
-    x: 1.8
-    y: 1.8
+    x: 0.52
+    y: 0.52
   }
   size {
-    x: 350.0
-    y: 40.0
+    x: 600.0
+    y: 26.0
+  }
+  color {
+    x: 0.4
+    y: 0.85
+    z: 1
+  }
+  type: TYPE_TEXT
+  text: "★ ВОЕННАЯ СВОДКА ГЕНШТАБА ★"
+  font: "system_font"
+  id: "header_badge"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 440.0
+  }
+  size {
+    x: 740.0
+    y: 64.0
+  }
+  color {
+    x: 0.1
+    y: 0.16
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "debrief_banner"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 11.0
+  }
+  scale {
+    x: 0.85
+    y: 0.85
+  }
+  size {
+    x: 680.0
+    y: 36.0
   }
   color {
     x: 0.18
-    y: 0.80
+    y: 0.82
     z: 0.44
   }
   type: TYPE_TEXT
-  text: "\320\237\320\236\320\221\320\225\320\224\320\220!"
+  text: "СЕКТОР ОСВОБОЖДЕН!"
   font: "system_font"
   id: "title_text"
+  parent: "debrief_banner"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 330.0
+    x: 0.0
+    y: -15.0
   }
   scale {
-    x: 0.65
-    y: 0.65
+    x: 0.45
+    y: 0.45
   }
   size {
-    x: 450.0
-    y: 30.0
+    x: 720.0
+    y: 28.0
   }
   color {
     x: 0.85
-    y: 0.88
-    z: 0.9
+    y: 0.9
+    z: 0.95
   }
   type: TYPE_TEXT
-  text: "\320\222\321\200\320\260\320\266\320\265\321\201\320\272\320\270\320\265 \320\261\320\276\321\202\321\213 \320\277\320\276\320\262\320\265\321\200\320\266\320\265\320\275\321\213!"
+  text: "Флаг Синих поднят над освобожденным сектором."
   font: "system_font"
   id: "subtitle_text"
+  parent: "debrief_banner"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 265.0
+    x: 295.0
+    y: 338.0
   }
   size {
-    x: 460.0
+    x: 390.0
     y: 72.0
   }
   color {
-    x: 0.12
-    y: 0.18
+    x: 0.11
+    y: 0.17
     z: 0.25
   }
   type: TYPE_BOX
@@ -103,7 +157,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.9
+  alpha: 0.92
 }
 nodes {
   position {
@@ -115,16 +169,16 @@ nodes {
     y: 0.65
   }
   size {
-    x: 480.0
+    x: 440.0
     y: 32.0
   }
   color {
-    x: 1.0
+    x: 1
     y: 0.85
     z: 0.2
   }
   type: TYPE_TEXT
-  text: "+150 \320\236\320\247\320\232\320\236\320\222"
+  text: "+150 ОЧКОВ"
   font: "system_font"
   id: "reward_text"
   parent: "reward_bg"
@@ -138,12 +192,12 @@ nodes {
     y: -14.0
   }
   scale {
-    x: 0.44
-    y: 0.44
+    x: 0.42
+    y: 0.42
   }
   size {
-    x: 720.0
-    y: 28.0
+    x: 640.0
+    y: 26.0
   }
   color {
     x: 0.35
@@ -161,17 +215,124 @@ nodes {
 }
 nodes {
   position {
-    x: 480.0
-    y: 202.0
+    x: 295.0
+    y: 238.0
   }
   size {
-    x: 440.0
-    y: 26.0
+    x: 390.0
+    y: 92.0
   }
   color {
     x: 0.08
-    y: 0.12
-    z: 0.18
+    y: 0.13
+    z: 0.2
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "debrief_stats_bg"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 27.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 500.0
+    y: 26.0
+  }
+  color {
+    x: 1
+    y: 0.82
+    z: 0.28
+  }
+  type: TYPE_TEXT
+  text: "★ БОЕВОЕ ДОНЕСЕНИЕ ★"
+  font: "system_font"
+  id: "txt_stats_title"
+  parent: "debrief_stats_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 4.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 620.0
+    y: 28.0
+  }
+  color {
+    x: 0.9
+    y: 0.94
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  text: "Сектор: Бухта Высадки • Гарнизон разбит"
+  font: "system_font"
+  id: "txt_stats_detail"
+  parent: "debrief_stats_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -21.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 620.0
+    y: 28.0
+  }
+  color {
+    x: 0.45
+    y: 0.88
+    z: 0.95
+  }
+  type: TYPE_TEXT
+  text: "Укрепления: ★★☆ • Доход: +25🪙/ход"
+  font: "system_font"
+  id: "txt_stats_front"
+  parent: "debrief_stats_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 295.0
+    y: 166.0
+  }
+  size {
+    x: 390.0
+    y: 26.0
+  }
+  color {
+    x: 0.07
+    y: 0.11
+    z: 0.17
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -191,20 +352,20 @@ nodes {
     y: 0.0
   }
   scale {
-    x: 0.44
-    y: 0.44
+    x: 0.4
+    y: 0.4
   }
   size {
-    x: 700.0
-    y: 26.0
+    x: 680.0
+    y: 24.0
   }
   color {
-    x: 1.0
+    x: 1
     y: 0.85
     z: 0.25
   }
   type: TYPE_TEXT
-  text: "\360\237\251\231 180 / 250 \320\264\320\276 \321\201\320\272\320\270\320\275\320\260 \320\235\320\230\320\235\320\224\320\226\320\227"
+  text: "🩑 180 / 250 до скина НИНДЗЯ"
   font: "system_font"
   id: "skin_progress_txt"
   parent: "skin_progress_bg"
@@ -214,16 +375,592 @@ nodes {
 }
 nodes {
   position {
-    x: 480.0
-    y: 150.0
+    x: 675.0
+    y: 252.0
   }
   size {
-    x: 280.0
-    y: 48.0
+    x: 310.0
+    y: 244.0
+  }
+  color {
+    x: 0.08
+    y: 0.13
+    z: 0.2
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "minimap_bg"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.96
+}
+nodes {
+  position {
+    x: 0.0
+    y: 100.0
+  }
+  scale {
+    x: 0.44
+    y: 0.44
+  }
+  size {
+    x: 420.0
+    y: 26.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  text: "КАРТА ЛИНИИ ФРОНТА"
+  font: "system_font"
+  id: "minimap_header"
+  parent: "minimap_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 81.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 460.0
+    y: 24.0
+  }
+  color {
+    x: 0.7
+    y: 0.8
+    z: 0.9
+  }
+  type: TYPE_TEXT
+  text: "🔵 СИНИЕ: 11    🔴 КРАСНЫЕ: 7"
+  font: "system_font"
+  id: "minimap_legend"
+  parent: "minimap_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -8.0
+  }
+  size {
+    x: 276.0
+    y: 140.0
+  }
+  color {
+    x: 0.04
+    y: 0.07
+    z: 0.12
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "minimap_radar_bg"
+  parent: "minimap_bg"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
+  size {
+    x: 24.0
+    y: 24.0
+  }
+  color {
+    x: 1
+    y: 0.9
+    z: 0.3
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_pulse"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 0.65
+}
+nodes {
+  position {
+    x: -120.0
+    y: -56.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_1"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -109.0
+    y: -15.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_2"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -66.0
+    y: -36.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_3"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -120.0
+    y: 24.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_4"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -55.0
+    y: -65.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_5"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -12.0
+    y: -42.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_6"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -19.0
+    y: -1.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_7"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 35.0
+    y: -22.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_8"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 30.0
+    y: -61.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_9"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -71.0
+    y: 35.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_10"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -26.0
+    y: 60.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_11"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 28.0
+    y: 35.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_12"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -15.0
+    y: 30.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_13"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 73.0
+    y: 17.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_14"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 77.0
+    y: -29.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_15"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 116.0
+    y: -47.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_16"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 120.0
+    y: 1.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_17"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 118.0
+    y: 53.0
+  }
+  size {
+    x: 14.0
+    y: 14.0
+  }
+  color {
+    x: 0.2
+    y: 0.62
+    z: 0.98
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "m_sec_18"
+  parent: "minimap_radar_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 0.0
+    y: -90.0
+  }
+  size {
+    x: 250.0
+    y: 8.0
+  }
+  color {
+    x: 0.85
+    y: 0.25
+    z: 0.22
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "minimap_bar_bg"
+  parent: "minimap_bg"
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: -125.0
+    y: -90.0
+  }
+  size {
+    x: 150.0
+    y: 8.0
   }
   color {
     x: 0.18
-    y: 0.8
+    y: 0.62
+    z: 0.95
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "minimap_bar_fill"
+  parent: "minimap_bg"
+  pivot: PIVOT_W
+  inherit_alpha: true
+  alpha: 1
+}
+nodes {
+  position {
+    x: 0.0
+    y: -106.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 460.0
+    y: 24.0
+  }
+  color {
+    x: 0.35
+    y: 0.9
+    z: 0.6
+  }
+  type: TYPE_TEXT
+  text: "Контроль острова: 11 / 18 (61%)"
+  font: "system_font"
+  id: "minimap_status_lbl"
+  parent: "minimap_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 95.0
+  }
+  size {
+    x: 340.0
+    y: 44.0
+  }
+  color {
+    x: 0.18
+    y: 0.78
     z: 0.44
   }
   type: TYPE_BOX
@@ -236,18 +973,28 @@ nodes {
     z: 4.0
     w: 4.0
   }
+  alpha: 1
 }
 nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
   scale {
-    x: 0.65
-    y: 0.65
+    x: 0.58
+    y: 0.58
   }
   size {
-    x: 240.0
+    x: 320.0
     y: 30.0
   }
+  color {
+    x: 1
+    y: 1
+    z: 1
+  }
   type: TYPE_TEXT
-  text: "\320\224\320\220\320\233\320\225\320\225"
+  text: "ВЕРНУТЬСЯ В ШТАБ 🎖️"
   font: "system_font"
   id: "txt_next_level"
   parent: "btn_next_level"
@@ -258,11 +1005,11 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 150.0
+    y: 95.0
   }
   size {
     x: 320.0
-    y: 48.0
+    y: 44.0
   }
   color {
     x: 0.16
@@ -279,18 +1026,28 @@ nodes {
     z: 4.0
     w: 4.0
   }
+  alpha: 1
 }
 nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
   scale {
-    x: 0.58
-    y: 0.58
+    x: 0.56
+    y: 0.56
   }
   size {
     x: 320.0
     y: 30.0
   }
+  color {
+    x: 1
+    y: 1
+    z: 1
+  }
   type: TYPE_TEXT
-  text: "\320\222\320\236\320\241\320\232\320\240\320\225\320\241\320\230\320\242\320\254\320\241\320\257 (+50 HP)"
+  text: "ВОСКРЕСИТЬСЯ (+50 HP)"
   font: "system_font"
   id: "txt_revive"
   parent: "btn_revive"
@@ -300,12 +1057,12 @@ nodes {
 }
 nodes {
   position {
-    x: 380.0
-    y: 92.0
+    x: 310.0
+    y: 42.0
   }
   size {
     x: 190.0
-    y: 40.0
+    y: 38.0
   }
   color {
     x: 0.78
@@ -322,18 +1079,28 @@ nodes {
     z: 4.0
     w: 4.0
   }
+  alpha: 1
 }
 nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
   scale {
-    x: 0.48
-    y: 0.48
+    x: 0.46
+    y: 0.46
   }
   size {
     x: 220.0
-    y: 30.0
+    y: 28.0
+  }
+  color {
+    x: 1
+    y: 1
+    z: 1
   }
   type: TYPE_TEXT
-  text: "\320\235\320\220\320\247\320\220\320\242\320\254 \320\227\320\220\320\235\320\236\320\222\320\236"
+  text: "ПЕРЕИГРАТЬ 🔄"
   font: "system_font"
   id: "txt_rematch"
   parent: "btn_rematch"
@@ -343,12 +1110,12 @@ nodes {
 }
 nodes {
   position {
-    x: 580.0
-    y: 92.0
+    x: 510.0
+    y: 42.0
   }
   size {
-    x: 190.0
-    y: 40.0
+    x: 170.0
+    y: 38.0
   }
   color {
     x: 0.88
@@ -365,18 +1132,28 @@ nodes {
     z: 4.0
     w: 4.0
   }
+  alpha: 1
 }
 nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
   scale {
-    x: 0.48
-    y: 0.48
+    x: 0.46
+    y: 0.46
   }
   size {
-    x: 220.0
-    y: 30.0
+    x: 200.0
+    y: 28.0
+  }
+  color {
+    x: 1
+    y: 1
+    z: 1
   }
   type: TYPE_TEXT
-  text: "\320\234\320\220\320\223\320\220\320\227\320\230\320\235 \360\237\233\215\357\270\217"
+  text: "МАГАЗИН 🛒"
   font: "system_font"
   id: "txt_shop"
   parent: "btn_shop"
@@ -386,12 +1163,12 @@ nodes {
 }
 nodes {
   position {
-    x: 480.0
-    y: 40.0
+    x: 685.0
+    y: 42.0
   }
   size {
-    x: 220.0
-    y: 34.0
+    x: 150.0
+    y: 38.0
   }
   color {
     x: 0.32
@@ -408,18 +1185,28 @@ nodes {
     z: 4.0
     w: 4.0
   }
+  alpha: 1
 }
 nodes {
+  position {
+    x: 0.0
+    y: 0.0
+  }
   scale {
-    x: 0.48
-    y: 0.48
+    x: 0.46
+    y: 0.46
   }
   size {
-    x: 220.0
-    y: 30.0
+    x: 180.0
+    y: 28.0
+  }
+  color {
+    x: 1
+    y: 1
+    z: 1
   }
   type: TYPE_TEXT
-  text: "\320\223\320\233\320\220\320\222\320\235\320\236\320\225 \320\234\320\225\320\235\320\256"
+  text: "В МЕНЮ 🏠"
   font: "system_font"
   id: "txt_menu"
   parent: "btn_menu"
