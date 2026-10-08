@@ -8,13 +8,13 @@ M.SCREEN_WIDTH = 960
 M.SCREEN_HEIGHT = 540
 M.WORLD_WIDTH = 1920 -- Expanded 1920 world width for full camera tracking
 M.PVP_WORLD_WIDTH = 1920
-M.WORLD_HEIGHT = 540
+M.WORLD_HEIGHT = 960 -- Expanded 960 world height for true Worms Armageddon vertical gameplay!
 M.WATER_LEVEL = 28
 
 -- Terrain Grid Configuration
-M.TERRAIN_WIDTH = 960 -- Expanded grid width
+M.TERRAIN_WIDTH = 960 -- Expanded grid width (960 * 2.0 = 1920 world width)
 M.PVP_TERRAIN_WIDTH = 960
-M.TERRAIN_HEIGHT = 270
+M.TERRAIN_HEIGHT = 480 -- Expanded grid height (480 * 2.0 = 960 world height)
 M.TERRAIN_SCALE = 2.0 -- 1 terrain cell = 2x2 world pixels
 
 function M.get_world_width(mode)
@@ -27,7 +27,7 @@ end
 
 -- Turn & Match rules
 M.TURN_DURATION = 20.0 -- 20 seconds per turn
-M.SETTLE_TIMEOUT = 2.5 -- Fast physics settle timeout for Poki pacing
+M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for Poki playtime)
 
 -- Physics
 M.GRAVITY = 460.0
@@ -35,6 +35,7 @@ M.POTATO_RADIUS = 12.0
 M.POTATO_WALK_SPEED = 75.0
 M.POTATO_JUMP_IMPULSE = 190.0
 M.MAX_FALL_SPEED = 600.0
+M.PLAYER_HP = 100
 
 -- Teams
 M.TEAM_BLUE = 1

@@ -53,6 +53,7 @@ local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 
 		msg.post(p.url, "apply_damage", { damage = dmg })
 		msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
+		msg.post("/main#main", "potato_damaged", { x = p.pos.x, y = p.pos.y, damage = dmg, potato_id = p.id })
 
 		if self.weapon.status_effect and p.is_alive then
 			msg.post(p.url, "apply_status", {
@@ -174,19 +175,6 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				end
 				apply_potato_damage(self, p, dmg, hit_x, hit_y)
 			end
-		end
-
-		if self.weapon.id == "grenade" and game_state.has_perk("fire_bullets") then
-			msg.post("/main#main", "spawn_napalm", {
-				x = hit_x,
-				y = hit_y,
-				count = 4,
-				spread = 32,
-				burn_time = 2.0,
-				radius = 8,
-				dps = 8,
-				is_pepper = false,
-			})
 		end
 	end
 

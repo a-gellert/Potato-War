@@ -25,7 +25,7 @@ instances {
   prototype: "/main/entities/terrain/terrain.go"
   position {
     x: 960.0
-    y: 270.0
+    y: 480.0
     z: 0.0
   }
   rotation {

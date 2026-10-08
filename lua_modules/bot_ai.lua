@@ -797,12 +797,12 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	local final_dy = math.max(0.06, attack_plan.aim_dx * sin_j + attack_plan.aim_dy * cos_j)
 	local final_power = attack_plan.power * power_jitter
 
-	-- Deliberation delay (human-like pause)
-	local think_delay = 1.1 + math.random() * 0.5
+	-- Deliberation delay (human-like pause, tuned for healthy Poki playtime)
+	local think_delay = 1.6 + math.random() * 0.8
 	if difficulty == "easy" then
-		think_delay = 1.4 + math.random() * 0.6
+		think_delay = 1.8 + math.random() * 0.8
 	elseif difficulty == "hard" then
-		think_delay = 0.9 + math.random() * 0.4
+		think_delay = 1.2 + math.random() * 0.6
 	end
 
 	return {
@@ -1071,8 +1071,8 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill, wind_vector)
 		power = final_power,
 		target_id = target.id,
 		movement = move_plan,
-		assess_delay = 0.85 + math.random() * 0.35, -- Deliberation to assess position
-		aim_delay = 0.75 + math.random() * 0.30,   -- Aim preview time before firing
+		assess_delay = 1.2 + math.random() * 0.5, -- Deliberation to assess position (tuned for playtime)
+		aim_delay = 1.0 + math.random() * 0.5,   -- Aim preview time before firing
 		is_pvp_bot = true,
 	}
 end

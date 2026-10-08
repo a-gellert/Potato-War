@@ -1,10 +1,10 @@
 -- gui/main_menu/main_menu.gui_script
--- Handles main menu interactions, match lobby, language toggle, Meta-Upgrades, and Skin Shop
+-- Handles main menu interactions, match lobby, language toggle, and Skin Shop
 
 local constants = require("lua_modules.constants")
 local ui_manager = require("lua_modules.ui_manager")
 local player_profile = require("lua_modules.player_profile")
-local meta_progression = require("lua_modules.meta_progression")
+local sound_manager = require("lua_modules.sound_manager")
 local i18n = require("lua_modules.i18n")
 
 local BIOMES = {
@@ -87,11 +87,10 @@ local function update_localized_menu(self)
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local camp_lbl = is_ru and "★ КАРТА ВОЙНЫ (КАМПАНИЯ)" or "★ WAR MAP (CAMPAIGN)"
+		local camp_lbl = is_ru and "КАРТА ВОЙНЫ (КАМПАНИЯ)" or "WAR MAP (CAMPAIGN)"
 		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
-		local skirmish_lbl = is_ru and "⚔️ БЫСТРЫЙ БОЙ (ЛОББИ)" or "⚔️ QUICK SKIRMISH (LOBBY)"
+		local skirmish_lbl = is_ru and "БЫСТРЫЙ БОЙ" or "QUICK BATTLE"
 		gui.set_text(gui.get_node("txt_quick_pvp"), skirmish_lbl)
-		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_upgrades"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
 		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
 
@@ -110,156 +109,67 @@ local function update_overlay(self)
 	local is_ru = (i18n.current_lang == "ru")
 	local points = player_profile.get_points()
 
-	if self.overlay_mode == "upgrades" then
-		-- UPGRADES MODE: Max HP, Starting Weapon, Round HP Regen
-		pcall(function()
-			gui.set_text(gui.get_node("shop_title"), is_ru and "ГЛОБАЛЬНЫЕ УЛУЧШЕНИЯ" or "META UPGRADES")
+	-- SKINS MODE
+	pcall(function()
+		gui.set_text(gui.get_node("shop_title"), is_ru and "МАГАЗИН СКИНОВ" or "SKIN SHOP")
+		gui.set_text(gui.get_node("txt_shop_back"), is_ru and "НАЗАД В МЕНЮ" or "BACK TO MENU")
 
-			for i = 4, 6 do
-				gui.set_enabled(gui.get_node("skin_bg_" .. i), false)
-				gui.set_enabled(gui.get_node("btn_skin_" .. i), false)
-			end
+		gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-260, 85, 0))
+		gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(0, 85, 0))
+		gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(260, 85, 0))
+		gui.set_position(gui.get_node("skin_bg_4"), vmath.vector3(-260, -75, 0))
+		gui.set_position(gui.get_node("skin_bg_5"), vmath.vector3(0, -75, 0))
+		gui.set_position(gui.get_node("skin_bg_6"), vmath.vector3(260, -75, 0))
 
-			for i = 1, 3 do
-				gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
-				gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
-			end
+		for i = 1, 6 do
+			gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
+			gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
+		end
 
-			gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-260, 20, 0))
-			gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(0, 20, 0))
-			gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(260, 20, 0))
+		local skins = player_profile.SKINS
+		local equipped = player_profile.data.equipped_skin or "classic"
 
-			-- 1. Max HP Upgrade
-			local hp_lvl = meta_progression.get_level(meta_progression.UPGRADE_MAX_HP)
-			local hp_bonus = meta_progression.get_max_hp_bonus()
-			local hp_total = meta_progression.get_player_max_hp()
-			local hp_cost = meta_progression.get_upgrade_cost(meta_progression.UPGRADE_MAX_HP)
+		for i = 1, 6 do
+			local skin = skins[i]
+			if skin then
+				local btn_node = gui.get_node("btn_skin_" .. i)
+				local txt_node = gui.get_node("txt_skin_" .. i)
+				local s_name = player_profile.get_skin_name(skin, i18n.current_lang)
+				local s_desc = player_profile.get_skin_desc(skin, i18n.current_lang)
+				gui.set_text(gui.get_node("skin_name_1" .. (i > 1 and ("" .. i) or ""):gsub("1", "")), s_name)
+				gui.set_text(gui.get_node("skin_name_" .. i), s_name)
+				gui.set_text(gui.get_node("skin_desc_" .. i), s_desc)
 
-			gui.set_enabled(gui.get_node("skin_bg_1"), true)
-			gui.set_text(gui.get_node("skin_name_1"), is_ru and ("❤️ МАКС. HP (Ур. " .. hp_lvl .. "/5)") or ("❤️ MAX HP (Lvl " .. hp_lvl .. "/5)"))
-			gui.set_text(gui.get_node("skin_desc_1"), is_ru and ("Здоровье: " .. hp_total .. " HP\n(Бонус: +" .. hp_bonus .. " HP к базе)") or ("Health: " .. hp_total .. " HP\n(Bonus: +" .. hp_bonus .. " HP to base)"))
+				local is_unlocked = player_profile.is_skin_unlocked(skin.id)
+				local is_equipped = (skin.id == equipped)
 
-			local btn_node_1 = gui.get_node("btn_skin_1")
-			local txt_node_1 = gui.get_node("txt_skin_1")
-			if hp_lvl >= 5 then
-				gui.set_text(txt_node_1, is_ru and "МАКСИМУМ" or "MAX LEVEL")
-				gui.set_color(btn_node_1, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			elseif points >= hp_cost then
-				gui.set_text(txt_node_1, (is_ru and "ПРОКАЧАТЬ (" or "UPGRADE (") .. hp_cost .. ")")
-				gui.set_color(btn_node_1, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-			else
-				gui.set_text(txt_node_1, (is_ru and "ЗАКРЫТО (" or "LOCKED (") .. hp_cost .. ")")
-				gui.set_color(btn_node_1, vmath.vector4(0.35, 0.38, 0.45, 1.0))
-			end
-
-			-- 2. Starting Weapon Upgrade
-			local wpn_lvl = meta_progression.get_level(meta_progression.UPGRADE_STARTING_WEAPON)
-			local wpn_cost = meta_progression.get_upgrade_cost(meta_progression.UPGRADE_STARTING_WEAPON)
-			local wpn_descs = meta_progression.UPGRADES[meta_progression.UPGRADE_STARTING_WEAPON].descriptions[is_ru and "ru" or "en"]
-			local wpn_info = wpn_descs[wpn_lvl] or ""
-
-			gui.set_enabled(gui.get_node("skin_bg_2"), true)
-			gui.set_text(gui.get_node("skin_name_2"), is_ru and ("💣 АРСЕНАЛ (Ур. " .. wpn_lvl .. "/5)") or ("💣 ARSENAL (Lvl " .. wpn_lvl .. "/5)"))
-			gui.set_text(gui.get_node("skin_desc_2"), (is_ru and "Старт: " or "Start: ") .. wpn_info)
-
-			local btn_node_2 = gui.get_node("btn_skin_2")
-			local txt_node_2 = gui.get_node("txt_skin_2")
-			if wpn_lvl >= 5 then
-				gui.set_text(txt_node_2, is_ru and "МАКСИМУМ" or "MAX LEVEL")
-				gui.set_color(btn_node_2, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			elseif points >= wpn_cost then
-				gui.set_text(txt_node_2, (is_ru and "ПРОКАЧАТЬ (" or "UPGRADE (") .. wpn_cost .. ")")
-				gui.set_color(btn_node_2, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-			else
-				gui.set_text(txt_node_2, (is_ru and "ЗАКРЫТО (" or "LOCKED (") .. wpn_cost .. ")")
-				gui.set_color(btn_node_2, vmath.vector4(0.35, 0.38, 0.45, 1.0))
-			end
-
-			-- 3. Round HP Regen Upgrade
-			local rgn_lvl = meta_progression.get_level(meta_progression.UPGRADE_HP_REGEN)
-			local rgn_pct = meta_progression.get_regen_percent()
-			local rgn_cost = meta_progression.get_upgrade_cost(meta_progression.UPGRADE_HP_REGEN)
-
-			gui.set_enabled(gui.get_node("skin_bg_3"), true)
-			gui.set_text(gui.get_node("skin_name_3"), is_ru and ("🌿 РЕГЕНЕРАЦИЯ (Ур. " .. rgn_lvl .. "/5)") or ("🌿 REGEN (Lvl " .. rgn_lvl .. "/5)"))
-			gui.set_text(gui.get_node("skin_desc_3"), is_ru and ("Лечит +" .. rgn_pct .. "% HP за выстрел\n(Каждый раунд в бою)") or ("Heals +" .. rgn_pct .. "% HP per shot\n(Every round in battle)"))
-
-			local btn_node_3 = gui.get_node("btn_skin_3")
-			local txt_node_3 = gui.get_node("txt_skin_3")
-			if rgn_lvl >= 5 then
-				gui.set_text(txt_node_3, is_ru and "МАКСИМУМ" or "MAX LEVEL")
-				gui.set_color(btn_node_3, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-			elseif points >= rgn_cost then
-				gui.set_text(txt_node_3, (is_ru and "ПРОКАЧАТЬ (" or "UPGRADE (") .. rgn_cost .. ")")
-				gui.set_color(btn_node_3, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-			else
-				gui.set_text(txt_node_3, (is_ru and "ЗАКРЫТО (" or "LOCKED (") .. rgn_cost .. ")")
-				gui.set_color(btn_node_3, vmath.vector4(0.35, 0.38, 0.45, 1.0))
-			end
-		end)
-	else
-		-- SKINS MODE
-		pcall(function()
-			gui.set_text(gui.get_node("shop_title"), is_ru and "МАГАЗИН СКИНОВ" or "SKIN SHOP")
-			gui.set_text(gui.get_node("txt_shop_back"), is_ru and "НАЗАД В МЕНЮ" or "BACK TO MENU")
-
-			gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-260, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(0, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(260, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_4"), vmath.vector3(-260, -75, 0))
-			gui.set_position(gui.get_node("skin_bg_5"), vmath.vector3(0, -75, 0))
-			gui.set_position(gui.get_node("skin_bg_6"), vmath.vector3(260, -75, 0))
-
-			for i = 1, 6 do
-				gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
-				gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
-			end
-
-			local skins = player_profile.SKINS
-			local equipped = player_profile.data.equipped_skin or "classic"
-
-			for i = 1, 6 do
-				local skin = skins[i]
-				if skin then
-					local btn_node = gui.get_node("btn_skin_" .. i)
-					local txt_node = gui.get_node("txt_skin_" .. i)
-					local s_name = player_profile.get_skin_name(skin, i18n.current_lang)
-					local s_desc = player_profile.get_skin_desc(skin, i18n.current_lang)
-					gui.set_text(gui.get_node("skin_name_1" .. (i > 1 and ("" .. i) or ""):gsub("1", "")), s_name)
-					gui.set_text(gui.get_node("skin_name_" .. i), s_name)
-					gui.set_text(gui.get_node("skin_desc_" .. i), s_desc)
-
-					local is_unlocked = player_profile.is_skin_unlocked(skin.id)
-					local is_equipped = (skin.id == equipped)
-
-					if is_equipped then
-						gui.set_text(txt_node, is_ru and "НАДЕТО" or "EQUIPPED")
-						gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-					elseif is_unlocked then
-						gui.set_text(txt_node, is_ru and "ВЫБРАТЬ" or "EQUIP")
-						gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0))
+				if is_equipped then
+					gui.set_text(txt_node, is_ru and "НАДЕТО" or "EQUIPPED")
+					gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
+				elseif is_unlocked then
+					gui.set_text(txt_node, is_ru and "ВЫБРАТЬ" or "EQUIP")
+					gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0))
+				else
+					if points >= skin.price then
+						local buy_lbl = is_ru and "КУПИТЬ (" or "BUY ("
+						gui.set_text(txt_node, buy_lbl .. skin.price .. ")")
+						gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
 					else
-						if points >= skin.price then
-							local buy_lbl = is_ru and "КУПИТЬ (" or "BUY ("
-							gui.set_text(txt_node, buy_lbl .. skin.price .. ")")
-							gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-						else
-							local lock_lbl = is_ru and "ЗАКРЫТО (" or "LOCKED ("
-							gui.set_text(txt_node, lock_lbl .. skin.price .. ")")
-							gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0))
-						end
+						local lock_lbl = is_ru and "ЗАКРЫТО (" or "LOCKED ("
+						gui.set_text(txt_node, lock_lbl .. skin.price .. ")")
+						gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0))
 					end
 				end
 			end
-		end)
-	end
+		end
+	end)
 end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(5)
 	self.ui = ui_manager.create(self)
-	self.overlay_mode = "upgrades"
+	self.overlay_mode = "skins"
 
 	-- Initialize Match Lobby State
 	self.lobby_count = 2
@@ -274,41 +184,38 @@ function init(self)
 		-- Main CAMPAIGN MAP button
 		local camp_btn = gui.get_node("btn_campaign")
 		gui.set_enabled(camp_btn, true)
-		gui.set_position(camp_btn, vmath.vector3(480, 312, 0))
-		gui.set_size(camp_btn, vmath.vector3(440, 52, 0))
+		gui.set_position(camp_btn, vmath.vector3(480, 290, 0))
+		gui.set_size(camp_btn, vmath.vector3(320, 48, 0))
 		gui.set_color(camp_btn, vmath.vector4(0.18, 0.76, 0.38, 1.0)) -- Hero Green!
 
 		-- Skirmish Lobby button
 		local pvp_btn = gui.get_node("btn_quick_pvp")
 		gui.set_enabled(pvp_btn, true)
-		gui.set_position(pvp_btn, vmath.vector3(480, 252, 0))
-		gui.set_size(pvp_btn, vmath.vector3(350, 40, 0))
-		gui.set_color(pvp_btn, vmath.vector4(0.20, 0.48, 0.78, 1.0))
+		gui.set_position(pvp_btn, vmath.vector3(480, 225, 0))
+		gui.set_size(pvp_btn, vmath.vector3(320, 48, 0))
+		gui.set_color(pvp_btn, vmath.vector4(0.70, 0.38, 0.28, 1.0))
 
-		-- Upgrades button
+		-- Disable unused upgrades button
 		local upg_btn = gui.get_node("btn_quick_bot")
-		gui.set_enabled(upg_btn, true)
-		gui.set_position(upg_btn, vmath.vector3(480, 198, 0))
-		gui.set_size(upg_btn, vmath.vector3(350, 38, 0))
-		gui.set_color(upg_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
+		gui.set_enabled(upg_btn, false)
+		gui.set_position(upg_btn, vmath.vector3(-9999, -9999, 0))
 
 		-- Shop button
 		local shop_btn = gui.get_node("btn_shop")
 		gui.set_enabled(shop_btn, true)
-		gui.set_position(shop_btn, vmath.vector3(480, 148, 0))
-		gui.set_size(shop_btn, vmath.vector3(350, 38, 0))
+		gui.set_position(shop_btn, vmath.vector3(480, 165, 0))
+		gui.set_size(shop_btn, vmath.vector3(320, 48, 0))
 		gui.set_color(shop_btn, vmath.vector4(0.18, 0.50, 0.82, 1.0))
 
 		-- Controls hint below
 		local hint = gui.get_node("hint_text")
-		gui.set_position(hint, vmath.vector3(480, 85, 0))
+		gui.set_position(hint, vmath.vector3(480, 95, 0))
 	end)
 
 	local function set_background_menu_enabled(enabled)
 		pcall(function()
 			gui.set_enabled(gui.get_node("btn_campaign"), enabled)
 			gui.set_enabled(gui.get_node("btn_quick_pvp"), enabled)
-			gui.set_enabled(gui.get_node("btn_quick_bot"), enabled)
 			gui.set_enabled(gui.get_node("btn_shop"), enabled)
 			gui.set_enabled(gui.get_node("btn_lang"), enabled)
 		end)
@@ -413,16 +320,6 @@ function init(self)
 		update_localized_menu(self)
 	end)
 
-	-- Meta Upgrades button
-	self.ui:button("btn_quick_bot", function()
-		self.overlay_mode = "upgrades"
-		set_background_menu_enabled(false)
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), true)
-		end)
-		update_overlay(self)
-	end)
-
 	-- Shop button (Skins)
 	self.ui:button("btn_shop", function()
 		self.overlay_mode = "skins"
@@ -450,21 +347,16 @@ function init(self)
 		update_points_display(self)
 	end)
 
-	-- Cards 1 to 6 click handlers
-	local upgrade_ids = {
-		meta_progression.UPGRADE_MAX_HP,
-		meta_progression.UPGRADE_STARTING_WEAPON,
-		meta_progression.UPGRADE_HP_REGEN
-	}
-
+	-- Skins 1 to 6 click handlers
 	local function handle_card_click(idx)
-		if self.overlay_mode == "upgrades" then
-			if idx <= 3 then
-				local upg_id = upgrade_ids[idx]
-				local ok, reason = meta_progression.buy_upgrade(upg_id)
-				if ok then
-					update_overlay(self)
-				else
+		local skins = player_profile.SKINS
+		local skin = skins[idx]
+		if skin then
+			if player_profile.is_skin_unlocked(skin.id) then
+				player_profile.equip_skin(skin.id)
+			else
+				local ok = player_profile.buy_skin(skin.id)
+				if not ok then
 					local btn = gui.get_node("btn_skin_" .. idx)
 					pcall(function()
 						gui.cancel_animation(btn, "scale")
@@ -473,25 +365,7 @@ function init(self)
 					end)
 				end
 			end
-		else
-			local skins = player_profile.SKINS
-			local skin = skins[idx]
-			if skin then
-				if player_profile.is_skin_unlocked(skin.id) then
-					player_profile.equip_skin(skin.id)
-				else
-					local ok = player_profile.buy_skin(skin.id)
-					if not ok then
-						local btn = gui.get_node("btn_skin_" .. idx)
-						pcall(function()
-							gui.cancel_animation(btn, "scale")
-							gui.set_scale(btn, vmath.vector3(1.10, 0.88, 1.0))
-							gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.25)
-						end)
-					end
-				end
-				update_overlay(self)
-			end
+			update_overlay(self)
 		end
 	end
 

@@ -5,13 +5,15 @@ local ui_manager = require("lua_modules.ui_manager")
 local territory_map = require("lua_modules.territory_map")
 local strategic_campaign = require("lua_modules.strategic_campaign")
 local player_profile = require("lua_modules.player_profile")
+local classes = require("lua_modules.classes")
 local sound_manager = require("lua_modules.sound_manager")
 local i18n = require("lua_modules.i18n")
+local level_config = require("lua_modules.level_config")
 
 local DEF_STARS = {
-	[1] = "★☆☆",
-	[2] = "★★☆",
-	[3] = "★★★",
+	[1] = "[1/3]",
+	[2] = "[2/3]",
+	[3] = "[3/3]",
 }
 
 local function get_defense_name(lvl)
@@ -82,7 +84,24 @@ local function update_inspector(self)
 		local def_name = get_defense_name(def_lvl)
 		local def_str = string.format("%s (%s)", stars, def_name)
 		gui.set_text(gui.get_node("insp_def_txt"), (is_ru and "Оборона: " or "Defense: ") .. def_str)
-		gui.set_text(gui.get_node("insp_gar_txt"), string.format(i18n.t("camp_garrison_fmt"), s.garrison or 2))
+
+		local lvl_cfg = level_config.get(s.id)
+		local gar_count = (not is_blue and lvl_cfg.enemy_count) or s.garrison or 2
+		local gar_str = string.format(i18n.t("camp_garrison_fmt"), gar_count)
+		if not is_blue and lvl_cfg.enemy_classes and #lvl_cfg.enemy_classes > 0 then
+			local cls_names = {}
+			for idx, cid in ipairs(lvl_cfg.enemy_classes) do
+				local cdef = classes.get(cid)
+				local cname = (is_ru and cdef.name) or cdef.name_en or cid
+				local clvl = (lvl_cfg.enemy_levels and lvl_cfg.enemy_levels[idx]) or 1
+				if clvl > 1 then
+					cname = cname .. "★"
+				end
+				table.insert(cls_names, cname)
+			end
+			gar_str = gar_str .. " (" .. table.concat(cls_names, ", ") .. ")"
+		end
+		gui.set_text(gui.get_node("insp_gar_txt"), gar_str)
 
 		-- Income
 		gui.set_text(gui.get_node("insp_inc_txt"), string.format(i18n.t("camp_income_fmt"), s.income or 25))
@@ -160,6 +179,158 @@ local function update_inspector(self)
 	end)
 end
 
+local CLASS_AVATARS = {
+	recruit     = "potato_base_blue",
+	assault     = "potato_assault_blue",
+	assault_2   = "potato_assault_blue",
+	sniper      = "potato_sniper_blue",
+	sapper      = "potato_sapper_blue",
+	sapper_2    = "potato_sapper_blue",
+	commando    = "potato_sapper_blue",
+	artillery   = "potato_artillery_blue",
+	artillery_2 = "potato_artillery_blue",
+	rocketeer   = "potato_artillery_blue",
+	medic       = "potato_medic_blue",
+	surgeon     = "potato_medic_blue",
+	engineer    = "potato_sapper_blue",
+	tank        = "potato_sapper_blue",
+}
+
+local function update_barracks_ui(self)
+	if not self.is_barracks_open then
+		pcall(function()
+			gui.set_enabled(gui.get_node("barracks_overlay"), false)
+		end)
+		return
+	end
+
+	pcall(function()
+		gui.set_enabled(gui.get_node("barracks_overlay"), true)
+		local is_ru = (i18n.current_lang == "ru")
+		local stars = player_profile.get_stars()
+		local pts = player_profile.get_points()
+
+		gui.set_text(gui.get_node("barracks_title"), is_ru and "КАЗАРМА И ПРОКАЧКА БАНДЫ" or "BARRACKS & GANG PROMOTIONS")
+		gui.set_text(gui.get_node("barracks_stars_txt"), (is_ru and "Звезды: " or "Stars: ") .. tostring(stars))
+		gui.set_text(gui.get_node("barracks_points_txt"), (is_ru and "Очки: " or "Points: ") .. tostring(pts))
+		gui.set_text(gui.get_node("txt_barracks_buy_star"), is_ru and "+1 звезда за 1000 очков" or "+1 star for 1000 pts")
+
+		local buy_btn = gui.get_node("btn_barracks_buy_star")
+		if pts >= 1000 then
+			gui.set_color(buy_btn, vmath.vector4(0.18, 0.65, 0.35, 1.0))
+		else
+			gui.set_color(buy_btn, vmath.vector4(0.35, 0.38, 0.42, 0.8))
+		end
+
+		local squad = player_profile.get_squad()
+		self.barracks_upgrades = {} -- store upgrade metadata per slot [i][upg_idx] = { class_id, cost }
+
+		for i = 1, 4 do
+			self.barracks_upgrades[i] = {}
+			local card = gui.get_node("b_slot_card_" .. i)
+			local title_node = gui.get_node("b_slot_title_" .. i)
+			local avatar = gui.get_node("b_slot_avatar_" .. i)
+			local class_node = gui.get_node("b_slot_class_" .. i)
+			local stats_node = gui.get_node("b_slot_stats_" .. i)
+			local max_node = gui.get_node("b_slot_max_txt_" .. i)
+			local unlock_btn = gui.get_node("b_slot_unlock_btn_" .. i)
+			local unlock_txt = gui.get_node("b_slot_unlock_txt_" .. i)
+
+			local btn1 = gui.get_node("b_slot_upg1_btn_" .. i)
+			local txt1 = gui.get_node("b_slot_upg1_txt_" .. i)
+			local btn2 = gui.get_node("b_slot_upg2_btn_" .. i)
+			local txt2 = gui.get_node("b_slot_upg2_txt_" .. i)
+			local btn3 = gui.get_node("b_slot_upg3_btn_" .. i)
+			local txt3 = gui.get_node("b_slot_upg3_txt_" .. i)
+
+			gui.set_text(title_node, (is_ru and "Боец #" or "Spud #") .. tostring(i))
+
+			local member = squad[i]
+			if member then
+				-- UNLOCKED POTATO MEMBER
+				gui.set_enabled(unlock_btn, false)
+				gui.set_enabled(avatar, true)
+				gui.set_enabled(class_node, true)
+				gui.set_enabled(stats_node, true)
+
+				local c_def = classes.get(member.class_id)
+				local c_name = is_ru and c_def.name or c_def.name_en
+				gui.set_text(class_node, c_name)
+
+				local hp_val = c_def.stats and c_def.stats.base_hp or 100
+				local spd_val = math.floor((c_def.stats and c_def.stats.walk_speed_mult or 1.0) * 100)
+				gui.set_text(stats_node, string.format("HP: %d | Скор: %d%%", hp_val, spd_val))
+
+				local tex_name = CLASS_AVATARS[member.class_id] or "potato_base_blue"
+				gui.play_flipbook(avatar, hash(tex_name))
+
+				-- Available promotions along branch
+				local promos = classes.get_promotions(member.class_id)
+				if #promos == 0 then
+					gui.set_enabled(btn1, false)
+					gui.set_enabled(btn2, false)
+					gui.set_enabled(btn3, false)
+					gui.set_enabled(max_node, true)
+					gui.set_text(max_node, is_ru and "МАКС. КЛАСС\nБоец обучен" or "MAX CLASS\nVeteran")
+				else
+					gui.set_enabled(max_node, false)
+					local upg_btns = { { btn = btn1, txt = txt1 }, { btn = btn2, txt = txt2 }, { btn = btn3, txt = txt3 } }
+
+					for u = 1, 3 do
+						local p_class = promos[u]
+						local b_pair = upg_btns[u]
+						if p_class then
+							gui.set_enabled(b_pair.btn, true)
+							local p_name = is_ru and p_class.name or p_class.name_en
+							local cost = p_class.star_cost or 2
+							gui.set_text(b_pair.txt, string.format(is_ru and "%s (%d зв.)" or "%s (%d stars)", p_name, cost))
+							self.barracks_upgrades[i][u] = { class_id = p_class.id, cost = cost }
+
+							if stars >= cost then
+								gui.set_color(b_pair.btn, vmath.vector4(0.18, 0.50, 0.85, 1.0))
+							else
+								gui.set_color(b_pair.btn, vmath.vector4(0.32, 0.35, 0.40, 0.7))
+							end
+						else
+							gui.set_enabled(b_pair.btn, false)
+						end
+					end
+				end
+			else
+				-- LOCKED POTATO SLOT
+				gui.set_enabled(avatar, false)
+				gui.set_enabled(class_node, true)
+				gui.set_enabled(stats_node, false)
+				gui.set_enabled(max_node, false)
+				gui.set_enabled(btn1, false)
+				gui.set_enabled(btn2, false)
+				gui.set_enabled(btn3, false)
+				gui.set_enabled(unlock_btn, true)
+
+				gui.set_text(class_node, is_ru and "Слот заблокирован" or "Slot Locked")
+
+				-- Determine unlock cost: 3rd potato = 3 stars, 4th potato = 7 stars
+				local unlock_cost = (i == 3) and 3 or 7
+				local can_unlock_now = (i == (#squad + 1))
+
+				if can_unlock_now then
+					local star_word = (unlock_cost == 3) and (is_ru and "звезды" or "stars") or (is_ru and "звезд" or "stars")
+					gui.set_text(unlock_txt, string.format(is_ru and "Открыть бойца\n(%d %s)" or "Unlock Spud\n(%d %s)", unlock_cost, star_word))
+					if stars >= unlock_cost then
+						gui.set_color(unlock_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
+					else
+						gui.set_color(unlock_btn, vmath.vector4(0.35, 0.38, 0.42, 0.7))
+					end
+				else
+					-- Prerequisite needed (e.g. slot 4 requires slot 3 first)
+					gui.set_text(unlock_txt, is_ru and "Сначала откройте\nбойца #3" or "Unlock Spud #3\nfirst")
+					gui.set_color(unlock_btn, vmath.vector4(0.25, 0.28, 0.32, 0.5))
+				end
+			end
+		end
+	end)
+end
+
 local function select_sector(self, sector_id)
 	sound_manager.play_click()
 	self.selected_sector_id = sector_id
@@ -187,9 +358,13 @@ function M_update_visuals(self)
 		gui.set_text(gui.get_node("txt_top_sectors"), string.format(i18n.t("camp_sectors_fmt"), stats.blue_count, stats.total_count, stats.progress_pct))
 		gui.set_text(gui.get_node("txt_top_supplies"), string.format(i18n.t("camp_supplies_fmt"), supplies))
 		gui.set_text(gui.get_node("txt_top_turn"), string.format(i18n.t("camp_turn_fmt"), turn))
+		gui.set_text(gui.get_node("txt_top_barracks"), is_ru and "КАЗАРМА" or "BARRACKS")
 		gui.set_text(gui.get_node("txt_top_menu"), i18n.t("camp_btn_back"))
 		gui.set_text(gui.get_node("txt_bot_hint"), i18n.t("camp_hint_bottom"))
 	end)
+
+	-- Update Barracks UI if open
+	update_barracks_ui(self)
 
 	-- 2. Connecting Lines Visuals
 	local secs = territory_map.get_sectors()
@@ -360,14 +535,7 @@ function init(self)
 			local battle_cfg = strategic_campaign.prepare_battle(sid)
 			if battle_cfg then
 				msg.post(".", "disable")
-				msg.post("/main#main", "start_battle", {
-					sector_id = battle_cfg.sector_id,
-					battle_type = battle_cfg.battle_type,
-					potato_count = battle_cfg.potato_count,
-					opponent_type = "bot",
-					biome = battle_cfg.biome,
-					terrain_type = battle_cfg.terrain_type,
-				})
+				msg.post("/main#main", "start_battle", battle_cfg)
 			end
 		end
 	end)
@@ -408,6 +576,65 @@ function init(self)
 		end)
 		self:update_visuals()
 	end)
+
+	-- Top Bar Barracks Button
+	self.ui:button("btn_top_barracks", function()
+		sound_manager.play_click()
+		self.is_barracks_open = true
+		update_barracks_ui(self)
+	end)
+
+	-- Barracks: Close Button
+	self.ui:button("btn_barracks_close", function()
+		sound_manager.play_click()
+		self.is_barracks_open = false
+		update_barracks_ui(self)
+	end)
+
+	-- Barracks: Buy 1 Star for 1000 Points
+	self.ui:button("btn_barracks_buy_star", function()
+		local ok, err_or_stars = player_profile.buy_star_with_points()
+		if ok then
+			sound_manager.play_heal()
+		else
+			sound_manager.play_click()
+		end
+		update_barracks_ui(self)
+	end)
+
+	-- Barracks: Unlock Potato #3 and #4
+	for slot_idx = 3, 4 do
+		local s_idx = slot_idx
+		self.ui:button("b_slot_unlock_btn_" .. s_idx, function()
+			local ok, err = player_profile.unlock_next_potato()
+			if ok then
+				sound_manager.play_heal()
+			else
+				sound_manager.play_click()
+			end
+			update_barracks_ui(self)
+		end)
+	end
+
+	-- Barracks: Upgrade Buttons for Slots 1..4 (up to 3 branch options per slot)
+	for slot_idx = 1, 4 do
+		local s_idx = slot_idx
+		for upg_idx = 1, 3 do
+			local u_idx = upg_idx
+			self.ui:button("b_slot_upg" .. u_idx .. "_btn_" .. s_idx, function()
+				local upg_data = self.barracks_upgrades and self.barracks_upgrades[s_idx] and self.barracks_upgrades[s_idx][u_idx]
+				if upg_data then
+					local ok, res = player_profile.promote_potato(s_idx, upg_data.class_id, upg_data.cost)
+					if ok then
+						sound_manager.play_heal()
+					else
+						sound_manager.play_click()
+					end
+					update_barracks_ui(self)
+				end
+			end)
+		end
+	end
 
 	-- Default initial state: hide by default until invoked
 	pcall(function()

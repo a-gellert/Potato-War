@@ -112,6 +112,11 @@ end
 M.data = {
 	language = nil,
 	points = 0,
+	stars = 0,
+	squad = {
+		{ id = 1, class_id = "recruit" },
+		{ id = 2, class_id = "recruit" },
+	},
 	unlocked_skins = { ["classic"] = true },
 	equipped_skin = "classic",
 	campaign_hp = 100,
@@ -145,6 +150,18 @@ function M.load()
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
 		M.data.language = loaded.language
 		M.data.points = loaded.points or 0
+		M.data.stars = loaded.stars or 0
+		M.data.squad = loaded.squad or {
+			{ id = 1, class_id = "recruit" },
+			{ id = 2, class_id = "recruit" },
+		}
+		-- Ensure squad has at least 2 members
+		if #M.data.squad < 2 then
+			M.data.squad = {
+				{ id = 1, class_id = "recruit" },
+				{ id = 2, class_id = "recruit" },
+			}
+		end
 		M.data.unlocked_skins = loaded.unlocked_skins or { ["classic"] = true }
 		M.data.equipped_skin = loaded.equipped_skin or "classic"
 		M.data.campaign_hp = loaded.campaign_hp or 100
@@ -162,6 +179,11 @@ function M.load()
 	else
 		M.data.language = nil
 		M.data.points = 0
+		M.data.stars = 0
+		M.data.squad = {
+			{ id = 1, class_id = "recruit" },
+			{ id = 2, class_id = "recruit" },
+		}
 		M.data.unlocked_skins = { ["classic"] = true }
 		M.data.equipped_skin = "classic"
 		M.data.campaign_hp = 100
@@ -206,6 +228,89 @@ function M.add_points(amount)
 	M.data.points = (M.data.points or 0) + (amount or 0)
 	M.save()
 	return M.data.points
+end
+
+function M.get_stars()
+	return M.data.stars or 0
+end
+
+function M.add_stars(amount)
+	M.data.stars = math.max(0, (M.data.stars or 0) + (amount or 0))
+	M.save()
+	return M.data.stars
+end
+
+function M.spend_stars(amount)
+	local cur = M.get_stars()
+	if cur >= amount then
+		M.data.stars = cur - amount
+		M.save()
+		return true
+	end
+	return false
+end
+
+-- 1 star = 1000 points
+function M.buy_star_with_points()
+	if M.get_points() >= 1000 then
+		M.data.points = M.data.points - 1000
+		M.data.stars = (M.data.stars or 0) + 1
+		M.save()
+		return true, M.data.stars
+	end
+	return false, "Недостаточно очков (требуется 1000 очков)"
+end
+
+function M.get_squad()
+	if not M.data.squad or #M.data.squad < 2 then
+		M.data.squad = {
+			{ id = 1, class_id = "recruit" },
+			{ id = 2, class_id = "recruit" },
+		}
+	end
+	return M.data.squad
+end
+
+-- Squad expansion: 3rd potato costs 3 stars, 4th potato costs 7 stars (max 4)
+function M.get_next_potato_unlock_cost()
+	local cur_count = #(M.get_squad())
+	if cur_count == 2 then
+		return 3
+	elseif cur_count == 3 then
+		return 7
+	end
+	return nil -- Squad is full (4/4)
+end
+
+function M.unlock_next_potato()
+	local cost = M.get_next_potato_unlock_cost()
+	if not cost then
+		return false, "Максимальный размер банды (4 картошки)"
+	end
+	if not M.spend_stars(cost) then
+		return false, "Недостаточно звезд"
+	end
+	local new_id = #(M.data.squad) + 1
+	table.insert(M.data.squad, { id = new_id, class_id = "recruit" })
+	M.save()
+	return true, new_id
+end
+
+function M.promote_potato(slot_index, new_class_id, star_cost)
+	local sq = M.get_squad()
+	local member = sq[slot_index]
+	if not member then
+		return false, "Боец не найден"
+	end
+	star_cost = star_cost or 0
+	if star_cost > 0 then
+		if not M.spend_stars(star_cost) then
+			return false, "Недостаточно звезд"
+		end
+	end
+	member.class_id = new_class_id
+	M.save()
+	return true, member
 end
 
 function M.is_skin_unlocked(skin_id)

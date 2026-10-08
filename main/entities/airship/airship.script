@@ -14,9 +14,9 @@ function init(self)
 
 	-- Drop 3 rocket salvos across the battlefield
 	self.bomb_drops = {
-		{ x = 240 + math.random(0, 50), dropped = false },
-		{ x = 460 + math.random(0, 50), dropped = false },
-		{ x = 680 + math.random(0, 50), dropped = false },
+		{ x = constants.WORLD_WIDTH * 0.25 + math.random(0, 60), dropped = false },
+		{ x = constants.WORLD_WIDTH * 0.50 + math.random(0, 60), dropped = false },
+		{ x = constants.WORLD_WIDTH * 0.75 + math.random(0, 60), dropped = false },
 	}
 end
 

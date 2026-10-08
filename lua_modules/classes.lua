@@ -14,6 +14,7 @@ M.CLASSES = {
 		name_en = "Recruit",
 		branch = "base",
 		tier = 0,
+		star_cost = 0,
 		parent_class = nil,
 		desc = "Базовый универсальный боец. Надежен, неприхотлив и готов ко всему.",
 		stats = {
@@ -46,6 +47,7 @@ M.CLASSES = {
 		name_en = "Assault",
 		branch = "assault",
 		tier = 1,
+		star_cost = 2,
 		parent_class = "recruit",
 		desc = "Мастер ближнего и среднего боя с автоматическим картофельным оружием.",
 		stats = {
@@ -78,6 +80,7 @@ M.CLASSES = {
 		name_en = "Assault II",
 		branch = "assault",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "assault",
 		desc = "Закаленный ветеран штурма: бронированный клубень с увеличенным арсеналом.",
 		stats = {
@@ -111,6 +114,7 @@ M.CLASSES = {
 		name_en = "Sniper",
 		branch = "assault",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "assault",
 		desc = "Точный стрелок со шпажкой-снайпером. Легкий клубень для дальних дистанций.",
 		stats = {
@@ -143,6 +147,7 @@ M.CLASSES = {
 		name_en = "Sapper",
 		branch = "sapper",
 		tier = 1,
+		star_cost = 2,
 		parent_class = "recruit",
 		desc = "Специалист по пробитию грунта, бурению укреплений и созданию укрытий.",
 		stats = {
@@ -175,6 +180,7 @@ M.CLASSES = {
 		name_en = "Sapper II",
 		branch = "sapper",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "sapper",
 		desc = "Мастер подрывных работ и тяжелого бурения. Высокая масса и устойчивость.",
 		stats = {
@@ -208,6 +214,7 @@ M.CLASSES = {
 		name_en = "Commando",
 		branch = "sapper",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "sapper",
 		desc = "Диверсант и специалист по скрытным операциям. Высокая подвижность и нож.",
 		stats = {
@@ -242,6 +249,7 @@ M.CLASSES = {
 		name_en = "Artillery",
 		branch = "artillery",
 		tier = 1,
+		star_cost = 2,
 		parent_class = "recruit",
 		desc = "Специалист по навесной стрельбе и тяжелым взрывам из толкушки-базуки.",
 		stats = {
@@ -273,6 +281,7 @@ M.CLASSES = {
 		name_en = "Artillery II",
 		branch = "artillery",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "artillery",
 		desc = "Тяжелая осадная батарея: колоссальная разрушительная сила и воронки.",
 		stats = {
@@ -305,6 +314,7 @@ M.CLASSES = {
 		name_en = "Rocketeer",
 		branch = "artillery",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "artillery",
 		desc = "Мобильный стрелок реактивными снарядами, преодолевающий любые высоты.",
 		stats = {
@@ -338,6 +348,7 @@ M.CLASSES = {
 		name_en = "Medic",
 		branch = "medic",
 		tier = 1,
+		star_cost = 2,
 		parent_class = "recruit",
 		desc = "Полевой санитар: лечит союзников, очищает дебаффы и травит врагов перцем.",
 		stats = {
@@ -370,6 +381,7 @@ M.CLASSES = {
 		name_en = "Surgeon",
 		branch = "medic",
 		tier = 2,
+		star_cost = 4,
 		parent_class = "medic",
 		desc = "Главврач картофельного госпиталя: мощное лечение, святая реанимация и биогель.",
 		stats = {
@@ -404,6 +416,7 @@ M.CLASSES = {
 		name_en = "Tank",
 		branch = "tank",
 		tier = 1,
+		star_cost = 2,
 		parent_class = "recruit",
 		desc = "Тяжелобронированный рыцарь-клубень со щитом и боевым топором. Несгибаемая стойкость.",
 		stats = {
@@ -438,6 +451,23 @@ end
 
 function M.get_default()
 	return M.CLASSES[M.DEFAULT_CLASS_ID]
+end
+
+function M.get_star_cost(class_id)
+	local c = M.get(class_id)
+	return (c and c.star_cost) or 0
+end
+
+-- Pool of specialized classes (excluding 'recruit') for quick match / skirmish randomization
+M.NON_RECRUIT_CLASS_IDS = {
+	"assault", "assault_2", "sniper",
+	"sapper", "sapper_2", "commando",
+	"artillery", "artillery_2", "rocketeer",
+	"medic", "surgeon", "tank"
+}
+
+function M.get_random_specialized_class()
+	return M.NON_RECRUIT_CLASS_IDS[math.random(1, #M.NON_RECRUIT_CLASS_IDS)]
 end
 
 function M.list()

@@ -16,8 +16,8 @@ embedded_components {
     z: -0.3
   }
   scale {
-    x: 2.0
-    y: 2.0
+    x: 3.0
+    y: 3.0
   }
 }
 embedded_components {
@@ -49,11 +49,11 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: -255.0
+    y: -452.0
     z: 0.4
   }
   scale {
-    x: 4.0
-    y: 2.0
+    x: 8.0
+    y: 4.0
   }
 }

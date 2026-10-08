@@ -64,7 +64,8 @@ local CLASS_SPRITE_MAP = {
 	rocketeer   = "potato_artillery",
 	medic       = "potato_medic",
 	surgeon     = "potato_medic",
-	tank        = "potato_tank",
+	engineer    = "potato_sapper",
+	tank        = "potato_sapper",
 }
 
 local function update_class_sprite(self)

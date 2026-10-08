@@ -151,10 +151,6 @@ images {
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
-  image: "/main/assets/potato_tank.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
   image: "/main/assets/potato_artillery.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
@@ -199,19 +195,19 @@ images {
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
-  image: "/main/assets/potato_tank_blue.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/assets/potato_tank_red.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
   image: "/main/assets/potato_artillery_blue.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
   image: "/main/assets/potato_artillery_red.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/assets/arrow.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/assets/star.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 margin: 0

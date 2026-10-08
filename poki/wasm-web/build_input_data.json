@@ -1,18 +1,25 @@
 {
   "bob_arguments" : {
-    "sha1" : "f735c12192bf95684e6ae1ae27c400b8170fc6d8",
-    "version" : "1.13.0",
-    "timestamp" : "2026-07-07 11:40:03"
+    "sha1" : "8620195789abcf164992cc82103a16189d22f675",
+    "version" : "1.13.2",
+    "timestamp" : "2026-10-04 07:50:26"
   },
-  "defold_sdk" : "f735c12192bf95684e6ae1ae27c400b8170fc6d8",
+  "defold_sdk" : "8620195789abcf164992cc82103a16189d22f675",
   "dependencies" : [ {
-    "link" : "https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip",
-    "md5" : "C8B7B6472C49C93A72ECF53C637B3E44"
+    "url" : "https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip",
+    "commit-sha1" : "5ade633bbed5159f8180fbae9f2e542f1241e530",
+    "payload-sha1" : "ffb370f8a939b44c2f681026273b7ad0b73b55b6"
   }, {
-    "link" : "https://github.com/Insality/druid/archive/master.zip",
-    "md5" : "DE724F70F7AC23D53357BCDE38FEF61A"
+    "url" : "https://github.com/Insality/druid/archive/master.zip",
+    "commit-sha1" : "95f1ca9c9b6ce1df443e71a2a420892d37971c94",
+    "payload-sha1" : "3a6c67ff2a9083cbd14627b44db2beb976305d2a"
   }, {
-    "link" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
-    "md5" : "DBE4455613BC6B87707237490127C20F"
+    "url" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
+    "commit-sha1" : "387370806f7689114ade6d77f98a4341e6b5c062",
+    "payload-sha1" : "96cb51bbc0957995bc89cf87c4eecfd372a1af63"
+  }, {
+    "url" : "https://github.com/defold/extension-rive/archive/refs/tags/13.1.0.zip",
+    "commit-sha1" : "22be59a370162c0df8b6c44fcaff1e28d3e864ef",
+    "payload-sha1" : "255d28a35664931f1225a725236400c0d9e7aafd"
   } ]
 }

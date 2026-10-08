@@ -7,6 +7,7 @@
 local territory_map = require("lua_modules.territory_map")
 local player_profile = require("lua_modules.player_profile")
 local constants = require("lua_modules.constants")
+local level_config = require("lua_modules.level_config")
 
 local M = {}
 
@@ -127,20 +128,12 @@ end
 function M.build_battle_config(s, battle_type)
 	battle_type = battle_type or ((s.owner == "red") and "assault" or "defense")
 	local def = s.defense_level or 1
-	local enemy_hp = 70
-	local enemy_count = math.min(4, math.max(2, s.garrison or 2))
-	local enemy_skill = "easy"
+	local lvl_cfg = level_config.get(s.id)
 
-	if def == 1 then
-		enemy_hp = 70
-		enemy_skill = "easy"
-	elseif def == 2 then
-		enemy_hp = 85
-		enemy_skill = "normal"
-	else
-		enemy_hp = (s.id == 18) and 125 or 100
-		enemy_skill = "hard"
-	end
+	local enemy_count = (battle_type == "assault") and (lvl_cfg.enemy_count or s.garrison or 2) or 2
+	local player_count = (battle_type == "defense") and math.max(1, s.garrison or 2) or 1
+	local enemy_skill = lvl_cfg.enemy_skill or "normal"
+	local enemy_hp = lvl_cfg.enemy_hp or (def == 1 and 70 or (def == 2 and 85 or 100))
 
 	return {
 		mode = constants.MODE_CAMPAIGN,
@@ -149,15 +142,17 @@ function M.build_battle_config(s, battle_type)
 		sector_name_en = s.name_en,
 		region = s.region,
 		battle_type = battle_type,
-		biome = s.biome,
-		terrain_type = s.terrain_preset,
-		terrain_preset = s.terrain_preset,
+		biome = lvl_cfg.biome or s.biome,
+		terrain_type = lvl_cfg.terrain_type or s.terrain_preset,
+		terrain_preset = lvl_cfg.terrain_type or s.terrain_preset,
 		potato_count = enemy_count,
-		enemy_count = (battle_type == "assault") and enemy_count or 2,
-		red_count = (battle_type == "assault") and enemy_count or 2,
-		player_count = (battle_type == "defense") and enemy_count or 1,
-		blue_count = (battle_type == "defense") and enemy_count or 1,
+		enemy_count = enemy_count,
+		red_count = enemy_count,
+		player_count = player_count,
+		blue_count = player_count,
 		enemy_hp = enemy_hp,
+		enemy_classes = lvl_cfg.enemy_classes,
+		enemy_levels = lvl_cfg.enemy_levels,
 		opponent_type = "bot",
 		enemy_skill = enemy_skill,
 		bot_difficulty = enemy_skill,

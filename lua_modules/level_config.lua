@@ -79,11 +79,28 @@ function M.normalize_level(entry, level_index)
 	-- Normalize enemy HP (can be number or table per enemy)
 	local enemy_hp = entry.enemy_hp
 	if enemy_hp == nil then
-		enemy_hp = (lvl == 1) and 60 or 100
+		enemy_hp = (lvl == 1) and 85 or 100
+	end
+
+	-- Normalize enemy classes and unit levels (ranks)
+	local enemy_classes = entry.enemy_classes
+	if not enemy_classes or #enemy_classes == 0 then
+		enemy_classes = {}
+		for i = 1, enemy_cnt do
+			table.insert(enemy_classes, "recruit")
+		end
+	end
+
+	local enemy_levels = entry.enemy_levels
+	if not enemy_levels or #enemy_levels == 0 then
+		enemy_levels = {}
+		for i = 1, enemy_cnt do
+			table.insert(enemy_levels, 1)
+		end
 	end
 
 	local is_ru = (i18n.current_lang == "ru")
-	local lvl_name = (is_ru and entry.name) or entry.name_en or entry.name or ((is_ru and "Арена " or "Arena ") .. tostring(lvl))
+	local lvl_name = (is_ru and entry.name) or entry.name_en or entry.name or ((is_ru and "Сектор " or "Sector ") .. tostring(lvl))
 	local lvl_desc = (is_ru and entry.desc) or entry.desc_en or entry.desc or ""
 
 	return {
@@ -91,6 +108,10 @@ function M.normalize_level(entry, level_index)
 		id = lvl,
 		name = lvl_name,
 		desc = lvl_desc,
+		name_ru = entry.name_ru or entry.name,
+		name_en = entry.name_en or entry.name,
+		desc_ru = entry.desc_ru or entry.desc,
+		desc_en = entry.desc_en or entry.desc,
 		enemy_hp = enemy_hp,
 		enemy_count = enemy_cnt,
 		red_count = enemy_cnt, -- Backwards compatibility alias
@@ -102,131 +123,323 @@ function M.normalize_level(entry, level_index)
 		enemy_skill = skill,
 		bot_difficulty = skill, -- Backwards compatibility alias
 		skill_level = skill, -- Backwards compatibility alias
+		enemy_classes = enemy_classes,
+		enemy_levels = enemy_levels,
 	}
 end
 
--- Campaign levels table:
+-- Campaign levels table: All 18 campaign sectors
 -- Parameters per level:
---   level: номер уровня
+--   level: номер сектора/уровня (1..18)
+--   name / name_en: названия сектора
+--   desc / desc_en: тактическое описание
+--   enemy_count: количество врагов (1..4)
 --   enemy_hp: здоровье врагов (число или таблица { hp1, hp2, ... })
---   enemy_count: количество врагов
---   terrain_type: тип террейна ("hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "bunkers", "islands")
---   enemy_skill: уровень скила противника ("easy", "normal", "hard" или 1, 2, 3)
---   biome: визуальная тема биома (опционально: "grass", "arctic", "desert", "volcano", "alien")
+--   enemy_classes: таблица классов вражеских картошек ({ "recruit", "assault", ... })
+--   enemy_levels: уровни/ранги врагов ({ 1, 2, ... })
+--   terrain_type: тип террейна
+--   biome: визуальный биом ("grass", "desert", "arctic", "volcano")
+--   enemy_skill: точность/тактика ИИ ("easy", "normal", "hard")
 M.LEVELS = {
+	-- =========================================================================
+	-- РЕГИОН 1: ПРИБРЕЖНЫЕ ЛУГА (Coastal Meadows) - Уровни 1..4 (Grass Biome)
+	-- =========================================================================
 	{
 		level = 1,
-		name = "Арена 1: Зеленые Холмы",
-		name_en = "Arena 1: Green Hills",
-		desc = "Быстрая дуэль 1 на 1 среди цветущих лугов!",
-		desc_en = "Fast 1v1 duel across rolling meadow hills!",
-		enemy_hp = 65,
+		name = "Бухта Высадки",
+		name_en = "Landing Cove",
+		desc = "Первая высадка десанта. Одинокий часовой-новобранец охраняет берег.",
+		desc_en = "Beachhead landing. A lone rookie sentry patrols the sandy shores.",
 		enemy_count = 1,
+		enemy_hp = { 85 },
+		enemy_classes = { "recruit" },
+		enemy_levels = { 1 },
 		terrain_type = "hills",
 		biome = "grass",
 		enemy_skill = "easy",
 	},
 	{
 		level = 2,
-		name = "Арена 2: Ледяной Архипелаг",
-		name_en = "Arena 2: Arctic Archipelago",
-		desc = "Дуэль на парящих в воздухе ледяных островах!",
-		desc_en = "Aerial battle on floating icebergs and glaciers!",
-		enemy_hp = 80,
+		name = "Зеленые Холмы",
+		name_en = "Green Hills",
+		desc = "Холмистый рубеж. Разведчик-штурмовик занял позицию на возвышенности.",
+		desc_en = "Rolling hills frontier. An assault scout holds high ground.",
 		enemy_count = 1,
-		terrain_type = "islands",
-		biome = "arctic",
+		enemy_hp = { 95 },
+		enemy_classes = { "assault" },
+		enemy_levels = { 1 },
+		terrain_type = "hills",
+		biome = "grass",
 		enemy_skill = "easy",
 	},
 	{
 		level = 3,
-		name = "Арена 3: Каньон и Каменный Мост",
-		name_en = "Arena 3: Canyon & Stone Bridge",
-		desc = "Сражение на гигантской каменной арке над пустынным ущельем.",
-		desc_en = "Epic clash on a sandstone arch across a desert chasm.",
-		enemy_hp = 70,
+		name = "Изумрудная Долина",
+		name_en = "Emerald Valley",
+		desc = "Передовой парный патруль: штурмовик и сапер минируют подходы.",
+		desc_en = "Forward patrol pair: assault spud and sapper laying obstacles.",
 		enemy_count = 2,
+		enemy_hp = { 90, 90 },
+		enemy_classes = { "assault", "sapper" },
+		enemy_levels = { 1, 1 },
+		terrain_type = "hills",
+		biome = "grass",
+		enemy_skill = "normal",
+	},
+	{
+		level = 4,
+		name = "Маяк Спокойствия",
+		name_en = "Tranquil Lighthouse",
+		desc = "Островной маяк у берега. Снайпер прикрывает сапера над пропастью.",
+		desc_en = "Coastal lighthouse isle. A sniper covers a fortification sapper.",
+		enemy_count = 2,
+		enemy_hp = { 85, 80 },
+		enemy_classes = { "sniper", "sapper" },
+		enemy_levels = { 1, 1 },
+		terrain_type = "islands",
+		biome = "grass",
+		enemy_skill = "normal",
+	},
+
+	-- =========================================================================
+	-- РЕГИОН 2: ПУСТЫННЫЙ КАНЬОН (Desert Canyon) - Уровни 5..9 (Desert Biome)
+	-- =========================================================================
+	{
+		level = 5,
+		name = "Песчаные Дюны",
+		name_en = "Sandy Dunes",
+		desc = "Горячие дюны. Штурмовик при поддержке полевого медика держат оборону.",
+		desc_en = "Blistering dunes. An assault backed by a combat medic holds the line.",
+		enemy_count = 2,
+		enemy_hp = { 90, 85 },
+		enemy_classes = { "assault", "medic" },
+		enemy_levels = { 1, 1 },
+		terrain_type = "flat",
+		biome = "desert",
+		enemy_skill = "normal",
+	},
+	{
+		level = 6,
+		name = "Каньон Эхо",
+		name_en = "Echo Canyon",
+		desc = "Глубокая пропасть. Трио врагов ведет перекрестный навесной обстрел.",
+		desc_en = "Chasm depths. Enemy trio raining mortar fire across the chasm.",
+		enemy_count = 3,
+		enemy_hp = { 85, 85, 85 },
+		enemy_classes = { "artillery", "assault", "sapper" },
+		enemy_levels = { 1, 1, 1 },
 		terrain_type = "canyon_bridge",
 		biome = "desert",
 		enemy_skill = "normal",
 	},
 	{
-		level = 4,
-		name = "Арена 4: Лавовые Катакомбы",
-		name_en = "Arena 4: Lava Catacombs",
-		desc = "1 против 2 ботов в вулканическом кратере с лавой!",
-		desc_en = "1 vs 2 bots in an active volcanic crater!",
-		enemy_hp = 85,
-		enemy_count = 2,
-		terrain_type = "cavern",
-		biome = "volcano",
-		enemy_skill = "normal",
-	},
-	{
-		level = 5,
-		name = "Арена 5: Инопланетная Цитадель",
-		name_en = "Arena 5: Alien Citadel",
-		desc = "Финальный штурм: 1 против 2 ботов в изрезанной кавернами цитадели!",
-		desc_en = "Assault against 2 bots in a bio-cavern fortress!",
-		enemy_hp = 95,
-		enemy_count = 2,
-		terrain_type = "swiss_cheese",
-		biome = "alien",
-		enemy_skill = "normal",
-	},
-	{
-		level = 6,
-		name = "Арена 6: Пустынные Бункеры",
-		name_en = "Arena 6: Desert Bunkers",
-		desc = "Окопная война среди песчаных дюн и укрепленных бункеров!",
-		desc_en = "Trench warfare among fortified concrete pillboxes!",
-		enemy_hp = 140,
-		enemy_count = 1,
-		terrain_type = "bunkers",
-		biome = "desert",
-		enemy_skill = "hard",
-	},
-	{
 		level = 7,
-		name = "Арена 7: Островной Архипелаг",
-		name_en = "Arena 7: Island Archipelago",
-		desc = "Ожесточенное сражение на трех островах против троих врагов!",
-		desc_en = "Fierce crossfire across three coastal sea islands!",
-		enemy_hp = 100,
-		enemy_count = 3,
-		terrain_type = "islands",
-		biome = "grass",
-		enemy_skill = "hard",
+		name = "Пыльный Перекресток",
+		name_en = "Dusty Crossroads",
+		desc = "Изрытая катакомбами земля. Снайпер и тяжелый сапер стерегут развилку.",
+		desc_en = "Swiss-cheese earth. A sniper and heavy sapper guard the fork.",
+		enemy_count = 2,
+		enemy_hp = { 95, 100 },
+		enemy_classes = { "sniper", "sapper_2" },
+		enemy_levels = { 2, 2 },
+		terrain_type = "swiss_cheese",
+		biome = "desert",
+		enemy_skill = "normal",
 	},
 	{
 		level = 8,
-		name = "Арена 8: Огненная Преисподняя",
-		name_en = "Arena 8: Molten Inferno",
-		desc = "Финальная битва: 1 против 3 элитных ботов-ветеранов!",
-		desc_en = "Final boss showdown: 1 vs 3 veteran elite spuds!",
-		enemy_hp = 125,
+		name = "Северный Мост",
+		name_en = "North Bridge",
+		desc = "Каменная арка над пропастью. Штурмовой отряд при поддержке артиллерии.",
+		desc_en = "Stone bridge arch. Assault vanguard supported by artillery guns.",
 		enemy_count = 3,
+		enemy_hp = { 95, 95, 105 },
+		enemy_classes = { "assault_2", "artillery", "medic" },
+		enemy_levels = { 2, 1, 1 },
+		terrain_type = "canyon_bridge",
+		biome = "desert",
+		enemy_skill = "normal",
+	},
+	{
+		level = 9,
+		name = "Золотой Оазис",
+		name_en = "Golden Oasis",
+		desc = "Богатый сектор под охраной бронированного танка и штурмовика.",
+		desc_en = "Lush oasis guarded by a heavily plated Tank and assault veteran.",
+		enemy_count = 2,
+		enemy_hp = { 140, 100 },
+		enemy_classes = { "tank", "assault_2" },
+		enemy_levels = { 2, 2 },
+		terrain_type = "hills",
+		biome = "desert",
+		enemy_skill = "hard",
+	},
+
+	-- =========================================================================
+	-- РЕГИОН 3: ЛЕДЯНОЙ ПЕРЕВАЛ (Ice Pass) - Уровни 10..13 (Arctic Biome)
+	-- =========================================================================
+	{
+		level = 10,
+		name = "Морозные Высоты",
+		name_en = "Frost Heights",
+		desc = "Ледяные острова в небе. Мобильный ракетчик и меткий снайпер контролируют воздух.",
+		desc_en = "Floating ice peaks. A mobile rocketeer and sharpshooter dominate the sky.",
+		enemy_count = 2,
+		enemy_hp = { 100, 95 },
+		enemy_classes = { "rocketeer", "sniper" },
+		enemy_levels = { 2, 2 },
+		terrain_type = "floating_islands",
+		biome = "arctic",
+		enemy_skill = "hard",
+	},
+	{
+		level = 11,
+		name = "Парящие Льдины",
+		name_en = "Floating Floes",
+		desc = "Гряда дрейфующих ледяных глыб. Тройка элитных скалолазов с базуками.",
+		desc_en = "Drifting glacial floes. Trio of high-altitude rocketeers and commando.",
+		enemy_count = 3,
+		enemy_hp = { 100, 100, 105 },
+		enemy_classes = { "rocketeer", "commando", "sniper" },
+		enemy_levels = { 2, 2, 2 },
+		terrain_type = "floating_islands",
+		biome = "arctic",
+		enemy_skill = "hard",
+	},
+	{
+		level = 12,
+		name = "Хребет Метелей",
+		name_en = "Blizzard Ridge",
+		desc = "Подземная ледяная пещера. Осадный артиллерист и диверсант в засаде.",
+		desc_en = "Subterranean ice cavern. Siege artillery and commando in ambush.",
+		enemy_count = 2,
+		enemy_hp = { 115, 110 },
+		enemy_classes = { "artillery_2", "commando" },
+		enemy_levels = { 2, 2 },
 		terrain_type = "cavern",
+		biome = "arctic",
+		enemy_skill = "hard",
+	},
+	{
+		level = 13,
+		name = "Ледяной Бастион",
+		name_en = "Ice Bastion",
+		desc = "Неприступная крепость во льдах. Взвод из 3 ветеранов: Танк, Сапер II и Хирург.",
+		desc_en = "Impregnable ice fort. 3-spud elite detachment: Tank, Sapper II, Surgeon.",
+		enemy_count = 3,
+		enemy_hp = { 150, 120, 115 },
+		enemy_classes = { "tank", "sapper_2", "surgeon" },
+		enemy_levels = { 2, 2, 2 },
+		terrain_type = "bunkers",
+		biome = "arctic",
+		enemy_skill = "hard",
+	},
+
+	-- =========================================================================
+	-- РЕГИОН 4: ВУЛКАНИЧЕСКИЕ БАСТИОНЫ (Volcano Bastions) - Уровни 14..18 (Volcano Biome)
+	-- =========================================================================
+	{
+		level = 14,
+		name = "Обсидиановые Врата",
+		name_en = "Obsidian Gates",
+		desc = "Вход в вулканический сектор. 3 укрепленных огневых рубежа противника.",
+		desc_en = "Gateway to the volcano. Three fortified battle positions.",
+		enemy_count = 3,
+		enemy_hp = { 120, 115, 125 },
+		enemy_classes = { "assault_2", "artillery_2", "surgeon" },
+		enemy_levels = { 2, 2, 2 },
+		terrain_type = "bunkers",
+		biome = "volcano",
+		enemy_skill = "hard",
+	},
+	{
+		level = 15,
+		name = "Лавовое Ущелье",
+		name_en = "Lava Gorge",
+		desc = "Мост над кипящей лавой. Опаснейший перекрестный огонь снайпера и ракетчика.",
+		desc_en = "Bridge over boiling magma. Lethal crossfire from sniper and rocketeer.",
+		enemy_count = 3,
+		enemy_hp = { 110, 125, 120 },
+		enemy_classes = { "sniper", "rocketeer", "commando" },
+		enemy_levels = { 2, 2, 2 },
+		terrain_type = "canyon_bridge",
+		biome = "volcano",
+		enemy_skill = "hard",
+	},
+	{
+		level = 16,
+		name = "Катакомбы Угля",
+		name_en = "Charcoal Catacombs",
+		desc = "Лавовые подземные лабиринты. Осадная батарея и тяжелый сапер ведут бой на выживание.",
+		desc_en = "Subterranean magma labyrinth. Heavy sapper and artillery duel to the end.",
+		enemy_count = 3,
+		enemy_hp = { 130, 135, 120 },
+		enemy_classes = { "sapper_2", "artillery_2", "assault_2" },
+		enemy_levels = { 2, 2, 2 },
+		terrain_type = "cavern",
+		biome = "volcano",
+		enemy_skill = "hard",
+	},
+	{
+		level = 17,
+		name = "Бункер Генералов",
+		name_en = "Generals Bunker",
+		desc = "Генеральный штаб красных картошек. 4 опытных офицера в глубоком бункере.",
+		desc_en = "Red Spud High Command. 4 hardened officers in a fortified bunker.",
+		enemy_count = 4,
+		enemy_hp = { 150, 130, 125, 130 },
+		enemy_classes = { "tank", "artillery_2", "sniper", "surgeon" },
+		enemy_levels = { 2, 2, 2, 2 },
+		terrain_type = "bunkers",
+		biome = "volcano",
+		enemy_skill = "hard",
+	},
+	{
+		level = 18,
+		name = "Вулканическая Цитадель (ФИНАЛ)",
+		name_en = "Volcano Citadel (FINAL BOSS)",
+		desc = "Финальная битва на вершине вулкана! Босс Генерал-Клубень с гвардией ветеранов!",
+		desc_en = "Final boss confrontation! The Supreme Spud General and elite vanguard!",
+		enemy_count = 4,
+		enemy_hp = { 200, 140, 140, 135 },
+		enemy_classes = { "tank", "artillery_2", "rocketeer", "surgeon" },
+		enemy_levels = { 3, 2, 2, 2 },
+		terrain_type = "bunkers",
 		biome = "volcano",
 		enemy_skill = "hard",
 	},
 }
 
--- Procedural generator for endless/high levels beyond the preconfigured list
+-- Procedural generator for endless/high levels beyond the preconfigured 18 levels
 function M.generate_endless_level(level_num)
 	local presets = { "hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "islands", "bunkers" }
 	local biomes = { "grass", "arctic", "desert", "volcano", "alien", "grass", "desert" }
 	local idx = ((level_num - 1) % #presets) + 1
 
-	local enemy_cnt = math.min(3, 1 + math.floor(level_num / 2))
-	local scaled_hp = math.min(200, 100 + (level_num - #M.LEVELS) * 10)
+	local enemy_cnt = math.min(4, 2 + math.floor((level_num - 18) / 3))
+	local scaled_hp = math.min(220, 120 + (level_num - 18) * 8)
+
+	local class_pool = { "tank", "artillery_2", "rocketeer", "assault_2", "sniper", "sapper_2", "surgeon", "commando" }
+	local enemy_classes = {}
+	local enemy_levels = {}
+	local enemy_hps = {}
+	for i = 1, enemy_cnt do
+		local pick = class_pool[((level_num + i) % #class_pool) + 1]
+		table.insert(enemy_classes, pick)
+		table.insert(enemy_levels, 2 + math.floor((level_num - 18) / 5))
+		table.insert(enemy_hps, scaled_hp)
+	end
 
 	return M.normalize_level({
 		level = level_num,
 		name = "Арена " .. tostring(level_num) .. ": Экстрим",
-		desc = "1 против волны элитных ботов!",
-		enemy_hp = scaled_hp,
+		name_en = "Arena " .. tostring(level_num) .. ": Extreme",
+		desc = "1 против волны элитных ботов-ветеранов!",
+		desc_en = "Battle against elite spud veterans wave!",
+		enemy_hp = enemy_hps,
 		enemy_count = enemy_cnt,
+		enemy_classes = enemy_classes,
+		enemy_levels = enemy_levels,
 		terrain_type = presets[idx],
 		biome = biomes[idx],
 		enemy_skill = "hard",
@@ -267,6 +480,26 @@ end
 function M.get_enemy_count(level_num)
 	local cfg = M.get(level_num)
 	return cfg.enemy_count or 1
+end
+
+-- Get enemy class ID for enemy at index (1-based) on given level
+function M.get_enemy_class(level_num, enemy_index)
+	local cfg = M.get(level_num)
+	enemy_index = enemy_index or 1
+	if cfg.enemy_classes and #cfg.enemy_classes > 0 then
+		return cfg.enemy_classes[enemy_index] or cfg.enemy_classes[#cfg.enemy_classes] or "recruit"
+	end
+	return "recruit"
+end
+
+-- Get enemy unit level / rank for enemy at index (1-based) on given level
+function M.get_enemy_level(level_num, enemy_index)
+	local cfg = M.get(level_num)
+	enemy_index = enemy_index or 1
+	if cfg.enemy_levels and #cfg.enemy_levels > 0 then
+		return cfg.enemy_levels[enemy_index] or cfg.enemy_levels[#cfg.enemy_levels] or 1
+	end
+	return 1
 end
 
 -- Get terrain type for given level

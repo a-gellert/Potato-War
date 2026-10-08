@@ -45,7 +45,7 @@ function M.follow(x, y, immediate)
 	local half_h = (constants.SCREEN_HEIGHT * 0.5) / effective_zoom
 
 	local cur_w = constants.WORLD_WIDTH -- 1920
-	local max_h = 750 -- High sky altitude for flying projectiles
+	local max_h = constants.WORLD_HEIGHT + 350 -- High sky altitude for flying projectiles and sky islands
 
 	local min_x = half_w - 60
 	local max_x = cur_w - half_w + 60

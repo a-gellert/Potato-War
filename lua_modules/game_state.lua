@@ -7,7 +7,6 @@ local cards = require("lua_modules.cards")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
 local level_config = require("lua_modules.level_config")
-local meta_progression = require("lua_modules.meta_progression")
 local inventory_manager = require("lua_modules.inventory_manager")
 local classes = require("lua_modules.classes")
 
@@ -98,10 +97,6 @@ M.player_ammo = {
 	drill = 0,
 	pepper = 0,
 	garlic = 0,
-}
-M.player_perks = {
-	fire_bullets = false,
-	triple_jump = false,
 }
 
 function M.get_slot_weapon(slot_idx)
@@ -230,8 +225,7 @@ function M.consume_ammo(weapon_id)
 end
 
 function M.has_perk(perk_id)
-	if not M.player_perks then return false end
-	return M.player_perks[perk_id] == true
+	return false
 end
 
 function M.is_weapon_unlocked(weapon_id)
@@ -253,6 +247,7 @@ M.on_weapon_changed = nil
 M.on_ammo_changed = nil
 M.on_cards_offered = nil
 M.on_game_over = nil
+M.can_settle = nil
 
 function M.set_state(new_state)
 	M.state = new_state
@@ -328,11 +323,6 @@ function M.start_match(mode, campaign_lvl)
 				pepper = 0,
 				garlic = 0,
 			}
-			M.player_perks = {
-				fire_bullets = false,
-				triple_jump = false,
-			}
-			meta_progression.apply_starting_loadout(M)
 		end
 	else
 		-- Quick Battle vs Bot, PvP 3v3, or Quick PvP: provide complete arsenal
@@ -358,9 +348,9 @@ function M.start_match(mode, campaign_lvl)
 	-- Offer bonus card selection in campaign mode only for subsequent levels (level > 1)
 	-- Level 1 starts INSTANTLY with 0 friction into battle!
 	if M.mode == constants.MODE_CAMPAIGN and M.campaign_level > 1 then
-		local max_p_hp = meta_progression.get_player_max_hp()
+		local max_p_hp = constants.PLAYER_HP
 		local p_hp = player_profile.get_campaign_hp() or max_p_hp
-		local c1, c2 = cards.draw_2_cards(p_hp, max_p_hp, M.campaign_level, M.player_perks)
+		local c1, c2 = cards.draw_2_cards(p_hp, max_p_hp, M.campaign_level)
 		M.current_cards = { c1, c2 }
 		M.set_state(constants.STATE_CARD_SELECT)
 		if M.on_cards_offered then
@@ -405,7 +395,6 @@ function M.start_battle(lobby_config)
 		pepper = 4,
 		garlic = 3,
 	}
-	M.player_perks = {}
 
 	M.poki_gameplay_start()
 	M.set_state(constants.STATE_INTRO)
@@ -471,10 +460,10 @@ local function begin_current_turn()
 	M.pick_active_potato()
 	M.turn_timer = constants.TURN_DURATION
 
-	-- Dynamic Wind update for the new turn
+	-- Dynamic Wind update for the new turn (0 to 30 m/s)
 	local wind_dir = (math.random() > 0.5) and 1 or -1
-	local wind_x = wind_dir * math.random(15, 80)
-	local wind_y = math.random(-6, 6)
+	local wind_x = wind_dir * math.random(0, 30)
+	local wind_y = math.random(-3, 3)
 	M.wind_vector = vmath.vector3(wind_x, wind_y, 0)
 
 	-- Turn start triggers for active potato: skill cooldown and DoT / debuffs
@@ -517,7 +506,7 @@ function M.select_card(card_index)
 
 	if chosen_card.type == "heal" then
 		sound_manager.play_heal()
-		local max_p_hp = meta_progression.get_player_max_hp()
+		local max_p_hp = constants.PLAYER_HP
 		local heal_amt = chosen_card.heal_amount or 30
 		local cur = player_profile.get_campaign_hp() or max_p_hp
 		local next_hp = math.min(max_p_hp, cur + heal_amt)
@@ -539,9 +528,6 @@ function M.select_card(card_index)
 	elseif chosen_card.type == "weapon" then
 		M.add_ammo(chosen_card.weapon_id, chosen_card.ammo or 2)
 		M.select_weapon(chosen_card.weapon_id)
-	elseif chosen_card.type == "perk" then
-		if not M.player_perks then M.player_perks = {} end
-		M.player_perks[chosen_card.perk_id] = true
 	end
 
 	M.current_cards = nil
@@ -621,7 +607,7 @@ function M.update(dt, active_projectiles_count)
 
 	if M.state == constants.STATE_INTRO then
 		M.settle_timer = M.settle_timer + dt
-		if M.settle_timer >= 1.5 then
+		if M.settle_timer >= 2.2 then
 			M.settle_timer = 0
 			begin_current_turn()
 		end
@@ -669,13 +655,12 @@ function M.update(dt, active_projectiles_count)
 			end
 		end
 
-		if (all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT then
-			-- Round HP Regeneration (meta-upgrade): restores % of max HP after each round of combat
-			for _, p in ipairs(M.potatoes) do
-				if p.team == constants.TEAM_BLUE and p.is_alive then
-					meta_progression.apply_round_regen(p, M)
-				end
-			end
+		local camera_ready = true
+		if M.can_settle and not M.can_settle() then
+			camera_ready = false
+		end
+
+		if camera_ready and ((all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT) then
 			M.next_turn()
 		end
 	end

@@ -225,7 +225,7 @@ function on_message(self, message_id, message, sender)
 		if is_campaign and outcome then
 			local sec = outcome.sector_id and territory_map.get_sector(outcome.sector_id)
 			local def_lvl = sec and sec.defense_level or 1
-			local stars = (def_lvl == 3 and "★★★" or (def_lvl == 2 and "★★☆" or "★☆☆"))
+			local stars = string.format("[%d/3]", def_lvl)
 			local inc = sec and sec.income or 25
 			local sname = is_ru and (outcome.sector_name_ru or "Сектор") or (outcome.sector_name_en or "Sector")
 			if outcome.is_victory then
@@ -243,6 +243,12 @@ function on_message(self, message_id, message, sender)
 		-- 5. Rewards and Achievements
 		if winner == constants.TEAM_BLUE then
 			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
+			local stars_earned = message.stars_earned or (outcome and outcome.stars_earned) or 0
+			if stars_earned > 0 then
+				local star_bonus_lbl = message.flawless_survival and (is_ru and " (+1 без потерь!)" or " (+1 no casualties!)") or ""
+				local star_word = (stars_earned == 1) and (is_ru and "звезда" or "star") or (is_ru and "звезды" or "stars")
+				total_str = total_str .. "  •  +" .. tostring(stars_earned) .. " " .. star_word .. star_bonus_lbl
+			end
 			if ach_bonus > 0 then
 				total_str = total_str .. (is_ru and (" (Бонус +" .. tostring(ach_bonus) .. ")") or (" (Bonus +" .. tostring(ach_bonus) .. ")"))
 			end
@@ -256,7 +262,7 @@ function on_message(self, message_id, message, sender)
 				end
 				gui.set_text(achieve_node, badges_str)
 			else
-				gui.set_text(achieve_node, is_ru and "Совет: Уничтожьте врага без урона или за 1 выстрел для бонуса!" or "Tip: Win with 0 damage or in 1 shot for bonus!")
+				gui.set_text(achieve_node, is_ru and "Совет: Сохраните всех бойцов отряда для бонуса +1 звезда!" or "Tip: Keep all squad members alive for +1 star bonus!")
 			end
 			gui.set_enabled(reward_bg, true)
 		else

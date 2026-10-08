@@ -52,6 +52,7 @@ function update(self)
 	render.set_depth_mask(true)
 	render.set_stencil_mask(0xff)
 	render.clear(self.clear_buffers)
+	render.set_depth_mask(false)
 
 	-- 1. World Pass: Apply dynamic camera view and orthographic world projection
 	render.set_viewport(0, 0, self.window_width, self.window_height)

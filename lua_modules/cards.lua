@@ -12,16 +12,6 @@ local LOCALIZED_CARD_DATA = {
 		en = { title = "BAZOOKA (+2)", badge = "WEAPON", dmg_str = "65", btn_label = "TAKE" },
 		icon = "masher_bazooka",
 	},
-	perk_fire_bullets = {
-		ru = { title = "ОГНЕННЫЕ ПУЛИ", badge = "ПЕРК", dmg_str = "ОГОНЬ ОТ ГРАНАТ", btn_label = "ВЫБРАТЬ" },
-		en = { title = "FIRE BULLETS", badge = "PERK", dmg_str = "FIRE FROM GRENADES", btn_label = "CHOOSE" },
-		icon = "oil_bottle",
-	},
-	perk_triple_jump = {
-		ru = { title = "ТРОЙНОЙ ПРЫЖОК", badge = "ПЕРК", dmg_str = "3 ПРЫЖКА В ВОЗДУХЕ", btn_label = "ВЫБРАТЬ" },
-		en = { title = "TRIPLE JUMP", badge = "PERK", dmg_str = "3 AIR JUMPS", btn_label = "CHOOSE" },
-		icon = "circle",
-	},
 	heal_30 = {
 		ru = { title = "+30 ЗДОРОВЬЯ", badge = "ЛЕЧЕНИЕ", dmg_str = "+30 HP", btn_label = "ВЗЯТЬ" },
 		en = { title = "+30 HEALTH", badge = "HEAL", dmg_str = "+30 HP", btn_label = "TAKE" },
@@ -81,8 +71,6 @@ local LOCALIZED_CARD_DATA = {
 
 M.ALL_CARDS = {
 	{ id = "bazooka", type = "weapon", weapon_id = "bazooka", ammo = 2, bg_color = { 0.45, 0.18, 0.18, 1.0 }, accent_color = { 1.0, 0.3, 0.2, 1.0 } },
-	{ id = "perk_fire_bullets", type = "perk", perk_id = "fire_bullets", bg_color = { 0.50, 0.28, 0.12, 1.0 }, accent_color = { 1.0, 0.55, 0.1, 1.0 } },
-	{ id = "perk_triple_jump", type = "perk", perk_id = "triple_jump", bg_color = { 0.20, 0.35, 0.50, 1.0 }, accent_color = { 0.3, 0.8, 1.0, 1.0 } },
 	{ id = "heal_30", type = "heal", heal_amount = 30, bg_color = { 0.15, 0.45, 0.25, 1.0 }, accent_color = { 0.3, 1.0, 0.5, 1.0 } },
 	{ id = "burst", type = "weapon", weapon_id = "burst", ammo = 3, bg_color = { 0.28, 0.22, 0.45, 1.0 }, accent_color = { 0.7, 0.5, 1.0, 1.0 } },
 	{ id = "holy_grenade", type = "weapon", weapon_id = "holy_grenade", ammo = 1, bg_color = { 0.55, 0.45, 0.15, 1.0 }, accent_color = { 1.0, 0.9, 0.3, 1.0 } },
@@ -113,24 +101,20 @@ local function localize_card(card)
 end
 
 -- Draw 2 distinct cards for arena start (curated for Level 1 or random for higher levels)
-function M.draw_2_cards(player_hp, player_max_hp, level, active_perks)
+function M.draw_2_cards(player_hp, player_max_hp, level)
 	level = level or 1
-	active_perks = active_perks or {}
 
 	if level == 1 then
-		-- Curated first level choices: Bazooka (+2) or Perk Fire Bullets!
+		-- Curated first level choices: Bazooka (+2) or Shotgun (+3)
 		local c1 = M.ALL_CARDS[1] -- bazooka
-		local c2 = M.ALL_CARDS[2] -- perk_fire_bullets
+		local c2 = M.ALL_CARDS[5] -- shotgun
 		return localize_card(c1), localize_card(c2)
 	end
 
-	-- Filter available cards (don't offer perks the player already has)
+	-- Filter available cards
 	local candidates = {}
 	for _, c in ipairs(M.ALL_CARDS) do
 		local ok = true
-		if c.type == "perk" and active_perks[c.perk_id] then
-			ok = false
-		end
 		if c.type == "heal" and (player_hp or 100) >= (player_max_hp or 100) then
 			-- Don't prioritize heal if already full HP
 			ok = (math.random() > 0.6)

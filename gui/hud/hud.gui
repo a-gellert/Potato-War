@@ -44,7 +44,6 @@ nodes {
     y: 28.0
   }
   color {
-    x: 1.0
     y: 0.8
     z: 0.2
   }
@@ -59,11 +58,11 @@ nodes {
 }
 nodes {
   position {
-    x: 770.0
+    x: 746.0
     y: 514.0
   }
   size {
-    x: 200.0
+    x: 160.0
     y: 40.0
   }
   color {
@@ -86,11 +85,11 @@ nodes {
 }
 nodes {
   position {
-    x: -60.0
+    x: -50.0
   }
   scale {
-    x: 0.52
-    y: 0.52
+    x: 0.4
+    y: 0.4
   }
   size {
     x: 80.0
@@ -112,14 +111,15 @@ nodes {
 }
 nodes {
   position {
-    x: -10.0
+    x: 0.0
+    y: 0.0
   }
   scale {
-    x: 0.65
-    y: 0.65
+    x: 0.7
+    y: 0.7
   }
   size {
-    x: 60.0
+    x: 28.0
     y: 28.0
   }
   color {
@@ -127,31 +127,23 @@ nodes {
     y: 0.85
     z: 0.95
   }
-  type: TYPE_TEXT
-  text: "\342\224\200\342\224\200\342\226\272"
-  font: "system_font"
+  type: TYPE_BOX
+  texture: "game/arrow"
   id: "wind_arrow"
   parent: "wind_panel"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 52.0
+    x: 47.0
   }
   scale {
-    x: 0.6
-    y: 0.6
+    x: 0.45
+    y: 0.45
   }
   size {
     x: 80.0
     y: 28.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "18 \320\274/\321\201"
@@ -165,7 +157,7 @@ nodes {
 nodes {
   position {
     x: 110.0
-    y: 165.0
+    y: 252.0
   }
   size {
     x: 200.0
@@ -188,11 +180,10 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.9
+  alpha: 0.7
 }
 nodes {
   position {
-    x: 0.0
     y: 42.0
   }
   scale {
@@ -206,7 +197,6 @@ nodes {
   color {
     x: 0.35
     y: 0.75
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "\320\236\320\242\320\240\320\257\320\224 \320\241\320\230\320\235\320\230\320\245"
@@ -219,7 +209,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 20.0
   }
   size {
@@ -254,11 +243,6 @@ nodes {
   size {
     x: 160.0
     y: 20.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "1. \320\221\320\276\320\265\321\206"
@@ -323,7 +307,6 @@ nodes {
   color {
     x: 0.9
     y: 0.95
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "100"
@@ -336,7 +319,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -2.0
   }
   size {
@@ -371,11 +353,6 @@ nodes {
   size {
     x: 160.0
     y: 20.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "2. \320\221\320\276\320\265\321\206"
@@ -440,7 +417,6 @@ nodes {
   color {
     x: 0.9
     y: 0.95
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "100"
@@ -453,7 +429,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -24.0
   }
   size {
@@ -488,11 +463,6 @@ nodes {
   size {
     x: 160.0
     y: 20.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "3. \320\221\320\276\320\265\321\206"
@@ -557,7 +527,6 @@ nodes {
   color {
     x: 0.9
     y: 0.95
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "100"
@@ -570,7 +539,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -46.0
   }
   size {
@@ -605,11 +573,6 @@ nodes {
   size {
     x: 160.0
     y: 20.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "4. \320\221\320\276\320\265\321\206"
@@ -674,7 +637,6 @@ nodes {
   color {
     x: 0.9
     y: 0.95
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "100"
@@ -717,8 +679,8 @@ nodes {
     x: -42.0
   }
   scale {
-    x: 0.65
-    y: 0.65
+    x: 0.4
+    y: 0.4
   }
   size {
     x: 230.0
@@ -1436,8 +1398,8 @@ nodes {
 }
 nodes {
   position {
-    x: 890.0
-    y: 512.0
+    x: 900.0
+    y: 514.0
   }
   size {
     x: 110.0
@@ -1481,499 +1443,6 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
-  position {
-    x: 95.0
-    y: 512.0
-  }
-  size {
-    x: 150.0
-    y: 40.0
-  }
-  color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "mode_bg"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.85
-}
-nodes {
-  position {
-    x: 235.0
-    y: 512.0
-  }
-  size {
-    x: 110.0
-    y: 40.0
-  }
-  color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "points_bg"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_TOP
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.85
-}
-nodes {
-  scale {
-    x: 0.55
-    y: 0.55
-  }
-  size {
-    x: 100.0
-    y: 30.0
-  }
-  color {
-    y: 0.85
-    z: 0.2
-  }
-  type: TYPE_TEXT
-  text: "\320\236\321\207\320\272\320\270: 0"
-  font: "system_font"
-  id: "points_text"
-  parent: "points_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 480.0
-    y: 270.0
-  }
-  size {
-    x: 960.0
-    y: 540.0
-  }
-  color {
-    x: 0.05
-    y: 0.08
-    z: 0.12
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "cards_overlay"
-  inherit_alpha: true
-  alpha: 0.88
-}
-nodes {
-  position {
-    y: 190.0
-  }
-  scale {
-    x: 0.95
-    y: 0.95
-  }
-  size {
-    x: 400.0
-    y: 40.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "\320\222\320\253\320\221\320\225\320\240\320\230\320\242\320\225 \320\232\320\220\320\240\320\242\320\236\320\247\320\232\320\243"
-  font: "system_font"
-  id: "cards_title"
-  parent: "cards_overlay"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: 155.0
-  }
-  scale {
-    x: 0.55
-    y: 0.55
-  }
-  size {
-    x: 400.0
-    y: 30.0
-  }
-  color {
-    x: 0.8
-    y: 0.85
-    z: 0.9
-  }
-  type: TYPE_TEXT
-  text: "\320\236\321\200\321\203\320\266\320\270\320\265 \320\270\320\273\320\270 \320\273\320\265\321\207\320\265\320\275\320\270\320\265 \320\277\320\265\321\200\320\265\320\264 \320\262\321\213\321\201\321\202\321\200\320\265\320\273\320\276\320\274"
-  font: "system_font"
-  id: "cards_subtitle"
-  parent: "cards_overlay"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: -160.0
-    y: -20.0
-  }
-  size {
-    x: 270.0
-    y: 280.0
-  }
-  color {
-    x: 0.18
-    y: 0.25
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "card_1_bg"
-  parent: "cards_overlay"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    y: 108.0
-  }
-  size {
-    x: 140.0
-    y: 24.0
-  }
-  color {
-    x: 0.4
-    y: 0.7
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "card_1_badge_bg"
-  parent: "card_1_bg"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 130.0
-    y: 24.0
-  }
-  type: TYPE_TEXT
-  text: "\320\236\321\200\321\203\320\266\320\270\320\265"
-  font: "system_font"
-  id: "card_1_badge_txt"
-  parent: "card_1_badge_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: 56.0
-  }
-  size {
-    x: 52.0
-    y: 52.0
-  }
-  type: TYPE_BOX
-  texture: "game/masher_bazooka"
-  id: "card_1_icon"
-  parent: "card_1_bg"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    y: 14.0
-  }
-  scale {
-    x: 0.65
-    y: 0.65
-  }
-  size {
-    x: 250.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\221\320\220\320\227\320\243\320\232\320\220 (+2)"
-  font: "system_font"
-  id: "card_1_title"
-  parent: "card_1_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -26.0
-  }
-  scale {
-    x: 0.65
-    y: 0.65
-  }
-  size {
-    x: 250.0
-    y: 30.0
-  }
-  color {
-    x: 0.95
-    y: 0.85
-    z: 0.25
-  }
-  type: TYPE_TEXT
-  text: "\320\243\321\200\320\276\320\275: 65"
-  font: "system_font"
-  id: "card_1_desc"
-  parent: "card_1_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -88.0
-  }
-  size {
-    x: 200.0
-    y: 44.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_card_1"
-  parent: "card_1_bg"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  scale {
-    x: 0.55
-    y: 0.55
-  }
-  size {
-    x: 180.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\222\320\253\320\221\320\240\320\220\320\242\320\254"
-  font: "system_font"
-  id: "txt_card_1"
-  parent: "btn_card_1"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 160.0
-    y: -20.0
-  }
-  size {
-    x: 270.0
-    y: 280.0
-  }
-  color {
-    x: 0.18
-    y: 0.25
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "card_2_bg"
-  parent: "cards_overlay"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    y: 108.0
-  }
-  size {
-    x: 140.0
-    y: 24.0
-  }
-  color {
-    x: 0.4
-    y: 0.7
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "card_2_badge_bg"
-  parent: "card_2_bg"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 130.0
-    y: 24.0
-  }
-  type: TYPE_TEXT
-  text: "\320\236\321\200\321\203\320\266\320\270\320\265"
-  font: "system_font"
-  id: "card_2_badge_txt"
-  parent: "card_2_badge_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: 56.0
-  }
-  size {
-    x: 52.0
-    y: 52.0
-  }
-  type: TYPE_BOX
-  texture: "game/rifle"
-  id: "card_2_icon"
-  parent: "card_2_bg"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    y: 14.0
-  }
-  scale {
-    x: 0.65
-    y: 0.65
-  }
-  size {
-    x: 250.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\220\320\222\320\242\320\236\320\234\320\220\320\242"
-  font: "system_font"
-  id: "card_2_title"
-  parent: "card_2_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -26.0
-  }
-  scale {
-    x: 0.65
-    y: 0.65
-  }
-  size {
-    x: 250.0
-    y: 30.0
-  }
-  color {
-    x: 0.95
-    y: 0.85
-    z: 0.25
-  }
-  type: TYPE_TEXT
-  text: "\320\243\321\200\320\276\320\275: 90"
-  font: "system_font"
-  id: "card_2_desc"
-  parent: "card_2_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -88.0
-  }
-  size {
-    x: 200.0
-    y: 44.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  id: "btn_card_2"
-  parent: "card_2_bg"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  scale {
-    x: 0.55
-    y: 0.55
-  }
-  size {
-    x: 180.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\222\320\253\320\221\320\240\320\220\320\242\320\254"
-  font: "system_font"
-  id: "txt_card_2"
-  parent: "btn_card_2"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
   size {
     x: 48.0
     y: 48.0
@@ -2007,7 +1476,7 @@ nodes {
     y: 44.0
   }
   color {
-    x: 0.10
+    x: 0.1
     y: 0.16
     z: 0.24
   }
@@ -2035,12 +1504,11 @@ nodes {
     y: 36.0
   }
   color {
-    x: 1.0
-    y: 0.90
+    y: 0.9
     z: 0.25
   }
   type: TYPE_TEXT
-  text: "🎯 Направь прицел на врага и отпусти для выстрела!"
+  text: "\360\237\216\257 \320\235\320\260\320\277\321\200\320\260\320\262\321\214 \320\277\321\200\320\270\321\206\320\265\320\273 \320\275\320\260 \320\262\321\200\320\260\320\263\320\260 \320\270 \320\276\321\202\320\277\321\203\321\201\321\202\320\270 \320\264\320\273\321\217 \320\262\321\213\321\201\321\202\321\200\320\265\320\273\320\260!"
   font: "system_font"
   id: "tutorial_hint_text"
   parent: "tutorial_hint_panel"
@@ -2056,7 +1524,7 @@ nodes {
   color {
     x: 0.12
     y: 0.75
-    z: 0.40
+    z: 0.4
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -2068,7 +1536,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.90
+  alpha: 0.9
   enabled: false
 }
 nodes {
@@ -2081,7 +1549,7 @@ nodes {
     y: 24.0
   }
   type: TYPE_TEXT
-  text: "ТЫ ⬇"
+  text: "\320\242\320\253 \342\254\207"
   font: "system_font"
   id: "marker_player_text"
   parent: "marker_player_bg"
@@ -2109,7 +1577,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.90
+  alpha: 0.9
   enabled: false
 }
 nodes {
@@ -2122,7 +1590,7 @@ nodes {
     y: 24.0
   }
   type: TYPE_TEXT
-  text: "ВРАГ 🎯"
+  text: "\320\222\320\240\320\220\320\223 \360\237\216\257"
   font: "system_font"
   id: "marker_enemy_text"
   parent: "marker_enemy_bg"

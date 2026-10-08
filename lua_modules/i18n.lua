@@ -21,7 +21,7 @@ local dictionary = {
 		upgrades_title = "ГЛОБАЛЬНЫЕ УЛУЧШЕНИЯ",
 
 		-- Campaign Map
-		camp_title = "★ КАРТА ВОЙНЫ",
+		camp_title = "КАРТА ВОЙНЫ",
 		camp_sectors_fmt = "Секторы: %d/%d (%d%%)",
 		camp_supplies_fmt = "Припасы: %d 🥔",
 		camp_turn_fmt = "Ход: %d",
@@ -144,7 +144,7 @@ local dictionary = {
 		upgrades_title = "META UPGRADES",
 
 		-- Campaign Map
-		camp_title = "★ WAR MAP",
+		camp_title = "WAR MAP",
 		camp_sectors_fmt = "Sectors: %d/%d (%d%%)",
 		camp_supplies_fmt = "Supplies: %d 🥔",
 		camp_turn_fmt = "Turn: %d",
@@ -220,7 +220,7 @@ local dictionary = {
 		tutorial_hint = "🎯 Drag towards the enemy to aim, release to shoot!",
 		tutorial_sub = "Hold mouse / touch and drag towards the target",
 		cards_start_title = "CHOOSE ARENA BONUS",
-		cards_start_subtitle = "Select weapon or upgrade for this battle",
+		cards_start_subtitle = "Select weapon or supply bonus for this battle",
 
 		-- Game Over
 		victory = "VICTORY!",

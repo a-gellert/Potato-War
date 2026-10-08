@@ -71,27 +71,35 @@ local function update_wind_widget(self)
 		local spd = math.abs(cur_wind_x)
 		gui.set_text(val_node, tostring(spd) .. (is_ru and " м/с" or " m/s"))
 
-		if cur_wind_x > 3 then
-			gui.set_text(arrow_node, "──►")
-			if spd > 45 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.35, 0.20, 1.0))
-			elseif spd > 20 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+		if cur_wind_x > 2 then
+			-- Wind blows to the right: arrow points right (rotation 0)
+			gui.set_enabled(arrow_node, true)
+			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 0))
+			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
+			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
+			if spd > 20 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0)) -- Intense orange/red
+			elseif spd > 10 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Moderate gold
 			else
-				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
+				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0)) -- Calm cyan
 			end
-		elseif cur_wind_x < -3 then
-			gui.set_text(arrow_node, "◄──")
-			if spd > 45 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.35, 0.20, 1.0))
-			elseif spd > 20 then
+		elseif cur_wind_x < -2 then
+			-- Wind blows to the left: arrow points left (rotation 180 deg)
+			gui.set_enabled(arrow_node, true)
+			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 180))
+			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
+			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
+			if spd > 20 then
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
+			elseif spd > 10 then
 				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
 			else
 				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
 			end
 		else
-			gui.set_text(arrow_node, "──•──")
-			gui.set_color(arrow_node, vmath.vector4(0.8, 0.8, 0.8, 1.0))
+			-- Calm / No wind (0-2 m/s): hide arrow or keep tiny neutral dot
+			gui.set_enabled(arrow_node, false)
 		end
 	end)
 end
@@ -140,6 +148,9 @@ local function update_squad_widget(self)
 			if p then
 				gui.set_enabled(slot, true)
 				local cls_label = p.class_name or (is_ru and "Боец" or "Spud")
+				if p.unit_level and p.unit_level > 1 then
+					cls_label = cls_label .. " " .. string.rep("★", p.unit_level)
+				end
 				gui.set_text(name_node, tostring(i) .. ". " .. cls_label)
 
 				local is_active = (p == game_state.active_potato and p.is_alive)
@@ -279,49 +290,6 @@ local function select_inventory_weapon(self, weapon_id)
 	toggle_inventory(self, false)
 end
 
-local function apply_card_ui(card_idx, card)
-	pcall(function()
-		local pfx = "card_" .. card_idx
-		local bg_node = gui.get_node(pfx .. "_bg")
-		local title_node = gui.get_node(pfx .. "_title")
-		local desc_node = gui.get_node(pfx .. "_desc")
-		local badge_bg = gui.get_node(pfx .. "_badge_bg")
-		local badge_txt = gui.get_node(pfx .. "_badge_txt")
-		local icon_node = gui.get_node(pfx .. "_icon")
-		local btn_txt = gui.get_node("txt_card_" .. card_idx)
-
-		local is_ru = (i18n.current_lang == "ru")
-		local title = card.title or (is_ru and "КАРТА" or "CARD")
-		local badge = card.badge or (is_ru and "ОРУЖИЕ" or "WEAPON")
-		local btn_lbl = card.btn_label or (is_ru and "ВЫБРАТЬ" or "SELECT")
-
-		local dmg_text = ""
-		if card.dmg_str then
-			if card.type == "weapon" then
-				dmg_text = (is_ru and "💥 УРОН: " or "💥 DMG: ") .. tostring(card.dmg_str)
-			else
-				dmg_text = tostring(card.dmg_str)
-			end
-		end
-
-		gui.set_text(title_node, title)
-		gui.set_text(desc_node, dmg_text)
-		gui.set_text(badge_txt, badge)
-		gui.set_text(btn_txt, btn_lbl)
-
-		if icon_node and card.icon then
-			gui.play_flipbook(icon_node, hash(card.icon))
-		end
-
-		if card.bg_color then
-			gui.set_color(bg_node, vmath.vector4(card.bg_color[1], card.bg_color[2], card.bg_color[3], card.bg_color[4] or 1))
-		end
-		if card.accent_color then
-			gui.set_color(badge_bg, vmath.vector4(card.accent_color[1], card.accent_color[2], card.accent_color[3], 1))
-		end
-	end)
-end
-
 local function hide_tutorial_hint(self)
 	self.tutorial_hand_done = true
 	pcall(function()
@@ -369,21 +337,6 @@ function init(self)
 			game_state.select_slot(slot_idx)
 		end, { instant = true, slop = 10 })
 	end
-
-	-- Register card selection buttons
-	self.ui:button("btn_card_1", function()
-		pcall(function()
-			gui.set_enabled(gui.get_node("cards_overlay"), false)
-		end)
-		msg.post("/main#main", "select_card", { card_index = 1 })
-	end, { slop = 14 })
-
-	self.ui:button("btn_card_2", function()
-		pcall(function()
-			gui.set_enabled(gui.get_node("cards_overlay"), false)
-		end)
-		msg.post("/main#main", "select_card", { card_index = 2 })
-	end, { slop = 14 })
 
 	-- Register continuous movement & jump hold buttons for touch controls
 	local active_btn_color = vmath.vector4(0.18, 0.72, 0.42, 1.0)
@@ -482,10 +435,6 @@ function init(self)
 	end
 
 	-- Cards overlay disabled by default
-	pcall(function()
-		gui.set_enabled(gui.get_node("cards_overlay"), false)
-	end)
-
 	update_weapon_selection(self, game_state.selected_weapon_id)
 end
 
@@ -504,18 +453,12 @@ function on_input(self, action_id, action)
 		return true
 	end
 
-	-- Block background aiming when inventory or cards overlay is visible or when touching HUD control panels
+	-- Block background aiming when inventory is visible or when touching HUD control panels
 	if self.is_inventory_open then
 		return true
 	end
 
 	if action_id == hash("touch") or action_id == hash("touch_multi") then
-		local ok_cards, cards_open = pcall(function()
-			return gui.is_enabled(gui.get_node("cards_overlay"))
-		end)
-		if ok_cards and cards_open then
-			return true
-		end
 
 		if action_id == hash("touch") then
 			if action.pressed then
@@ -648,19 +591,20 @@ function update(self, dt)
 			if p and p.is_alive then
 				local cycle = self.tutorial_hand_timer % 1.55
 
-				local cx = camera_controller.pos and camera_controller.pos.x or 480
-				local cy = camera_controller.pos and camera_controller.pos.y or 270
-				local sx = p.pos.x - (cx - 480)
-				local sy = p.pos.y - (cy - 270)
+				local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
 
 				-- Render floating "YOU / ТЫ" marker above player
 				pcall(function()
 					local mp = gui.get_node("marker_player_bg")
 					local mp_txt = gui.get_node("marker_player_text")
 					local bounce_y = math.sin(self.tutorial_hand_timer * 4.0) * 4.0
-					gui.set_enabled(mp, true)
-					gui.set_position(mp, vmath.vector3(sx, sy + 38 + bounce_y, 0))
-					gui.set_text(mp_txt, is_ru and "ТЫ ⬇" or "YOU ⬇")
+					if sx >= 20 and sx <= 940 and sy >= 20 and sy <= 520 then
+						gui.set_enabled(mp, true)
+						gui.set_position(mp, vmath.vector3(sx, sy + 38 + bounce_y, 0))
+						gui.set_text(mp_txt, is_ru and "ТЫ ⬇" or "YOU ⬇")
+					else
+						gui.set_enabled(mp, false)
+					end
 				end)
 
 				-- Render floating "ENEMY / ВРАГ" marker above enemy
@@ -669,12 +613,15 @@ function update(self, dt)
 					local me_txt = gui.get_node("marker_enemy_text")
 					for _, ep in ipairs(game_state.potatoes) do
 						if ep.is_alive and ep.team ~= constants.TEAM_BLUE then
-							local esx = ep.pos.x - (cx - 480)
-							local esy = ep.pos.y - (cy - 270)
+							local esx, esy = camera_controller.world_to_screen(ep.pos.x, ep.pos.y)
 							local ebounce_y = math.sin(self.tutorial_hand_timer * 4.0 + 1.57) * 4.0
-							gui.set_enabled(me, true)
-							gui.set_position(me, vmath.vector3(esx, esy + 38 + ebounce_y, 0))
-							gui.set_text(me_txt, is_ru and "ВРАГ 🎯" or "ENEMY 🎯")
+							if esx >= 20 and esx <= 940 and esy >= 20 and esy <= 520 then
+								gui.set_enabled(me, true)
+								gui.set_position(me, vmath.vector3(esx, esy + 38 + ebounce_y, 0))
+								gui.set_text(me_txt, is_ru and "ВРАГ 🎯" or "ENEMY 🎯")
+							else
+								gui.set_enabled(me, false)
+							end
 							break
 						end
 					end
@@ -778,30 +725,6 @@ function update(self, dt)
 			update_weapon_selection(self, game_state.selected_weapon_id)
 		end
 
-		-- 4. Update Points & Mode Info
-		local pts = player_profile.get_points()
-		if pts ~= self.last_points then
-			self.last_points = pts
-			pcall(function()
-				gui.set_text(gui.get_node("points_text"), i18n.t("points_lbl") .. tostring(pts))
-			end)
-		end
-
-		pcall(function()
-			local mode_node = gui.get_node("mode_text")
-			if game_state.mode == constants.MODE_CAMPAIGN then
-				local p = game_state.active_potato
-				local hp_str = p and tostring(p.hp) or "100"
-				local arena_prefix = (i18n.current_lang == "ru") and "Арена " or "Arena "
-				gui.set_text(mode_node, arena_prefix .. tostring(game_state.campaign_level or 1) .. " (HP:" .. hp_str .. ")")
-			elseif game_state.mode == constants.MODE_PVP_BOTS then
-				gui.set_text(mode_node, i18n.t("mode_pvp_bots"))
-			elseif game_state.mode == constants.MODE_QUICK_BOT then
-				gui.set_text(mode_node, i18n.t("mode_bot"))
-			elseif game_state.mode == constants.MODE_QUICK_PVP then
-				gui.set_text(mode_node, i18n.t("mode_pvp"))
-			end
-		end)
 	end
 end
 
@@ -820,29 +743,6 @@ function on_message(self, message_id, message, sender)
 		update_inventory_ui(self)
 	elseif message_id == hash("toggle_inventory") then
 		toggle_inventory(self)
-	elseif message_id == hash("show_cards") then
-		self.tutorial_hand_done = false
-		self.tutorial_hand_timer = 0
-		pcall(function()
-			local overlay = gui.get_node("cards_overlay")
-			local title_node = gui.get_node("cards_title")
-			local sub_node = gui.get_node("cards_subtitle")
-
-			gui.set_text(title_node, i18n.t("cards_start_title"))
-			gui.set_text(sub_node, i18n.t("cards_start_subtitle"))
-			gui.set_enabled(overlay, true)
-
-			if message.card1 then
-				apply_card_ui(1, message.card1)
-			end
-			if message.card2 then
-				apply_card_ui(2, message.card2)
-			end
-		end)
-	elseif message_id == hash("hide_cards") then
-		pcall(function()
-			gui.set_enabled(gui.get_node("cards_overlay"), false)
-		end)
 	elseif message_id == hash("hide_tutorial") or message_id == hash("tutorial_shot_fired") then
 		hide_tutorial_hint(self)
 	elseif message_id == hash("tutorial_tap_hint") then
