@@ -17,9 +17,5 @@
     "url" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
     "commit-sha1" : "387370806f7689114ade6d77f98a4341e6b5c062",
     "payload-sha1" : "96cb51bbc0957995bc89cf87c4eecfd372a1af63"
-  }, {
-    "url" : "https://github.com/defold/extension-rive/archive/refs/tags/13.1.0.zip",
-    "commit-sha1" : "22be59a370162c0df8b6c44fcaff1e28d3e864ef",
-    "payload-sha1" : "255d28a35664931f1225a725236400c0d9e7aafd"
   } ]
 }

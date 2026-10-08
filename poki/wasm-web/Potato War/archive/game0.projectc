@@ -270,7 +270,3 @@ input_key_lshift = key_lshift
 input_key_lctrl = key_lctrl
 input_key_lsuper = key_lsuper
 
-[rive]
-max_instance_count = 128
-use_threads = 1
-
