@@ -15,20 +15,76 @@ local inventory_manager = require("lua_modules.inventory_manager")
 
 local M = {}
 
--- Select optimal enemy target
-function M.select_target(bot, enemies)
+-- Worms Personality Archetypes
+M.ARCHETYPES = {
+	BERSERK = "berserk",       -- Aggressive, close quarters, shotgun/knife/bazooka in face, low retreat
+	SNIPER = "sniper",         -- Patient, rifle/bazooka, vantage points, high precision, long deliberation
+	COWARD = "coward",         -- Defensive, grenade/mortar from deep cover, high retreat into bunkers
+	CLUMSY = "clumsy",         -- Hilarious unpredictable mistakes, grenade bounces, fails
+}
+
+function M.resolve_archetype(bot)
+	if bot.bot_archetype then return bot.bot_archetype end
+	local c_id = bot.class_id or "recruit"
+	local arch = M.ARCHETYPES.BERSERK
+	if c_id == "sniper" then
+		arch = M.ARCHETYPES.SNIPER
+	elseif c_id == "artillery" or c_id == "artillery_2" or c_id == "rocketeer" then
+		arch = M.ARCHETYPES.SNIPER
+	elseif c_id == "medic" or c_id == "surgeon" or c_id == "engineer" then
+		arch = M.ARCHETYPES.COWARD
+	elseif c_id == "recruit" then
+		arch = (math.random() > 0.45) and M.ARCHETYPES.CLUMSY or M.ARCHETYPES.COWARD
+	else
+		-- assault, sapper, commando
+		arch = (math.random() > 0.5) and M.ARCHETYPES.BERSERK or M.ARCHETYPES.CLUMSY
+	end
+	bot.bot_archetype = arch
+	return arch
+end
+
+-- Select optimal enemy target using Utility Scoring:
+-- Score = (Enemy Dmg Potential * W1) + (Water/Drown Chance * W2) - (Self/Ally Danger * W3) - (Ammo Value)
+function M.select_target(bot, enemies, terrain)
+	local arch = M.resolve_archetype(bot)
 	local best_target = nil
-	local min_score = 999999
+	local highest_utility = -999999
 
 	for _, enemy in ipairs(enemies) do
 		if enemy.is_alive then
 			local dx = enemy.pos.x - bot.pos.x
 			local dy = enemy.pos.y - bot.pos.y
 			local dist = math.sqrt(dx * dx + dy * dy)
-			-- Prioritize lower HP enemies if within reasonable range
-			local score = dist + enemy.hp * 0.75
-			if score < min_score then
-				min_score = score
+			local enemy_gy = terrain and terrain.get_smooth_ground_y(enemy.pos.x, 4.0) or enemy.pos.y
+
+			-- Base damage utility: higher utility for finishing off wounded targets
+			local kill_urgency = (enemy.hp <= 45) and 180 or (100 - enemy.hp * 0.4)
+			local dist_penalty = dist * 0.35
+
+			-- Water proximity bonus (push/drown chance: W2)
+			local drown_bonus = 0
+			if enemy_gy < constants.WATER_LEVEL + 40.0 then
+				drown_bonus = 320
+			elseif enemy_gy < constants.WATER_LEVEL + 70.0 then
+				drown_bonus = 140
+			end
+
+			-- Archetype bias
+			local arch_bias = 0
+			if arch == M.ARCHETYPES.BERSERK then
+				dist_penalty = dist * 0.6 -- Strong preference for closest enemy
+				if dist < 120 then arch_bias = 220 end
+			elseif arch == M.ARCHETYPES.SNIPER then
+				if dist > 180 then arch_bias = 160 end
+			elseif arch == M.ARCHETYPES.COWARD then
+				if dist < 90 then dist_penalty = 200 end -- Avoid close threats
+			elseif arch == M.ARCHETYPES.CLUMSY then
+				arch_bias = (math.random() - 0.5) * 80
+			end
+
+			local utility = kill_urgency + drown_bonus + arch_bias - dist_penalty
+			if utility > highest_utility then
+				highest_utility = utility
 				best_target = enemy
 			end
 		end
@@ -393,8 +449,22 @@ function M.score_weapon_tactical(weapon, bot, target, dist, has_los, wind_vector
 		end
 	end
 
-	-- 3. Bot Class Affinity
+	-- 3. Bot Class & Personality Archetype Affinity
 	local b_class = bot.class_id or "recruit"
+	local arch = M.resolve_archetype(bot)
+
+	if arch == M.ARCHETYPES.BERSERK then
+		if weapon.fire_mode == "melee" then score = score + 500 end
+		if w_id == weapons.TYPES.SHOTGUN or w_id == weapons.TYPES.BAZOOKA then score = score + 300 end
+	elseif arch == M.ARCHETYPES.SNIPER then
+		if w_id == weapons.TYPES.RIFLE or w_id == weapons.TYPES.BAZOOKA then score = score + 350 end
+	elseif arch == M.ARCHETYPES.COWARD then
+		if w_id == weapons.TYPES.GRENADE or w_id == weapons.TYPES.DRILL or w_id == weapons.TYPES.BEETLE then score = score + 280 end
+		if weapon.fire_mode == "melee" then score = score - 300 end -- Fear close quarters
+	elseif arch == M.ARCHETYPES.CLUMSY then
+		if w_id == weapons.TYPES.GRENADE or w_id == weapons.TYPES.HOLY_GRENADE or w_id == weapons.TYPES.MOLOTOV then score = score + 240 end
+	end
+
 	if b_class == "sniper" then
 		if w_id == weapons.TYPES.RIFLE then score = score + 350 end
 	elseif b_class == "artillery" or b_class == "artillery_2" or b_class == "rocketeer" then
@@ -776,19 +846,36 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	-- 3. Attack (accounting for wind, class, and elemental combinations)
 	local attack_plan = M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
 
-	-- 4. Difficulty jitter on attack (only applies to aim, strictly prevents self-damage)
+	-- 4. Controlled Gaussian Noise & Human Error by Archetype & Difficulty
+	local arch = M.resolve_archetype(bot)
 	local angle_jitter = 0
 	local power_jitter = 1.0
 
+	-- Box-Muller approximate Gaussian noise: (rand + rand - 1)
+	local g_noise1 = (math.random() + math.random() - 1.0)
+	local g_noise2 = (math.random() + math.random() - 1.0)
+
 	if difficulty == "easy" then
-		angle_jitter = (math.random() - 0.5) * 0.28 -- ~16 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.24
+		-- Weak bot: +/- 12 deg error, 20-30% power error, ignores wind
+		angle_jitter = g_noise1 * math.rad(12.0)
+		power_jitter = 1.0 + g_noise2 * 0.25
 	elseif difficulty == "normal" then
-		angle_jitter = (math.random() - 0.5) * 0.12 -- ~6.8 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.12
+		-- Normal bot: +/- 4 deg error, 5-10% power error
+		angle_jitter = g_noise1 * math.rad(4.0)
+		power_jitter = 1.0 + g_noise2 * 0.08
 	else -- "hard"
-		angle_jitter = (math.random() - 0.5) * 0.04 -- ~2.3 degrees
-		power_jitter = 1.0 + (math.random() - 0.5) * 0.05
+		-- Top bot: +/- 0.5-1.0 deg error, 2-3% power error
+		angle_jitter = g_noise1 * math.rad(0.8)
+		power_jitter = 1.0 + g_noise2 * 0.025
+	end
+
+	-- Archetype adjustments
+	if arch == M.ARCHETYPES.SNIPER then
+		angle_jitter = angle_jitter * 0.4 -- Laser precision
+		power_jitter = 1.0 + (power_jitter - 1.0) * 0.4
+	elseif arch == M.ARCHETYPES.CLUMSY then
+		angle_jitter = angle_jitter * 1.8 -- Funny blunders and bad ricochets
+		power_jitter = 1.0 + (power_jitter - 1.0) * 1.8
 	end
 
 	local cos_j = math.cos(angle_jitter)
@@ -797,12 +884,12 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	local final_dy = math.max(0.06, attack_plan.aim_dx * sin_j + attack_plan.aim_dy * cos_j)
 	local final_power = attack_plan.power * power_jitter
 
-	-- Deliberation delay (human-like pause, tuned for healthy Poki playtime)
-	local think_delay = 1.6 + math.random() * 0.8
-	if difficulty == "easy" then
-		think_delay = 1.8 + math.random() * 0.8
-	elseif difficulty == "hard" then
-		think_delay = 1.2 + math.random() * 0.6
+	-- Deliberation delay (human-like pause)
+	local think_delay = 1.4 + math.random() * 0.7
+	if arch == M.ARCHETYPES.SNIPER then
+		think_delay = 2.0 + math.random() * 0.8
+	elseif arch == M.ARCHETYPES.BERSERK then
+		think_delay = 0.8 + math.random() * 0.4
 	end
 
 	return {

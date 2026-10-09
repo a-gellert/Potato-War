@@ -567,11 +567,22 @@ function update(self, dt)
 		end
 	end
 
-	-- 3. Filter finished projectiles
+	-- 3. Filter finished projectiles & Worms panic flinch for nearby potatoes
 	local alive_projectiles = {}
 	for _, proj_url in ipairs(self.active_projectiles) do
-		if pcall(function() return go.get_position(proj_url) end) then
+		local ok, ppos = pcall(function() return go.get_position(proj_url) end)
+		if ok and ppos then
 			table.insert(alive_projectiles, proj_url)
+			-- Game juice: potatoes near falling projectile panic/flinch
+			for _, p in ipairs(game_state.potatoes) do
+				if p.is_alive and p.url then
+					local dx = p.pos.x - ppos.x
+					local dy = p.pos.y - ppos.y
+					if (dx * dx + dy * dy) < 2304 then -- < 48 px
+						msg.post(p.url, "alert_aimed")
+					end
+				end
+			end
 		end
 	end
 	self.active_projectiles = alive_projectiles
@@ -612,9 +623,9 @@ function update(self, dt)
 	-- "survey": looks around, pauses, assesses surrounding threats & footing
 	-- "move": walks towards target/cover, dynamically climbing or jumping over obstacles
 	-- "assess": deliberate pause after moving to evaluate the chosen vantage point
-	-- "aim": equips weapon, aims reticle with realistic human-like micro-adjustments
+	-- "aim": equips weapon, stepped aiming (overshoots and corrects back) with reticle preview
 	-- "shoot": fires weapon with recoil
-	-- "retreat": tactical retreat into cover / away from danger before turn ends
+	-- "retreat": tactical retreat into bunker/depression away from explosion/water
 	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.is_bot_turn() then
 		local bot = game_state.active_potato
 		if bot and bot.is_alive then
@@ -638,6 +649,8 @@ function update(self, dt)
 				self.bot_move_timer = 0
 				self.bot_move_jumped = false
 				self.bot_aim_timer = 0
+				self.bot_aim_total = 0
+				self.bot_overshoot_angle = (math.random() > 0.5 and 0.08 or -0.08)
 				self.bot_retreat_steps = 0
 				self.bot_retreat_done = 0
 
@@ -673,7 +686,9 @@ function update(self, dt)
 							end
 						else
 							self.bot_state = "aim"
-							self.bot_aim_timer = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or (self.bot_plan.think_delay or 0.65)
+							self.bot_aim_total = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or (self.bot_plan.think_delay or 0.70)
+							self.bot_aim_timer = self.bot_aim_total
+							self.bot_overshoot_angle = (math.random() > 0.5 and 0.09 or -0.09)
 							game_state.select_weapon(self.bot_plan.weapon_id)
 							bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
 							if bot.url then
@@ -740,7 +755,9 @@ function update(self, dt)
 					self.bot_timer = self.bot_timer - dt
 					if self.bot_timer <= 0 then
 						self.bot_state = "aim"
-						self.bot_aim_timer = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or 0.60
+						self.bot_aim_total = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or 0.70
+						self.bot_aim_timer = self.bot_aim_total
+						self.bot_overshoot_angle = (math.random() > 0.5 and 0.09 or -0.09)
 						game_state.select_weapon(self.bot_plan.weapon_id)
 						if bot.url then
 							msg.post(bot.url, "set_facing", { facing = (self.bot_plan.aim_dx >= 0) and 1 or -1 })
@@ -749,27 +766,38 @@ function update(self, dt)
 					end
 
 				elseif self.bot_state == "aim" then
-					-- Aiming phase with realistic Worms-style aim guide & micro-adjustments
+					-- Stepped Aiming phase: overshoots slightly, then corrects back to target angle
 					self.bot_aim_timer = self.bot_aim_timer - dt
+					local total_t = math.max(0.1, self.bot_aim_total or 0.70)
+					local aim_progress = math.max(0, math.min(1.0, 1.0 - (self.bot_aim_timer / total_t)))
 
-					-- Dynamic trajectory preview with human-like aim fine-tuning
-					local aim_progress = math.max(0, 1.0 - (self.bot_aim_timer / 0.85))
-					local jitter_factor = (1.0 - aim_progress) * 0.08
-					local cur_vx = (self.bot_plan.aim_dx + (math.random() - 0.5) * jitter_factor) * self.bot_plan.power
-					local cur_vy = (self.bot_plan.aim_dy + (math.random() - 0.5) * jitter_factor) * self.bot_plan.power
-
-					if self.bot_aim_timer < 0.65 then
-						bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
-						if bot.url then
-							msg.post(bot.url, "set_facing", { facing = bot.facing })
-							msg.post(bot.url, "set_weapon", { weapon_id = self.bot_plan.weapon_id })
-						end
-						msg.post("/aim_guide#aim_guide", "bot_aim_preview", {
-							vx = cur_vx,
-							vy = cur_vy,
-							weapon_id = self.bot_plan.weapon_id
-						})
+					-- Stepped angle interpolation: early overshoot, late fine-tuned correction
+					local base_angle = math.atan2(self.bot_plan.aim_dy, self.bot_plan.aim_dx)
+					local angle_offset = 0
+					if aim_progress < 0.65 then
+						-- Sweeping towards target and slightly overshooting
+						local sweep = aim_progress / 0.65
+						angle_offset = self.bot_overshoot_angle * (1.0 - sweep) + self.bot_overshoot_angle * 0.4 * sweep
+					else
+						-- Fine-tuning adjustment back to true angle
+						local adjust = (aim_progress - 0.65) / 0.35
+						angle_offset = (self.bot_overshoot_angle * 0.4) * (1.0 - adjust)
 					end
+
+					local cur_angle = base_angle + angle_offset
+					local cur_vx = math.cos(cur_angle) * self.bot_plan.power
+					local cur_vy = math.sin(cur_angle) * self.bot_plan.power
+
+					bot.facing = (cur_vx >= 0) and 1 or -1
+					if bot.url then
+						msg.post(bot.url, "set_facing", { facing = bot.facing })
+					end
+
+					msg.post("/aim_guide#aim_guide", "bot_aim_preview", {
+						vx = cur_vx,
+						vy = cur_vy,
+						weapon_id = self.bot_plan.weapon_id
+					})
 
 					-- Fire!
 					if self.bot_aim_timer <= 0 then
@@ -788,15 +816,34 @@ function update(self, dt)
 							owner_id = bot.id
 						})
 
-						-- Plan retreat if weapon poses blast danger to self
+						-- Plan retreat: seek nearest depression or step back from blast/water
+						local retreat_needed = false
 						local wpn = weapons.get(self.bot_plan.weapon_id)
-						if wpn and (wpn.blast_radius or 0) > 25 and bot.is_grounded and math.random() > 0.4 then
+						local arch = bot.bot_archetype or (self.bot_plan and self.bot_plan.archetype) or "coward"
+						if arch == "coward" or (wpn and (wpn.blast_radius or 0) > 20) or arch == "sniper" then
+							retreat_needed = true
+						end
+
+						if retreat_needed and bot.is_grounded then
+							-- Evaluate left vs right: prefer safe ground away from water
+							local left_x = bot.pos.x - 24
+							local right_x = bot.pos.x + 24
+							local left_y = terrain_grid.get_smooth_ground_y(left_x, 4.0)
+							local right_y = terrain_grid.get_smooth_ground_y(right_x, 4.0)
+							local water_y = constants.WATER_LEVEL or 20
+
+							local retreat_dir = (self.bot_plan.aim_dx >= 0) and -1 or 1
+							if retreat_dir == -1 and left_y <= water_y + 10 then
+								retreat_dir = 1
+							elseif retreat_dir == 1 and right_y <= water_y + 10 then
+								retreat_dir = -1
+							end
+
 							self.bot_state = "retreat"
-							self.bot_retreat_steps = math.random(3, 7)
+							self.bot_retreat_steps = (arch == "coward") and math.random(5, 9) or math.random(3, 6)
 							self.bot_retreat_done = 0
 							self.bot_retreat_timer = 0
-							-- Step backward away from the firing direction
-							self.bot_retreat_dir = (self.bot_plan.aim_dx >= 0) and -1 or 1
+							self.bot_retreat_dir = retreat_dir
 						else
 							self.bot_thinking = false
 							self.bot_plan = nil
@@ -805,7 +852,7 @@ function update(self, dt)
 					end
 
 				elseif self.bot_state == "retreat" then
-					-- Quick tactical retreat: worm crawls backward after firing to avoid self-harm or cliff edge
+					-- Tactical retreat: bot crawls into cover/away from danger before turn ends
 					if self.bot_retreat_done < self.bot_retreat_steps then
 						self.bot_retreat_timer = self.bot_retreat_timer + dt
 						if self.bot_retreat_dir ~= 0 then
