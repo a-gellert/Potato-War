@@ -555,8 +555,9 @@ function update(self, dt)
 		update_phase_widget(self)
 		update_squad_widget(self)
 
-		-- Animated tutorial hand: semi-transparent hand that presses and moves towards enemy over the active potato
-		local is_arena_1 = (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1) or (game_state.mode ~= constants.MODE_CAMPAIGN)
+		-- Dynamic contextual tutorial hints (Step 1: Movement, Step 2: Jump, Step 3: Weapon, Step 4: Aim & Shoot)
+		local is_tutorial_mode = (game_state.mode == constants.MODE_TUTORIAL)
+		local is_arena_1 = is_tutorial_mode or (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1)
 		local should_show_hand = not self.tutorial_hand_done
 			and is_arena_1
 			and game_state.state == constants.STATE_TURN_ACTIVE
@@ -571,18 +572,52 @@ function update(self, dt)
 				self.tap_hint_timer = self.tap_hint_timer - dt
 			end
 
+			local active_p = game_state.active_potato
+			local cur_x = active_p and active_p.pos.x or 260
+			local has_bazooka = (game_state.selected_weapon_id == "bazooka") or (game_state.get_ammo("bazooka") > 0)
+
 			pcall(function()
 				local hint_panel = gui.get_node("tutorial_hint_panel")
 				local hint_text = gui.get_node("tutorial_hint_text")
 				if hint_panel and hint_text then
 					gui.set_enabled(hint_panel, true)
-					if self.tap_hint_timer and self.tap_hint_timer > 0 then
-						local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
-						gui.set_text(hint_text, tap_msg)
-						gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
+					if is_tutorial_mode then
+						if cur_x < 380 then
+							-- Step 1: Movement
+							local msg_t = is_ru and "👣 ШАГ 1: Движение — используй [A/D] или стрелки на экране" or "👣 STEP 1: Movement — use [A/D] or on-screen arrows"
+							gui.set_text(hint_text, msg_t)
+							gui.set_color(hint_text, vmath.vector4(0.3, 0.95, 0.5, 1.0))
+						elseif cur_x < 506 then
+							-- Step 2: Jump
+							local msg_t = is_ru and "🦘 ШАГ 2: Прыжок — нажми [Пробел / W]" or "🦘 STEP 2: Jump — press [Space / W]"
+							gui.set_text(hint_text, msg_t)
+							gui.set_color(hint_text, vmath.vector4(0.95, 0.85, 0.2, 1.0))
+						elseif not has_bazooka and cur_x < 650 then
+							-- Step 3: Weapon crate
+							local msg_t = is_ru and "📦 ШАГ 3: Подбери ящик с Базукой!" or "📦 STEP 3: Collect the Bazooka crate!"
+							gui.set_text(hint_text, msg_t)
+							gui.set_color(hint_text, vmath.vector4(1.0, 0.7, 0.2, 1.0))
+						else
+							-- Step 4: Aim & Shoot
+							if self.tap_hint_timer and self.tap_hint_timer > 0 then
+								local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону мишени для силы выстрела!" or "💡 HOLD & DRAG towards target to set power!"
+								gui.set_text(hint_text, tap_msg)
+								gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
+							else
+								local shoot_msg = is_ru and "🎯 ШАГ 4: Наведи прицел и зажми ЛКМ для выстрела в мишень!" or "🎯 STEP 4: Aim and hold mouse to shoot the target!"
+								gui.set_text(hint_text, shoot_msg)
+								gui.set_color(hint_text, vmath.vector4(0.2, 0.85, 1.0, 1.0))
+							end
+						end
 					else
-						gui.set_text(hint_text, i18n.t("tutorial_hint"))
-						gui.set_color(hint_text, vmath.vector4(1.0, 0.90, 0.25, 1.0))
+						if self.tap_hint_timer and self.tap_hint_timer > 0 then
+							local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
+							gui.set_text(hint_text, tap_msg)
+							gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
+						else
+							gui.set_text(hint_text, i18n.t("tutorial_hint"))
+							gui.set_color(hint_text, vmath.vector4(1.0, 0.90, 0.25, 1.0))
+						end
 					end
 				end
 			end)

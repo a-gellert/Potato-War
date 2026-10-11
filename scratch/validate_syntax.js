@@ -27,11 +27,15 @@ const files = [
 ];
 
 for (const filePath of files) {
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(filePath, 'utf8').replace(/\r/g, '');
     const lines = content.split('\n');
     let parens = 0, braces = 0, brackets = 0;
     for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].replace(/--.*$/, '');
+        let line = lines[i];
+        const commentIdx = line.indexOf('--');
+        if (commentIdx !== -1) {
+            line = line.substring(0, commentIdx);
+        }
         line = line.replace(/"(\\.|[^"\\])*"/g, '""');
         line = line.replace(/'(\\.|[^'\\])*'/g, "''");
         for (const ch of line) {

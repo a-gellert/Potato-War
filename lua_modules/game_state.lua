@@ -305,7 +305,15 @@ function M.start_match(mode, campaign_lvl)
 	end
 
 	-- Setup inventory loadout (up to 5 weapons)
-	if M.mode == constants.MODE_CAMPAIGN then
+	if M.mode == constants.MODE_TUTORIAL then
+		M.player_loadout = { "bazooka" }
+		M.player_ammo = {
+			bazooka = -1, -- Unlimited bazooka shots in tutorial!
+			grenade = 0,
+		}
+		M.wind = 0 -- No wind in tutorial!
+		M.wind_vector = vmath.vector3(0, 0, 0)
+	elseif M.mode == constants.MODE_CAMPAIGN then
 		if M.campaign_level == 1 then
 			player_profile.reset_campaign_hp()
 			M.player_loadout = { "grenade", "bazooka", "molotov" }
@@ -598,6 +606,10 @@ function M.next_turn()
 
 	-- Switch active team
 	M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
+	if M.mode == constants.MODE_TUTORIAL and M.active_team == constants.TEAM_BLUE then
+		M.add_ammo("bazooka", 1) -- Replenish bazooka for player in tutorial!
+		M.select_weapon("bazooka")
+	end
 	begin_current_turn()
 end
 
@@ -617,7 +629,7 @@ function M.update(dt, active_projectiles_count)
 		-- No timeout pressure during card selection
 
 	elseif M.state == constants.STATE_TURN_ACTIVE then
-		local is_tutorial_turn = (M.mode == constants.MODE_CAMPAIGN and (M.campaign_level or 1) == 1 and not M.tutorial_first_shot_done and M.active_team == constants.TEAM_BLUE)
+		local is_tutorial_turn = (M.mode == constants.MODE_TUTORIAL) or (M.mode == constants.MODE_CAMPAIGN and (M.campaign_level or 1) == 1 and not M.tutorial_first_shot_done and M.active_team == constants.TEAM_BLUE)
 		if not is_tutorial_turn then
 			M.turn_timer = M.turn_timer - dt
 		else

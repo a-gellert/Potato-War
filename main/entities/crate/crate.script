@@ -28,7 +28,7 @@ function init(self)
 			go.set("#box_sprite", "tint", vmath.vector4(0.20, 0.88, 0.40, 1.0))
 			go.set("#icon_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
 			sprite.play_flipbook("#icon_sprite", hash("circle"))
-			go.set_scale(vmath.vector3(0.4, 0.4, 1.0), "#icon_sprite")
+			go.set_scale(vmath.vector3(0.85, 0.85, 1.0), "#icon_sprite")
 		end)
 	else
 		-- Gold weapon crate tint
@@ -40,7 +40,7 @@ function init(self)
 				wpn_name = w.icon
 			end
 			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
-			go.set_scale(vmath.vector3(0.5, 0.5, 1.0), "#icon_sprite")
+			go.set_scale(vmath.vector3(0.95, 0.95, 1.0), "#icon_sprite")
 		end)
 	end
 end
@@ -113,8 +113,8 @@ function update(self, dt)
 		self.pos.x = self.pos.x + math.sin(self.sway_time * 2.5) * 16.0 * dt
 
 		local gy = terrain_grid.get_smooth_ground_y(self.pos.x, 3.0)
-		if self.pos.y <= gy + 11.0 then
-			self.pos.y = gy + 11.0
+		if self.pos.y <= gy + 16.0 then
+			self.pos.y = gy + 16.0
 			self.is_grounded = true
 			pcall(function()
 				go.animate("#parachute_sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0, 0, 0), go.EASING_INQUAD, 0.25, 0, function()
@@ -138,7 +138,7 @@ function update(self, dt)
 		if p.is_alive then
 			local dx = math.abs(p.pos.x - self.pos.x)
 			local dy = math.abs(p.pos.y - self.pos.y)
-			if dx < 22.0 and dy < 26.0 then
+			if dx < 28.0 and dy < 32.0 then
 				collect_crate(self, p)
 				return
 			end

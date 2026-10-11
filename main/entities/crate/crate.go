@@ -15,8 +15,8 @@ embedded_components {
     z: 0.15
   }
   scale {
-    x: 0.65
-    y: 0.65
+    x: 1.35
+    y: 1.35
     z: 1.0
   }
 }
@@ -33,8 +33,8 @@ embedded_components {
     z: 0.16
   }
   scale {
-    x: 0.45
-    y: 0.45
+    x: 0.95
+    y: 0.95
     z: 1.0
   }
 }
@@ -47,12 +47,12 @@ embedded_components {
   "blend_mode: BLEND_MODE_ALPHA\n"
   position {
     x: 0.0
-    y: 20.0
+    y: 26.0
     z: 0.14
   }
   scale {
-    x: 0.9
-    y: 0.55
+    x: 1.35
+    y: 0.85
     z: 1.0
   }
 }

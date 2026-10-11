@@ -5,13 +5,17 @@ components {
 embedded_components {
   id: "sprite"
   type: "sprite"
-  data: "default_animation: \"potato_blue\"\n"
+  data: "default_animation: \"recruit\"\n"
   "material: \"/builtins/materials/sprite.material\"\n"
   "textures {\n"
   "  sampler: \"texture_sampler\"\n"
   "  texture: \"/main/assets/game.atlas\"\n"
   "}\n"
   ""
+  scale {
+    x: 0.25
+    y: 0.25
+  }
 }
 embedded_components {
   id: "reticle"
@@ -24,7 +28,7 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 30.0
+    y: 26.0
     z: 0.1
   }
   scale {
@@ -43,13 +47,32 @@ embedded_components {
   "}\n"
   ""
   position {
-    x: 0.0
-    y: 0.0
+    x: 4.0
+    y: -3.0
     z: 0.05
   }
   scale {
-    x: 0.8
-    y: 0.8
+    x: 0.55
+    y: 0.55
+  }
+}
+embedded_components {
+  id: "hat_sprite"
+  type: "sprite"
+  data: "default_animation: \"hat_cap\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: 16.0
+    z: 0.06
+  }
+  scale {
+    x: 0.6
+    y: 0.6
   }
 }
 embedded_components {
@@ -63,7 +86,7 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 22.0
+    y: 25.0
     z: 0.08
   }
   scale {
@@ -82,11 +105,30 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 22.0
+    y: 25.0
     z: 0.09
   }
   scale {
     x: 3.8
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "emotion"
+  type: "sprite"
+  data: "default_animation: \"s_happy\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: 7.0
+    z: 0.07
+  }
+  scale {
+    x: 0.5
     y: 0.5
   }
 }

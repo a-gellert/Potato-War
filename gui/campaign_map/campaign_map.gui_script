@@ -180,20 +180,20 @@ local function update_inspector(self)
 end
 
 local CLASS_AVATARS = {
-	recruit     = "potato_base_blue",
-	assault     = "potato_assault_blue",
-	assault_2   = "potato_assault_blue",
-	sniper      = "potato_sniper_blue",
-	sapper      = "potato_sapper_blue",
-	sapper_2    = "potato_sapper_blue",
-	commando    = "potato_sapper_blue",
-	artillery   = "potato_artillery_blue",
-	artillery_2 = "potato_artillery_blue",
-	rocketeer   = "potato_artillery_blue",
-	medic       = "potato_medic_blue",
-	surgeon     = "potato_medic_blue",
-	engineer    = "potato_sapper_blue",
-	tank        = "potato_sapper_blue",
+	recruit     = "recruit",
+	assault     = "assault",
+	assault_2   = "assault",
+	sniper      = "sniper",
+	sapper      = "sapper",
+	sapper_2    = "sapper",
+	commando    = "sapper",
+	artillery   = "tank",
+	artillery_2 = "tank",
+	rocketeer   = "tank",
+	medic       = "medic",
+	surgeon     = "medic",
+	engineer    = "sapper",
+	tank        = "tank",
 }
 
 local function update_barracks_ui(self)
@@ -261,7 +261,7 @@ local function update_barracks_ui(self)
 				local spd_val = math.floor((c_def.stats and c_def.stats.walk_speed_mult or 1.0) * 100)
 				gui.set_text(stats_node, string.format("HP: %d | Скор: %d%%", hp_val, spd_val))
 
-				local tex_name = CLASS_AVATARS[member.class_id] or "potato_base_blue"
+				local tex_name = CLASS_AVATARS[member.class_id] or "recruit"
 				gui.play_flipbook(avatar, hash(tex_name))
 
 				-- Available promotions along branch
@@ -411,13 +411,14 @@ function M_update_visuals(self)
 				local alert = gui.get_node("sec_alert_" .. i)
 				local lbl = gui.get_node("sec_lbl_" .. i)
 
-				-- Button faction color
+				-- Button faction color & potato avatar
+				gui.play_flipbook(potato, hash("recruit"))
 				if is_blue then
 					gui.set_color(btn, vmath.vector4(0.16, 0.44, 0.82, 1.0))
-					gui.play_flipbook(potato, hash("potato_blue"))
+					gui.set_color(potato, vmath.vector4(0.85, 0.95, 1.0, 1.0))
 				else
 					gui.set_color(btn, vmath.vector4(0.74, 0.18, 0.20, 1.0))
-					gui.play_flipbook(potato, hash("potato_red"))
+					gui.set_color(potato, vmath.vector4(1.0, 0.85, 0.85, 1.0))
 				end
 
 				-- Defense stars

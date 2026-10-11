@@ -34,8 +34,8 @@ function init(self)
 	-- Set sprite according to weapon
 	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
 
-	-- Set scale
-	local s = self.weapon.projectile_scale or 1.0
+	-- Set scale (0.55 matches the in-hand weapon size on the scaled potato)
+	local s = (self.weapon.projectile_scale or 1.0) * 0.55
 	go.set("#sprite", "scale", vmath.vector3(s, s, 1.0))
 
 	-- Set tint
@@ -162,8 +162,14 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		for _, p in ipairs(game_state.potatoes) do
 			if p.is_alive then
 				local dmg = 0
+				local max_dmg = self.weapon.max_damage
+				-- Tutorial fail-safe: enemy deals half damage to the player
+				if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
+					max_dmg = math.floor(max_dmg * 0.5)
+				end
+
 				if direct_hit_potato and p.id == direct_hit_potato.id then
-					dmg = self.weapon.max_damage
+					dmg = max_dmg
 					p.hp = math.max(0, p.hp - dmg)
 					if p.hp <= 0 then p.is_alive = false end
 					local dir_x = (self.vel.x >= 0) and 1 or -1
@@ -171,7 +177,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 					p.vel.y = p.vel.y + (self.weapon.blast_force or 150) * 0.4
 					p.is_grounded = false
 				else
-					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
+					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
 				end
 				apply_potato_damage(self, p, dmg, hit_x, hit_y)
 			end

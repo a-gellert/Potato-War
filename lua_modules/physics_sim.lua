@@ -32,13 +32,7 @@ function M.update_potato(p, dt, terrain, wind_vector)
 		p.vel.y = math.max(-constants.MAX_FALL_SPEED, p.vel.y - constants.GRAVITY * dt)
 		local drag_rate = is_glued and 4.0 or 2.0
 		p.vel.x = p.vel.x * math.max(0, 1.0 - drag_rate * dt) -- air drag
-
-		-- Dynamic horizontal wind drift on airborne potatoes based on mass
-		local wx, _ = get_wind_components(wind_vector)
-		if math.abs(wx) > 0.01 then
-			local wind_accel = (wx * 22.0) / mass
-			p.vel.x = p.vel.x + wind_accel * dt
-		end
+		-- Wind only affects projectiles; potatoes are immune to wind drift
 	else
 		-- Ground friction (stronger if glued)
 		local ground_fric = is_glued and 28.0 or 16.0
@@ -68,7 +62,15 @@ function M.update_potato(p, dt, terrain, wind_vector)
 
 	-- Check water level (splash rescue or drowning)
 	if p.pos.y < constants.WATER_LEVEL or new_y < constants.WATER_LEVEL then
-		if p.hp > 30 then
+		if game_state and game_state.mode == constants.MODE_TUTORIAL then
+			-- Fail-safe tutorial rescue: teleport back to safe edge without damage or penalty!
+			p.pos.x = 380.0
+			p.pos.y = 180.0
+			p.vel.x = 0
+			p.vel.y = 0
+			p.is_grounded = true
+			return "tutorial_rescue"
+		elseif p.hp > 30 then
 			-- Water Splash Rescue: takes 30 water damage and bounces back up toward the map!
 			p.hp = p.hp - 30
 			local to_center_dir = (new_x < constants.WORLD_WIDTH * 0.5) and 1 or -1
@@ -142,7 +144,14 @@ function M.update_potato(p, dt, terrain, wind_vector)
 				p.vel.x = 0
 			else
 				-- Stable ground resting / slope following:
-				new_y = target_standing_y
+				if p.is_walking then
+					-- Preserve active hop y while walking
+					new_y = p.pos.y
+					p.is_walking = false -- will be set back to true on next walk_potato call if still walking
+				else
+					p.walk_step_time = 0
+					new_y = target_standing_y
+				end
 				p.vel.y = 0
 			end
 		end
@@ -242,9 +251,12 @@ function M.walk_potato(p, dir, dt, terrain)
 		return
 	end
 
-	-- 6. Apply smooth position update
+	-- 6. Apply smooth position update with walking micro-hops
+	p.walk_step_time = (p.walk_step_time or 0) + dt * 18.0
+	local hop_y = math.abs(math.sin(p.walk_step_time)) * 2.0
 	p.pos.x = target_x
-	p.pos.y = target_gy + radius
+	p.pos.y = target_gy + radius + hop_y
+	p.is_walking = true
 end
 
 -- Jump potato (glued status heavily dampens or blocks jumps)
@@ -260,7 +272,7 @@ function M.jump_potato(p, allow_midair_count)
 	if p.is_alive and (p.is_grounded or (p.air_jumps or 0) < allow_midair_count) then
 		p.air_jumps = (p.air_jumps or 0) + 1
 		p.vel.y = constants.POTATO_JUMP_IMPULSE * jump_mult
-		p.vel.x = p.facing * (40.0 * (is_glued and 0.5 or 1.0))
+		p.vel.x = p.facing * (55.0 * (is_glued and 0.5 or 1.0))
 		p.is_grounded = false
 		return true
 	end
@@ -401,7 +413,11 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 
 	for _, p in ipairs(potatoes) do
 		if p.is_alive and (proj.owner_id == nil or p.id ~= proj.owner_id or proj.fuse_timer < proj.weapon.fuse_time - 0.1) then
-			local hit_p, px, py, p_dist = check_segment_circle(x0, y0, next_x, next_y, p.pos.x, p.pos.y, constants.POTATO_RADIUS + 3)
+			local hit_radius = constants.POTATO_RADIUS + 3
+			if p.is_target or (p.team == constants.TEAM_RED and game_state and game_state.mode == constants.MODE_TUTORIAL) then
+				hit_radius = constants.POTATO_RADIUS + 18 -- Fail-safe: generous hitbox for tutorial target
+			end
+			local hit_p, px, py, p_dist = check_segment_circle(x0, y0, next_x, next_y, p.pos.x, p.pos.y, hit_radius)
 			if hit_p and p_dist < closest_potato_dist then
 				closest_potato_dist = p_dist
 				hit_potato = p

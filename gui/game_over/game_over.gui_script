@@ -278,13 +278,13 @@ function on_message(self, message_id, message, sender)
 				gui.set_enabled(skin_bg, true)
 				local skin_name = is_ru and (prog.skin.name_ru or prog.skin.name) or (prog.skin.name_en or prog.skin.name)
 				if prog.can_buy then
-					local ready_msg = is_ru and ("🎉 Доступен скин «" .. skin_name .. "» (" .. prog.target_price .. " очков)! Нажмите «МАГАЗИН»")
-						or ("🎉 Unlocked: '" .. skin_name .. "' (" .. prog.target_price .. " pts)! Click 'SHOP'")
+					local ready_msg = is_ru and ("🎉 Доступна шапка «" .. skin_name .. "» (" .. prog.target_price .. " очков)! Нажмите «МАГАЗИН»")
+						or ("🎉 Unlocked hat: '" .. skin_name .. "' (" .. prog.target_price .. " pts)! Click 'SHOP'")
 					gui.set_text(skin_txt, ready_msg)
 					gui.set_color(skin_txt, vmath.vector4(0.3, 1.0, 0.5, 1.0))
 				else
-					local prog_msg = is_ru and ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " до скина «" .. skin_name .. "» (Осталось " .. prog.needed .. " очков)")
-						or ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " to '" .. skin_name .. "' (" .. prog.needed .. " pts to go)")
+					local prog_msg = is_ru and ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " до шапки «" .. skin_name .. "» (Осталось " .. prog.needed .. " очков)")
+						or ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " to hat '" .. skin_name .. "' (" .. prog.needed .. " pts to go)")
 					gui.set_text(skin_txt, prog_msg)
 					gui.set_color(skin_txt, vmath.vector4(1.0, 0.85, 0.25, 1.0))
 				end
@@ -294,7 +294,20 @@ function on_message(self, message_id, message, sender)
 		end)
 
 		-- 7. Action Buttons
-		if is_campaign then
+		if message.is_tutorial or game_state.mode == constants.MODE_TUTORIAL then
+			gui.set_color(title_node, vmath.vector4(0.2, 0.95, 0.45, 1.0))
+			gui.set_text(title_node, is_ru and "ТЫ ГОТОВ К БОЮ!" or "YOU ARE READY!")
+			gui.set_text(sub_node, is_ru and "Тренировка завершена на отлично. Враг повержен!" or "Training completed with honors. Target eliminated!")
+			gui.set_text(next_txt, is_ru and "НАЧАТЬ КАМПАНИЮ ⚔️" or "START CAMPAIGN ⚔️")
+			gui.set_enabled(next_btn, true)
+			gui.set_enabled(next_txt, true)
+			gui.set_position(next_btn, vmath.vector3(480, 95, 0))
+			gui.set_enabled(revive_btn, false)
+			gui.set_enabled(revive_txt, false)
+			gui.set_enabled(rematch_btn, false)
+			gui.set_enabled(rematch_txt, false)
+			gui.set_enabled(minimap_bg, false)
+		elseif is_campaign then
 			gui.set_text(next_txt, i18n.t("btn_return_hq"))
 			gui.set_enabled(next_btn, true)
 			gui.set_enabled(next_txt, true)

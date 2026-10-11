@@ -502,11 +502,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -518,6 +518,7 @@ nodes {
   text: "\320\221\320\265\321\201\320\277\320\273\320\260\321\202\320\275\320\276"
   font: "system_font"
   id: "skin_desc_1"
+  line_break: true
   parent: "skin_bg_1"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -621,11 +622,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -637,6 +638,7 @@ nodes {
   text: "150 \320\276\321\207\320\272\320\276\320\262"
   font: "system_font"
   id: "skin_desc_2"
+  line_break: true
   parent: "skin_bg_2"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -742,11 +744,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -758,6 +760,7 @@ nodes {
   text: "250 \320\276\321\207\320\272\320\276\320\262"
   font: "system_font"
   id: "skin_desc_3"
+  line_break: true
   parent: "skin_bg_3"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -862,11 +865,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -878,6 +881,7 @@ nodes {
   text: "400 \320\276\321\207\320\272\320\276\320\262"
   font: "system_font"
   id: "skin_desc_4"
+  line_break: true
   parent: "skin_bg_4"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -982,11 +986,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -998,6 +1002,7 @@ nodes {
   text: "600 \320\276\321\207\320\272\320\276\320\262"
   font: "system_font"
   id: "skin_desc_5"
+  line_break: true
   parent: "skin_bg_5"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -1102,11 +1107,11 @@ nodes {
     y: 10.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
-    x: 210.0
+    x: 750.0
     y: 20.0
   }
   color {
@@ -1118,6 +1123,7 @@ nodes {
   text: "900 \320\276\321\207\320\272\320\276\320\262"
   font: "system_font"
   id: "skin_desc_6"
+  line_break: true
   parent: "skin_bg_6"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -1162,6 +1168,127 @@ nodes {
   font: "system_font"
   id: "txt_skin_6"
   parent: "btn_skin_6"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -215.0
+  }
+  size {
+    x: 230.0
+    y: 130.0
+  }
+  color {
+    x: 0.15
+    y: 0.2
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "skin_bg_7"
+  parent: "shop_overlay"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    y: 40.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 210.0
+    y: 25.0
+  }
+  color {
+    x: 0.95
+    y: 0.8
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\276\321\200\320\276\320\275\320\260 \320\232\320\276\321\200\320\276\320\273\321\217"
+  font: "system_font"
+  id: "skin_name_7"
+  parent: "skin_bg_7"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 10.0
+  }
+  scale {
+    x: 0.3
+    y: 0.3
+  }
+  size {
+    x: 750.0
+    y: 20.0
+  }
+  color {
+    x: 0.75
+    y: 0.8
+    z: 0.85
+  }
+  type: TYPE_TEXT
+  text: "1200 \320\276\321\207\320\272\320\276\320\262"
+  font: "system_font"
+  id: "skin_desc_7"
+  line_break: true
+  parent: "skin_bg_7"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -30.0
+  }
+  size {
+    x: 190.0
+    y: 34.0
+  }
+  color {
+    x: 0.85
+    y: 0.65
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_skin_7"
+  parent: "skin_bg_7"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  scale {
+    x: 0.45
+    y: 0.45
+  }
+  size {
+    x: 170.0
+    y: 25.0
+  }
+  type: TYPE_TEXT
+  text: "\320\232\320\243\320\237\320\230\320\242\320\254 (1200)"
+  font: "system_font"
+  id: "txt_skin_7"
+  parent: "btn_skin_7"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0

@@ -686,6 +686,7 @@ function init(self)
 		self.atlas_id = atlas_res
 		go.set("#sprite", "image", atlas_res)
 		sprite.play_flipbook("#sprite", "terrain")
+		self.is_initialized = true
 	end
 
 	-- 4. Create dynamic texture and atlas for Procedural Background (960x270 base quad)

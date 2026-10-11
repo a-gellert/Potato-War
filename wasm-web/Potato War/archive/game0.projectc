@@ -58,7 +58,7 @@ sub_step_count = 4
 
 [bootstrap]
 main_collection = /main/main.collectionc
-render = /builtins/render/default.renderc
+render = /main/game.renderc
 debug_init_script = 
 
 [graphics]
@@ -70,7 +70,7 @@ max_font_batches = 128
 max_debug_vertices = 10000
 texture_profiles = /builtins/graphics/default.texture_profiles
 verify_graphics_calls = 1
-opengl_version_hint = 33
+opengl_version_hint = 42
 opengl_core_profile_hint = 1
 vulkan_version_major = 1
 vulkan_version_minor = 0
@@ -254,6 +254,7 @@ input_key_back = key_back
 input_key_enter = key_enter
 input_key_space = key_space
 input_key_backspace = key_backspace
+input_key_delete = key_del
 input_multitouch = touch_multi
 input_scroll_up = mouse_wheel_up
 input_scroll_down = mouse_wheel_down

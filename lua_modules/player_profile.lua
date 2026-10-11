@@ -6,80 +6,87 @@ local M = {}
 M.SKINS = {
 	{
 		id = "classic",
-		name = "Обычный Боец",
-		name_ru = "Обычный Боец",
+		name = "Без Шапки",
+		name_ru = "Без Шапки",
 		name_en = "Classic Spud",
-		desc = "Классический синий картофельный боец",
-		desc_ru = "Классический синий картофельный боец",
-		desc_en = "Classic blue potato warrior",
+		desc = "Классический бравый боец без головного убора",
+		desc_ru = "Классический бравый боец без головного убора",
+		desc_en = "Classic brave spud without headwear",
 		price = 0,
+		hat = "none",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
-		id = "gold",
-		name = "Золотой Самородок",
-		name_ru = "Золотой Самородок",
-		name_en = "Golden Nugget",
-		desc = "Покрыт чистым золотом высшей пробы",
-		desc_ru = "Покрыт чистым золотом высшей пробы",
-		desc_en = "Coated in pure 24-karat gold",
-		price = 150,
-		tint = { 1.0, 0.85, 0.2, 1.0 },
+		id = "cap",
+		name = "Кепка Бойца",
+		name_ru = "Кепка Бойца",
+		name_en = "Fighter Cap",
+		desc = "Спортивная синяя бейсболка с козырьком",
+		desc_ru = "Спортивная синяя бейсболка с козырьком",
+		desc_en = "Sporty blue baseball cap with visor",
+		price = 100,
+		hat = "hat_cap",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
-		id = "ninja",
-		name = "Картошка-Ниндзя",
-		name_ru = "Картошка-Ниндзя",
-		name_en = "Ninja Spud",
-		desc = "Темный скрытный мастер боевых искусств",
-		desc_ru = "Темный скрытный мастер боевых искусств",
-		desc_en = "Stealthy martial arts master",
+		id = "bandana",
+		name = "Бандана Ниндзя",
+		name_ru = "Бандана Ниндзя",
+		name_en = "Ninja Bandana",
+		desc = "Боевая красная повязка скрытного диверсанта",
+		desc_ru = "Боевая красная повязка скрытного диверсанта",
+		desc_en = "Battle red headband of a stealth commando",
 		price = 250,
-		tint = { 0.35, 0.35, 0.45, 1.0 },
+		hat = "hat_bandana",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
-		id = "cyber",
-		name = "Киборг MK-II",
-		name_ru = "Киборг MK-II",
-		name_en = "Cyborg MK-II",
-		desc = "Неоновый кибернетический корпус",
-		desc_ru = "Неоновый кибернетический корпус",
-		desc_en = "Neon cybernetic battle chassis",
+		id = "beret",
+		name = "Берет Десанта",
+		name_ru = "Берет Десанта",
+		name_en = "Elite Beret",
+		desc = "Тактический бордовый берет ветерана",
+		desc_ru = "Тактический бордовый берет ветерана",
+		desc_en = "Tactical maroon beret with golden insignia",
 		price = 400,
-		tint = { 0.2, 0.9, 1.0, 1.0 },
+		hat = "hat_beret",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
+		id = "tophat",
+		name = "Цилиндр Джентльмена",
+		name_ru = "Цилиндр Джентльмена",
+		name_en = "Top Hat",
+		desc = "Изысканный черный цилиндр с шелковой лентой",
+		desc_ru = "Изысканный черный цилиндр с шелковой лентой",
+		desc_en = "Refined gentleman top hat with silk ribbon",
+		price = 600,
+		hat = "hat_tophat",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
+		id = "viking",
+		name = "Шлем Викинга",
+		name_ru = "Шлем Викинга",
+		name_en = "Viking Helmet",
+		desc = "Стальной боевой шлем с могучими рогами",
+		desc_ru = "Стальной боевой шлем с могучими рогами",
+		desc_en = "Iron battle dome flanked by fierce horns",
+		price = 900,
+		hat = "hat_viking",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
 		id = "king",
-		name = "Король Пюре",
-		name_ru = "Король Пюре",
-		name_en = "King Mash",
-		desc = "Королевское величие и пурпурная мантия",
-		desc_ru = "Королевское величие и пурпурная мантия",
-		desc_en = "Royal majesty in a purple robe",
-		price = 600,
-		tint = { 0.85, 0.25, 0.85, 1.0 },
-	},
-	{
-		id = "magma",
-		name = "Магмовый Титан",
-		name_ru = "Магмовый Титан",
-		name_en = "Magma Titan",
-		desc = "Раскаленная лава и несокрушимая броня",
-		desc_ru = "Раскаленная лава и несокрушимая броня",
-		desc_en = "Molten lava and indestructible armor",
-		price = 900,
-		tint = { 1.0, 0.4, 0.1, 1.0 },
-	},
-	{
-		id = "emerald",
-		name = "Изумрудный Страж",
-		name_ru = "Изумрудный Страж",
-		name_en = "Emerald Sentinel",
-		desc = "Древний кристальный защитник урожая",
-		desc_ru = "Древний кристальный защитник урожая",
-		desc_en = "Ancient crystal crop guardian",
+		name = "Корона Короля",
+		name_ru = "Корона Короля",
+		name_en = "Royal Crown",
+		desc = "Золотая корона правителя картофельных полей",
+		desc_ru = "Золотая корона правителя картофельных полей",
+		desc_en = "Golden monarch crown adorned with rubies",
 		price = 1200,
-		tint = { 0.2, 1.0, 0.4, 1.0 },
+		hat = "hat_crown",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 }
 
@@ -87,6 +94,10 @@ M.SKINS_BY_ID = {}
 for _, s in ipairs(M.SKINS) do
 	M.SKINS_BY_ID[s.id] = s
 end
+
+-- Aliases for Hat Shop
+M.HATS = M.SKINS
+M.HATS_BY_ID = M.SKINS_BY_ID
 
 function M.get_skin_name(skin, lang)
 	if not skin then return "" end
@@ -97,6 +108,7 @@ function M.get_skin_name(skin, lang)
 		return skin.name_en or skin.name or ""
 	end
 end
+M.get_hat_name = M.get_skin_name
 
 function M.get_skin_desc(skin, lang)
 	if not skin then return "" end
@@ -107,6 +119,7 @@ function M.get_skin_desc(skin, lang)
 		return skin.desc_en or skin.desc or ""
 	end
 end
+M.get_hat_desc = M.get_skin_desc
 
 -- Profile state
 M.data = {
@@ -119,6 +132,7 @@ M.data = {
 	},
 	unlocked_skins = { ["classic"] = true },
 	equipped_skin = "classic",
+	tutorial_completed = false,
 	campaign_hp = 100,
 	campaign_max_hp = 100,
 	meta_upgrades = {
@@ -169,6 +183,7 @@ function M.load()
 		M.data.meta_upgrades = loaded.meta_upgrades or { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
 		M.data.campaign_map = loaded.campaign_map
 		M.data.campaign_turn = loaded.campaign_turn or 1
+		M.data.tutorial_completed = (loaded.tutorial_completed == true)
 		M.data.campaign_stats = loaded.campaign_stats or {
 			battles_won = 0,
 			battles_lost = 0,
@@ -186,6 +201,7 @@ function M.load()
 		}
 		M.data.unlocked_skins = { ["classic"] = true }
 		M.data.equipped_skin = "classic"
+		M.data.tutorial_completed = false
 		M.data.campaign_hp = 100
 		M.data.campaign_max_hp = 100
 		M.data.meta_upgrades = { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
@@ -316,6 +332,7 @@ end
 function M.is_skin_unlocked(skin_id)
 	return M.data.unlocked_skins[skin_id] == true
 end
+M.is_hat_unlocked = M.is_skin_unlocked
 
 function M.buy_skin(skin_id)
 	local skin = M.SKINS_BY_ID[skin_id]
@@ -334,6 +351,7 @@ function M.buy_skin(skin_id)
 	M.save()
 	return true, "Куплено"
 end
+M.buy_hat = M.buy_skin
 
 function M.equip_skin(skin_id)
 	if M.is_skin_unlocked(skin_id) then
@@ -343,11 +361,13 @@ function M.equip_skin(skin_id)
 	end
 	return false
 end
+M.equip_hat = M.equip_skin
 
 function M.get_equipped_skin()
 	local id = M.data.equipped_skin or "classic"
 	return M.SKINS_BY_ID[id] or M.SKINS[1]
 end
+M.get_equipped_hat = M.get_equipped_skin
 
 function M.get_campaign_hp()
 	return M.data.campaign_hp or 100
@@ -388,6 +408,7 @@ function M.get_next_skin_progress()
 			local needed = math.max(0, skin.price - pts)
 			return {
 				skin = skin,
+				hat = skin,
 				current_points = pts,
 				target_price = skin.price,
 				needed = needed,
@@ -398,6 +419,7 @@ function M.get_next_skin_progress()
 	end
 	return nil
 end
+M.get_next_hat_progress = M.get_next_skin_progress
 
 function M.get_campaign_map()
 	return M.data.campaign_map
@@ -442,6 +464,15 @@ function M.reset_campaign_progress()
 		sectors_lost = 0,
 		counterattacks_repelled = 0,
 	}
+	M.save()
+end
+
+function M.is_tutorial_completed()
+	return M.data.tutorial_completed == true
+end
+
+function M.set_tutorial_completed(completed)
+	M.data.tutorial_completed = (completed ~= false)
 	M.save()
 end
 

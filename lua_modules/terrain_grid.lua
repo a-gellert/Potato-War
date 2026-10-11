@@ -500,17 +500,19 @@ function M.generate(preset_type, campaign_level, is_defense)
 
 	local seed = math.random(1, 99999)
 
-	if preset_type == "flat" then
-		-- Training Arena: domain-warped dunes and sniper berms with comfortable verticality
-		local base_h = math.floor(h * 0.35)
+	if preset_type == "tutorial" or preset_type == "flat" then
+		-- Completely Flat Training Ground (height 160 world px, gy = 80 cells)
+		local base_gy = math.floor(160 / M.scale) -- 80 cells
 		for gx = 0, w - 1 do
-			local nx = gx / w
-			local wx = warp_coord_1d(nx, seed, 0.06, 2.5)
-			local gentle = fractal_noise(wx * 4.0, 3, seed) * (h * 0.08)
-			local mound1 = math.exp(-((wx - 0.32) * 6) ^ 2) * (h * 0.07)
-			local mound2 = math.exp(-((wx - 0.68) * 6) ^ 2) * (h * 0.07)
-			local micro = (value_noise(gx * 0.15, seed + 8) - 0.5) * 4
-			local height_val = math.floor(math.max(18, math.min(math.floor(h * 0.55), base_h + gentle + mound1 + mound2 + micro)))
+			local wx = gx * M.scale
+			local height_val = base_gy
+			if wx < 30 then
+				-- Left edge safety bumper
+				height_val = math.floor(200 / M.scale)
+			elseif wx > (w * M.scale - 30) then
+				-- Right edge safety bumper
+				height_val = math.floor(200 / M.scale)
+			end
 			for gy = 0, height_val do
 				M.grid[gy * w + gx + 1] = 1
 			end

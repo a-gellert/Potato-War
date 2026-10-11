@@ -33,7 +33,7 @@ M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for Poki playtime)
 M.GRAVITY = 460.0
 M.POTATO_RADIUS = 12.0
 M.POTATO_WALK_SPEED = 75.0
-M.POTATO_JUMP_IMPULSE = 190.0
+M.POTATO_JUMP_IMPULSE = 240.0
 M.MAX_FALL_SPEED = 600.0
 M.PLAYER_HP = 100
 
@@ -56,6 +56,7 @@ M.MODE_CAMPAIGN = "campaign"
 M.MODE_QUICK_BOT = "quick_bot"
 M.MODE_QUICK_PVP = "quick_pvp"
 M.MODE_PVP_BOTS = "pvp_bots"
+M.MODE_TUTORIAL = "tutorial"
 
 -- Game States
 M.STATE_MENU = "menu"

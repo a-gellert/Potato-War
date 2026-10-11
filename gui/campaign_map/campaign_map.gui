@@ -334,7 +334,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_blue"
+  texture: "game/recruit"
   id: "sec_potato_1"
   parent: "sec_btn_1"
   inherit_alpha: true
@@ -515,7 +515,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_blue"
+  texture: "game/recruit"
   id: "sec_potato_2"
   parent: "sec_btn_2"
   inherit_alpha: true
@@ -696,7 +696,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_3"
   parent: "sec_btn_3"
   inherit_alpha: true
@@ -877,7 +877,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_4"
   parent: "sec_btn_4"
   inherit_alpha: true
@@ -1058,7 +1058,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_5"
   parent: "sec_btn_5"
   inherit_alpha: true
@@ -1239,7 +1239,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_6"
   parent: "sec_btn_6"
   inherit_alpha: true
@@ -1420,7 +1420,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_7"
   parent: "sec_btn_7"
   inherit_alpha: true
@@ -1601,7 +1601,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_8"
   parent: "sec_btn_8"
   inherit_alpha: true
@@ -1782,7 +1782,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_9"
   parent: "sec_btn_9"
   inherit_alpha: true
@@ -1963,7 +1963,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_10"
   parent: "sec_btn_10"
   inherit_alpha: true
@@ -2144,7 +2144,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_11"
   parent: "sec_btn_11"
   inherit_alpha: true
@@ -2325,7 +2325,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_12"
   parent: "sec_btn_12"
   inherit_alpha: true
@@ -2506,7 +2506,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_13"
   parent: "sec_btn_13"
   inherit_alpha: true
@@ -2687,7 +2687,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_14"
   parent: "sec_btn_14"
   inherit_alpha: true
@@ -2868,7 +2868,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_15"
   parent: "sec_btn_15"
   inherit_alpha: true
@@ -3049,7 +3049,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_16"
   parent: "sec_btn_16"
   inherit_alpha: true
@@ -3230,7 +3230,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_17"
   parent: "sec_btn_17"
   inherit_alpha: true
@@ -3411,7 +3411,7 @@ nodes {
     y: 26.0
   }
   type: TYPE_BOX
-  texture: "game/potato_red"
+  texture: "game/recruit"
   id: "sec_potato_18"
   parent: "sec_btn_18"
   inherit_alpha: true
@@ -4743,7 +4743,7 @@ nodes {
     y: 64.0
   }
   type: TYPE_BOX
-  texture: "game/potato_base_blue"
+  texture: "game/recruit"
   id: "b_slot_avatar_1"
   parent: "b_slot_card_1"
   inherit_alpha: true
@@ -5011,7 +5011,7 @@ nodes {
     y: 64.0
   }
   type: TYPE_BOX
-  texture: "game/potato_base_blue"
+  texture: "game/recruit"
   id: "b_slot_avatar_2"
   parent: "b_slot_card_2"
   inherit_alpha: true
@@ -5279,7 +5279,7 @@ nodes {
     y: 64.0
   }
   type: TYPE_BOX
-  texture: "game/potato_base_blue"
+  texture: "game/recruit"
   id: "b_slot_avatar_3"
   parent: "b_slot_card_3"
   inherit_alpha: true
@@ -5591,7 +5591,7 @@ nodes {
     y: 64.0
   }
   type: TYPE_BOX
-  texture: "game/potato_base_blue"
+  texture: "game/recruit"
   id: "b_slot_avatar_4"
   parent: "b_slot_card_4"
   inherit_alpha: true

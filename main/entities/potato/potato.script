@@ -14,16 +14,68 @@ local function update_hp_bar(self)
 
 	go.set("#hp_fill", "scale", vmath.vector3(3.8 * pct, 0.5, 1.0))
 
-	-- Tint health bar based on percentage
-	local color
-	if pct > 0.55 then
-		color = vmath.vector4(0.18, 0.80, 0.44, 1.0) -- Green
-	elseif pct > 0.25 then
-		color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Yellow
+	-- HP bar color distinguishes the team! (Blue team = bright cyan/blue, Red team = vivid red/coral)
+	local team_hp_color
+	if self.team == 1 then
+		-- Blue Team
+		team_hp_color = vmath.vector4(0.18, 0.65, 1.0, 1.0)
 	else
-		color = vmath.vector4(0.91, 0.30, 0.24, 1.0) -- Red
+		-- Red Team
+		team_hp_color = vmath.vector4(1.0, 0.28, 0.24, 1.0)
 	end
-	go.set("#hp_fill", "tint", color)
+	go.set("#hp_fill", "tint", team_hp_color)
+end
+
+local EMOTION_MAP = {
+	idle       = "s_bored",
+	bored      = "s_bored",
+	bored2     = "s_bored2",
+	aim        = "s_angry",
+	angry      = "s_angry",
+	angry2     = "s_angry2",
+	hurt       = "s_angry2",
+	damage     = "s_angry2",
+	happy      = "s_happy",
+	shoot      = "s_happy",
+	heal       = "s_happy",
+	jump       = "s_wow",
+	wow        = "s_wow",
+	scared     = "s_wow",
+	alert      = "s_wow",
+}
+
+local function set_emotion(self, emotion_id, duration)
+	if not self.is_alive then return end
+	self.current_emotion = emotion_id or "idle"
+	local anim = EMOTION_MAP[self.current_emotion] or self.current_emotion or "s_bored"
+	local ok, err = pcall(function()
+		msg.post("#emotion", "enable")
+		sprite.play_flipbook("#emotion", hash(anim))
+		local flip = (self.facing < 0)
+		sprite.set_hflip("#emotion", flip)
+	end)
+	if not ok and err then
+		print("EMOTION ERROR:", err, "anim:", anim)
+	end
+	if duration and duration > 0 then
+		self.emotion_timer = duration
+	else
+		self.emotion_timer = 0
+	end
+end
+
+local function set_hat(self, hat_id)
+	self.hat_id = hat_id or "none"
+	if not self.is_alive or self.hat_id == "none" or self.hat_id == "" then
+		pcall(function() msg.post("#hat_sprite", "disable") end)
+	else
+		pcall(function()
+			sprite.play_flipbook("#hat_sprite", hash(self.hat_id))
+			msg.post("#hat_sprite", "enable")
+			local flip = (self.facing < 0)
+			sprite.set_hflip("#hat_sprite", flip)
+		end)
+	end
 end
 
 local function update_facing(self, facing)
@@ -31,6 +83,10 @@ local function update_facing(self, facing)
 	local flip = (self.facing < 0)
 	sprite.set_hflip("#sprite", flip)
 	sprite.set_hflip("#weapon_sprite", flip)
+	sprite.set_hflip("#emotion", flip)
+	if self.hat_id and self.hat_id ~= "none" then
+		sprite.set_hflip("#hat_sprite", flip)
+	end
 end
 
 local WEAPON_SPRITE_MAP = {
@@ -52,35 +108,27 @@ local WEAPON_SPRITE_MAP = {
 }
 
 local CLASS_SPRITE_MAP = {
-	recruit     = "potato_base",
-	assault     = "potato_assault",
-	assault_2   = "potato_assault",
-	sniper      = "potato_sniper",
-	sapper      = "potato_sapper",
-	sapper_2    = "potato_sapper",
-	commando    = "potato_sapper",
-	artillery   = "potato_artillery",
-	artillery_2 = "potato_artillery",
-	rocketeer   = "potato_artillery",
-	medic       = "potato_medic",
-	surgeon     = "potato_medic",
-	engineer    = "potato_sapper",
-	tank        = "potato_sapper",
+	recruit     = "recruit",
+	assault     = "assault",
+	assault_2   = "assault",
+	sniper      = "sniper",
+	sapper      = "sapper",
+	sapper_2    = "sapper",
+	commando    = "sapper",
+	artillery   = "tank",
+	artillery_2 = "tank",
+	rocketeer   = "tank",
+	medic       = "medic",
+	surgeon     = "medic",
+	engineer    = "sapper",
+	tank        = "tank",
 }
 
 local function update_class_sprite(self)
-	local base_name = CLASS_SPRITE_MAP[self.class_id] or "potato_base"
-	local team_suffix = (self.team == 1) and "_blue" or "_red"
-	local anim_hash = hash(base_name .. team_suffix)
-	local ok = pcall(function()
-		sprite.play_flipbook("#sprite", anim_hash)
+	local sprite_name = CLASS_SPRITE_MAP[self.class_id] or "recruit"
+	pcall(function()
+		sprite.play_flipbook("#sprite", hash(sprite_name))
 	end)
-	if not ok then
-		pcall(function()
-			local fallback = (self.team == 1) and hash("potato_blue") or hash("potato_red")
-			sprite.play_flipbook("#sprite", fallback)
-		end)
-	end
 end
 
 local function has_active_status(self, st)
@@ -104,21 +152,29 @@ function init(self)
 	self.skin_tint = vmath.vector4(1, 1, 1, 1)
 	self.statuses = {} -- burning, poisoned, glued, concussed
 	self.class_id = "recruit"
+	self.hat_id = "none"
+	self.current_emotion = "idle"
+	self.emotion_timer = 0
 
-	-- Setup class & team appearance
+	-- Setup class appearance (natural potato color, no colored tint)
 	update_class_sprite(self)
-
 
 	-- Apply initial facing
 	update_facing(self, self.facing or 1)
 
-	-- Setup health bar colors
-	go.set("#hp_bg", "tint", vmath.vector4(0.12, 0.15, 0.18, 0.5))
+	-- Setup face & emotion
+	set_emotion(self, "idle")
+
+	-- Initial hat hidden until equipped
+	pcall(function() msg.post("#hat_sprite", "disable") end)
+
+	-- Setup health bar colors (background dark slate)
+	go.set("#hp_bg", "tint", vmath.vector4(0.08, 0.10, 0.14, 0.75))
 	update_hp_bar(self)
 
-	-- Hide HP bar by default, show on damage/heal or when active
-	msg.post("#hp_bg", "disable")
-	msg.post("#hp_fill", "disable")
+	-- Always keep HP bar enabled above every potato fighter in their team color
+	msg.post("#hp_bg", "enable")
+	msg.post("#hp_fill", "enable")
 
 	-- Hide weapon and reticle by default until active
 	msg.post("#weapon_sprite", "disable")
@@ -130,13 +186,24 @@ function init(self)
 	self.scale_anim_timer = 0
 end
 
+local BASE_SCALE = 0.25
+
 function update(self, dt)
 	if self.scale_anim_timer and self.scale_anim_timer > 0 then
 		self.scale_anim_timer = self.scale_anim_timer - dt
 	elseif self.is_alive then
 		self.breath_timer = (self.breath_timer or 0) + dt * (self.is_active and 4.2 or 2.6)
 		local s = math.sin(self.breath_timer) * (self.is_active and 0.045 or 0.025)
-		go.set("#sprite", "scale", vmath.vector3(1.0 - s * 0.7, 1.0 + s, 1.0))
+		go.set("#sprite", "scale", vmath.vector3(BASE_SCALE * (1.0 - s * 0.7), BASE_SCALE * (1.0 + s), 1.0))
+	end
+
+	-- Emotion timer expiration
+	if self.emotion_timer and self.emotion_timer > 0 then
+		self.emotion_timer = self.emotion_timer - dt
+		if self.emotion_timer <= 0 then
+			local default_expr = self.is_active and "aim" or "idle"
+			set_emotion(self, default_expr)
+		end
 	end
 
 	-- Visual representation of elemental status effects above / on the fighter
@@ -161,14 +228,6 @@ function update(self, dt)
 			-- Normal skin tint
 			go.set_rotation(vmath.quat_rotation_z(0))
 			go.set("#sprite", "tint", self.skin_tint)
-		end
-	end
-
-	if self.hp_bar_timer > 0 then
-		self.hp_bar_timer = self.hp_bar_timer - dt
-		if self.hp_bar_timer <= 0 then
-			msg.post("#hp_bg", "disable")
-			msg.post("#hp_fill", "disable")
 		end
 	end
 
@@ -254,6 +313,7 @@ local function process_turn_start(self)
 		if self.hp <= 0 then
 			self.is_alive = false
 			sprite.play_flipbook("#sprite", hash("tombstone"))
+			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
@@ -291,7 +351,8 @@ function on_message(self, message_id, message, sender)
 		if self.is_alive and not self.is_active and self.alert_timer <= 0 then
 			self.alert_timer = 1.0
 			self.scale_anim_timer = 0.22
-			go.animate("#sprite", "scale.y", go.PLAYBACK_ONCE_PINGPONG, 0.80, go.EASING_INOUTSINE, 0.18)
+			set_emotion(self, "scared", 1.2)
+			go.animate("#sprite", "scale.y", go.PLAYBACK_ONCE_PINGPONG, BASE_SCALE * 0.80, go.EASING_INOUTSINE, 0.18)
 			go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(1.3, 0.7, 0.7, 1.0), go.EASING_OUTQUAD, 0.22, 0, function()
 				go.set("#sprite", "tint", self.skin_tint)
 			end)
@@ -301,17 +362,26 @@ function on_message(self, message_id, message, sender)
 		self.is_active = message.active
 		if self.is_alive and self.is_active then
 			msg.post("#reticle", "enable")
-			msg.post("#hp_bg", "enable")
-			msg.post("#hp_fill", "enable")
 			msg.post("#weapon_sprite", "enable")
-			self.hp_bar_timer = 0
+			set_emotion(self, "aim")
 		else
 			msg.post("#reticle", "disable")
 			msg.post("#weapon_sprite", "disable")
-			self.hp_bar_timer = 2.0
+			set_emotion(self, "idle")
 		end
 
+	elseif message_id == hash("set_emotion") then
+		if message.emotion then
+			set_emotion(self, message.emotion, message.duration)
+		end
+
+	elseif message_id == hash("set_hat") then
+		set_hat(self, message.hat)
+
 	elseif message_id == hash("set_skin") then
+		if message.hat then
+			set_hat(self, message.hat)
+		end
 		if message.tint then
 			self.skin_tint = vmath.vector4(message.tint[1] or 1, message.tint[2] or 1, message.tint[3] or 1, message.tint[4] or 1)
 			go.set("#sprite", "tint", self.skin_tint)
@@ -342,12 +412,22 @@ function on_message(self, message_id, message, sender)
 			update_facing(self, message.facing)
 		end
 
+	elseif message_id == hash("on_step") then
+		if self.is_alive and (not self.scale_anim_timer or self.scale_anim_timer <= 0) then
+			-- Quick squish-and-stretch on walking hop
+			local hop_val = message.hop or 0.5
+			local sx = BASE_SCALE * (1.0 - (hop_val - 0.5) * 0.16)
+			local sy = BASE_SCALE * (1.0 + (hop_val - 0.5) * 0.16)
+			go.set("#sprite", "scale", vmath.vector3(sx, sy, 1.0))
+		end
+
 	elseif message_id == hash("apply_heal") then
 		if not self.is_alive then return end
 
 		local heal_amt = message.amount or 0
 		self.hp = math.min(self.max_hp, self.hp + heal_amt)
 		update_hp_bar(self)
+		set_emotion(self, "happy", 1.8)
 
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
@@ -363,6 +443,7 @@ function on_message(self, message_id, message, sender)
 		local duration = message.duration or 2
 		local power = message.power or 10
 		local p_pos = go.get_position()
+		set_emotion(self, "hurt", 1.2)
 
 		-- Check elemental combo with existing statuses
 		local combo = weapons.eval_combo(self.statuses, st_type)
@@ -421,20 +502,22 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("on_jump") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.25
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(0.76, 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
+			set_emotion(self, "jump", 0.6)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 0.76, BASE_SCALE * 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
 		end
 
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.28
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.32, 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.32, BASE_SCALE * 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
 
 	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.18
 			msg.post("#weapon_sprite", "disable")
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.18, 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
+			set_emotion(self, "happy", 1.5)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.18, BASE_SCALE * 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
 
 	elseif message_id == hash("apply_damage") then
@@ -447,8 +530,9 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
 		self.scale_anim_timer = 0.22
+		set_emotion(self, "hurt", 1.4)
 
-		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(1.30, 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
+		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
 			go.set("#sprite", "tint", self.skin_tint)
 		end)
@@ -456,10 +540,13 @@ function on_message(self, message_id, message, sender)
 		if self.hp <= 0 then
 			self.is_alive = false
 			sprite.play_flipbook("#sprite", hash("tombstone"))
+			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
 			msg.post("#weapon_sprite", "disable")
+			msg.post("#emotion", "disable")
+			msg.post("#hat_sprite", "disable")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
 		end
@@ -469,6 +556,8 @@ function on_message(self, message_id, message, sender)
 		self.hp = 0
 		msg.post("#reticle", "disable")
 		msg.post("#weapon_sprite", "disable")
+		msg.post("#emotion", "disable")
+		msg.post("#hat_sprite", "disable")
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
