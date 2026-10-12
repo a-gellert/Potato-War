@@ -59,7 +59,7 @@ embedded_components {
 embedded_components {
   id: "hat_sprite"
   type: "sprite"
-  data: "default_animation: \"hat_cap\"\n"
+  data: "default_animation: \"hat_beret\"\n"
   "material: \"/builtins/materials/sprite.material\"\n"
   "textures {\n"
   "  sampler: \"texture_sampler\"\n"
@@ -67,12 +67,12 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 16.0
+    y: 18.0
     z: 0.06
   }
   scale {
-    x: 0.6
-    y: 0.6
+    x: 0.7
+    y: 0.7
   }
 }
 embedded_components {
@@ -86,7 +86,7 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 25.0
+    y: 31.0
     z: 0.08
   }
   scale {
@@ -105,7 +105,7 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 25.0
+    y: 31.0
     z: 0.09
   }
   scale {
@@ -143,8 +143,6 @@ embedded_components {
   "}\n"
   ""
   position {
-    x: 0.0
-    y: 0.0
     z: 0.2
   }
   scale {
@@ -163,8 +161,6 @@ embedded_components {
   "}\n"
   ""
   position {
-    x: 0.0
-    y: 0.0
     z: 0.2
   }
   scale {

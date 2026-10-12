@@ -26,7 +26,7 @@ function M.get_terrain_width(mode)
 end
 
 -- Turn & Match rules
-M.TURN_DURATION = 20.0 -- 20 seconds per turn
+M.TURN_DURATION = 25.0 -- 25 seconds per turn (increased for tactical depth and 5 min playtime)
 M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for Poki playtime)
 
 -- Physics
@@ -35,7 +35,7 @@ M.POTATO_RADIUS = 12.0
 M.POTATO_WALK_SPEED = 75.0
 M.POTATO_JUMP_IMPULSE = 295.0
 M.MAX_FALL_SPEED = 600.0
-M.PLAYER_HP = 100
+M.PLAYER_HP = 120
 
 -- Teams
 M.TEAM_BLUE = 1

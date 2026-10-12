@@ -178,7 +178,7 @@ function init(self)
 	self.overlay_mode = "skins"
 
 	-- Initialize Match Lobby State
-	self.lobby_count = 2
+	self.lobby_count = 3
 	self.lobby_opponent = "bot"
 	self.lobby_skin_blue_idx = 1
 	self.lobby_skin_red_idx = 1
@@ -227,19 +227,12 @@ function init(self)
 		end)
 	end
 
-	-- CAMPAIGN MAP button (Opens Tutorial for new players or Campaign Map for returning players)
+	-- CAMPAIGN MAP button (Opens Global Island Campaign Map)
 	self.ui:button("btn_campaign", function()
 		sound_manager.play_click()
 		msg.post(".", "disable")
-		if not player_profile.is_tutorial_completed() then
-			msg.post("/main#main", "start_match", {
-				mode = constants.MODE_TUTORIAL,
-				level = 1
-			})
-		else
-			msg.post("/gui_campaign_map", "enable")
-			msg.post("/gui_campaign_map#gui", "show")
-		end
+		msg.post("/gui_campaign_map", "enable")
+		msg.post("/gui_campaign_map#gui", "show")
 	end)
 
 	-- SKIRMISH LOBBY button (Opens Quick Match Setup)

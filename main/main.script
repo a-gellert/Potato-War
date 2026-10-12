@@ -258,66 +258,81 @@ local function start_game_match(self, mode, level, lobby_config)
 		})
 		table.insert(self.spawned_crates, { id = crate_url, url = crate_url, x = 590, y = c_pos.y })
 
-		-- Step 4 (Target Enemy): Immobile target potato across the pit at x: 860
-		local target_p = spawn_potato(self, 860, constants.TEAM_RED, 2, 50, 50, nil, "recruit", 1)
+		-- Step 4 (Target Enemy): Immobile target potato across the pit at x: 760
+		local target_p = spawn_potato(self, 760, constants.TEAM_RED, 2, 50, 50, nil, "recruit", 1)
 		target_p.is_target = true
 	else
-		-- Spawn Blue Potatoes (in campaign mode: uses squad composition and classes from player profile; in quick battle: random specialized classes)
+		-- Determine squad counts for both teams
 		local player_squad = is_campaign and player_profile.get_squad() or nil
 		local blue_count = (lobby_config and (lobby_config.blue_count or lobby_config.potato_count))
 			or (config and (config.player_count or config.blue_count))
 			or (player_squad and #player_squad) or 1
-		local left_min = (terrain_preset == "floating_islands") and 340 or 220
-		local left_max = (terrain_preset == "floating_islands") and 520 or 750
-		local step_blue = (left_max - left_min) / math.max(1, blue_count)
+		local red_count = (lobby_config and (lobby_config.red_count or lobby_config.potato_count))
+			or (config and (config.enemy_count or config.red_count))
+			or level_config.get_enemy_count(active_level) or 1
+		local total_potatoes = blue_count + red_count
+
 		local player_max_hp = constants.PLAYER_HP
 		local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
 		local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55)
 			or ((terrain_preset == "floating_islands") and (constants.WORLD_HEIGHT * 0.85))
 			or nil
 
-		if is_defense and terrain_grid.get_defense_spawn_points then
-			local def_pts = terrain_grid.get_defense_spawn_points(blue_count)
-			for i = 1, blue_count do
-				local pt = def_pts[i] or { x = left_min + (i - 0.5) * step_blue }
-				local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
-					or (config and config.blue_classes and config.blue_classes[i])
-					or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
-					or classes.get_random_specialized_class()
-				local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
-				local cur_hp = is_campaign and player_hp or nil
-				local cur_max = is_campaign and player_max_hp or nil
-				spawn_potato(self, pt.x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
-			end
-		else
-			for i = 1, blue_count do
-				local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 20
-				local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
-					or (config and config.blue_classes and config.blue_classes[i])
-					or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
-					or classes.get_random_specialized_class()
-				local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
-				local cur_hp = is_campaign and player_hp or nil
-				local cur_max = is_campaign and player_max_hp or nil
-				spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
-			end
+		-- Generate random, well-separated spawn positions scattered across the map
+		local spawn_slots = {}
+		local slot_w = (1720 - 200) / math.max(1, total_potatoes)
+		local slot_order = {}
+		for i = 1, total_potatoes do
+			table.insert(slot_order, i)
+		end
+		for i = #slot_order, 2, -1 do
+			local j = math.random(1, i)
+			slot_order[i], slot_order[j] = slot_order[j], slot_order[i]
 		end
 
-		-- Spawn Red Potatoes using level configuration (enemy count, HP, class, and rank level; in quick battle: random specialized classes)
-		local red_count = (lobby_config and (lobby_config.red_count or lobby_config.potato_count))
-			or (config and (config.enemy_count or config.red_count))
-			or level_config.get_enemy_count(active_level) or 1
-		local right_min = (terrain_preset == "floating_islands") and 1420 or 1180
-		local right_max = (terrain_preset == "floating_islands") and 1580 or 1720
-		local step_red = (right_max - right_min) / math.max(1, red_count)
+		for i = 1, total_potatoes do
+			local s_idx = slot_order[i]
+			local x_cand = 200 + (s_idx - 0.5) * slot_w + (math.random() - 0.5) * (slot_w * 0.55)
+			x_cand = math.max(160, math.min(1760, x_cand))
+			local gy = terrain_grid.get_smooth_ground_y(x_cand, 6.0, from_wy)
+			if gy < constants.WATER_LEVEL + 25 then
+				for offset = 20, 180, 20 do
+					local left_test = math.max(160, x_cand - offset)
+					local right_test = math.min(1760, x_cand + offset)
+					if terrain_grid.get_smooth_ground_y(left_test, 6.0, from_wy) > constants.WATER_LEVEL + 25 then
+						x_cand = left_test
+						break
+					elseif terrain_grid.get_smooth_ground_y(right_test, 6.0, from_wy) > constants.WATER_LEVEL + 25 then
+						x_cand = right_test
+						break
+					end
+				end
+			end
+			table.insert(spawn_slots, x_cand)
+		end
+
+		-- Spawn Blue Potatoes at random positions across the map
+		for i = 1, blue_count do
+			local x = spawn_slots[i] or (220 + i * 160)
+			local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
+				or (config and config.blue_classes and config.blue_classes[i])
+				or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
+				or classes.get_random_specialized_class()
+			local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
+			local cur_hp = is_campaign and player_hp or nil
+			local cur_max = is_campaign and player_max_hp or nil
+			spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
+		end
+
+		-- Spawn Red Potatoes at random positions across the map
 		for i = 1, red_count do
+			local x = spawn_slots[blue_count + i] or (1600 - i * 160)
 			local enemy_class = (lobby_config and lobby_config.red_classes and lobby_config.red_classes[i])
 				or (config and config.red_classes and config.red_classes[i])
 				or (is_campaign and ((config.enemy_classes and config.enemy_classes[i]) or level_config.get_enemy_class(active_level, i)))
 				or classes.get_random_specialized_class()
 			local enemy_lvl = is_campaign and ((config.enemy_levels and config.enemy_levels[i]) or level_config.get_enemy_level(active_level, i)) or math.random(1, 2)
 			local enemy_hp = is_campaign and level_config.get_enemy_hp(active_level, i) or nil
-			local x = right_min + (i - 0.5) * step_red + (math.random() - 0.5) * 20
 			spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl)
 		end
 
@@ -348,12 +363,23 @@ local function start_game_match(self, mode, level, lobby_config)
 	-- Point active_potato to first blue potato so weapon card selection equips the new instance
 	game_state.active_potato = game_state.potatoes[1]
 
-	-- Reset camera to guaranteed default state at start of level focused on active potato
-	if game_state.active_potato then
-		camera_controller.reset(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
-	else
-		camera_controller.reset(world_w * 0.5, constants.WORLD_HEIGHT * 0.5)
-	end
+	-- Camera Flyover: 2-second pan from right to left across the level to showcase the whole battlefield
+	local dest_x = (game_state.active_potato and game_state.active_potato.pos.x) or 350
+	local dest_y = (game_state.active_potato and game_state.active_potato.pos.y) or 270
+	local start_x = math.min(constants.WORLD_WIDTH - 240, 1620)
+	local start_y = math.max(270, math.min(constants.WORLD_HEIGHT - 200, terrain_grid.get_smooth_ground_y(start_x, 4.0) + 90))
+
+	self.intro_flyover = true
+	self.intro_flyover_timer = 2.0
+	self.intro_flyover_duration = 2.0
+	self.intro_cam_start_x = start_x
+	self.intro_cam_start_y = start_y
+	self.intro_cam_dest_x = dest_x
+	self.intro_cam_dest_y = dest_y
+
+	-- Start camera immediately on the far right at wide zoom (0.82)
+	camera_controller.reset(start_x, start_y)
+	camera_controller.set_zoom(0.82)
 
 	-- Update GUI visibility
 	msg.post("/gui_menu", "disable")
@@ -390,9 +416,9 @@ function init(self)
 	self.spawned_potatoes = {}
 	self.spawned_barrels = {}
 	self.spawned_crates = {}
-	self.crate_timer = 60.0
+	self.crate_timer = 35.0
 	self.current_terrain_preset = "hills"
-	self.airship_timer = 55.0
+	self.airship_timer = 40.0
 	self.airship_url = nil
 	self.active_projectiles = {}
 	self.bot_thinking = false
@@ -410,6 +436,13 @@ function init(self)
 	self.pending_game_over_data = nil
 	self.damage_focus = nil
 	self.seamless_stage = 0
+	self.intro_flyover = false
+	self.intro_flyover_timer = 0
+	self.intro_flyover_duration = 2.0
+	self.intro_cam_start_x = 1620
+	self.intro_cam_start_y = 350
+	self.intro_cam_dest_x = 350
+	self.intro_cam_dest_y = 270
 
 	-- Delay settling until damage zoom-in camera focus finishes (1.5 seconds)
 	game_state.can_settle = function()
@@ -1166,8 +1199,28 @@ function update(self, dt)
 			end
 		end
 	else
+		-- Camera Flyover at battle launch (Right to Left across the whole level in 2 seconds)
+		if self.intro_flyover then
+			self.intro_flyover_timer = self.intro_flyover_timer - dt
+			local t = 1.0 - math.max(0, self.intro_flyover_timer / (self.intro_flyover_duration or 2.0))
+			local ease = t * t * (3.0 - 2.0 * t) -- Smoothstep easing
+			local cur_x = self.intro_cam_start_x + (self.intro_cam_dest_x - self.intro_cam_start_x) * ease
+			local cur_y = self.intro_cam_start_y + (self.intro_cam_dest_y - self.intro_cam_start_y) * ease
+			local cur_zoom = 0.82 + (1.0 - 0.82) * ease
+
+			camera_controller.follow(cur_x, cur_y, true)
+			camera_controller.set_zoom(cur_zoom)
+
+			if self.intro_flyover_timer <= 0 then
+				self.intro_flyover = false
+				if game_state.active_potato and game_state.active_potato.is_alive then
+					camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
+				end
+				camera_controller.set_zoom(1.0)
+			end
+
 		-- Worms-style Damage Camera & Battle Tracking
-		if self.damage_focus and self.damage_focus.timer > 0 then
+		elseif self.damage_focus and self.damage_focus.timer > 0 then
 			-- 1) After projectile explosion / attack deals damage: linger at damage location for 1.5s with zoom-in
 			self.damage_focus.timer = self.damage_focus.timer - dt
 
@@ -1233,6 +1286,14 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+	if self.intro_flyover and (action.pressed or (action_id == hash("touch") and action.pressed)) then
+		self.intro_flyover = false
+		if game_state.active_potato and game_state.active_potato.is_alive then
+			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
+		end
+		camera_controller.set_zoom(1.0)
+	end
+
 	if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
 		if action.pressed or (action_id == hash("touch") and action.pressed) then
 			game_state.gameplay_started = true

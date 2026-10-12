@@ -628,7 +628,7 @@ function M.update(dt, active_projectiles_count)
 
 	if M.state == constants.STATE_INTRO then
 		M.settle_timer = M.settle_timer + dt
-		if M.settle_timer >= 2.2 then
+		if M.settle_timer >= 2.0 then
 			M.settle_timer = 0
 			begin_current_turn()
 		end

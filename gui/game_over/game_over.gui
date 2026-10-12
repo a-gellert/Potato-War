@@ -43,10 +43,9 @@ nodes {
   color {
     x: 0.4
     y: 0.85
-    z: 1
   }
   type: TYPE_TEXT
-  text: "★ ВОЕННАЯ СВОДКА ГЕНШТАБА ★"
+  text: "\342\230\205 \320\222\320\236\320\225\320\235\320\235\320\220\320\257 \320\241\320\222\320\236\320\224\320\232\320\220 \320\223\320\225\320\235\320\250\320\242\320\220\320\221\320\220 \342\230\205"
   font: "system_font"
   id: "header_badge"
   inherit_alpha: true
@@ -81,7 +80,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 11.0
   }
   scale {
@@ -98,7 +96,7 @@ nodes {
     z: 0.44
   }
   type: TYPE_TEXT
-  text: "СЕКТОР ОСВОБОЖДЕН!"
+  text: "\320\241\320\225\320\232\320\242\320\236\320\240 \320\236\320\241\320\222\320\236\320\221\320\236\320\226\320\224\320\225\320\235!"
   font: "system_font"
   id: "title_text"
   parent: "debrief_banner"
@@ -108,7 +106,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -15.0
   }
   scale {
@@ -125,7 +122,7 @@ nodes {
     z: 0.95
   }
   type: TYPE_TEXT
-  text: "Флаг Синих поднят над освобожденным сектором."
+  text: "\320\244\320\273\320\260\320\263 \320\241\320\270\320\275\320\270\321\205 \320\277\320\276\320\264\320\275\321\217\321\202 \320\275\320\260\320\264 \320\276\321\201\320\262\320\276\320\261\320\276\320\266\320\264\320\265\320\275\320\275\321\213\320\274 \321\201\320\265\320\272\321\202\320\276\321\200\320\276\320\274."
   font: "system_font"
   id: "subtitle_text"
   parent: "debrief_banner"
@@ -161,7 +158,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 13.0
   }
   scale {
@@ -173,12 +169,11 @@ nodes {
     y: 32.0
   }
   color {
-    x: 1
     y: 0.85
     z: 0.2
   }
   type: TYPE_TEXT
-  text: "+150 ОЧКОВ"
+  text: "+150 \320\236\320\247\320\232\320\236\320\222"
   font: "system_font"
   id: "reward_text"
   parent: "reward_bg"
@@ -188,7 +183,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -14.0
   }
   scale {
@@ -205,7 +199,6 @@ nodes {
     z: 0.65
   }
   type: TYPE_TEXT
-  text: ""
   font: "system_font"
   id: "achieve_text"
   parent: "reward_bg"
@@ -241,7 +234,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 27.0
   }
   scale {
@@ -253,12 +245,11 @@ nodes {
     y: 26.0
   }
   color {
-    x: 1
     y: 0.82
     z: 0.28
   }
   type: TYPE_TEXT
-  text: "★ БОЕВОЕ ДОНЕСЕНИЕ ★"
+  text: "\342\230\205 \320\221\320\236\320\225\320\222\320\236\320\225 \320\224\320\236\320\235\320\225\320\241\320\225\320\235\320\230\320\225 \342\230\205"
   font: "system_font"
   id: "txt_stats_title"
   parent: "debrief_stats_bg"
@@ -268,7 +259,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 4.0
   }
   scale {
@@ -285,7 +275,7 @@ nodes {
     z: 0.98
   }
   type: TYPE_TEXT
-  text: "Сектор: Бухта Высадки • Гарнизон разбит"
+  text: "\320\241\320\265\320\272\321\202\320\276\321\200: \320\221\321\203\321\205\321\202\320\260 \320\222\321\213\321\201\320\260\320\264\320\272\320\270 \342\200\242 \320\223\320\260\321\200\320\275\320\270\320\267\320\276\320\275 \321\200\320\260\320\267\320\261\320\270\321\202"
   font: "system_font"
   id: "txt_stats_detail"
   parent: "debrief_stats_bg"
@@ -295,7 +285,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -21.0
   }
   scale {
@@ -312,7 +301,7 @@ nodes {
     z: 0.95
   }
   type: TYPE_TEXT
-  text: "Укрепления: ★★☆ • Доход: +25🪙/ход"
+  text: "\320\243\320\272\321\200\320\265\320\277\320\273\320\265\320\275\320\270\321\217: \342\230\205\342\230\205\342\230\206 \342\200\242 \320\224\320\276\321\205\320\276\320\264: +25\360\237\252\231/\321\205\320\276\320\264"
   font: "system_font"
   id: "txt_stats_front"
   parent: "debrief_stats_bg"
@@ -347,10 +336,6 @@ nodes {
   alpha: 0.95
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.4
     y: 0.4
@@ -360,12 +345,11 @@ nodes {
     y: 24.0
   }
   color {
-    x: 1
     y: 0.85
     z: 0.25
   }
   type: TYPE_TEXT
-  text: "🩑 180 / 250 до скина НИНДЗЯ"
+  text: "\360\237\251\221 180 / 250 \320\264\320\276 \321\201\320\272\320\270\320\275\320\260 \320\235\320\230\320\235\320\224\320\227\320\257"
   font: "system_font"
   id: "skin_progress_txt"
   parent: "skin_progress_bg"
@@ -401,7 +385,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 100.0
   }
   scale {
@@ -418,7 +401,7 @@ nodes {
     z: 0.98
   }
   type: TYPE_TEXT
-  text: "КАРТА ЛИНИИ ФРОНТА"
+  text: "\320\232\320\220\320\240\320\242\320\220 \320\233\320\230\320\235\320\230\320\230 \320\244\320\240\320\236\320\235\320\242\320\220"
   font: "system_font"
   id: "minimap_header"
   parent: "minimap_bg"
@@ -428,7 +411,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 81.0
   }
   scale {
@@ -445,7 +427,7 @@ nodes {
     z: 0.9
   }
   type: TYPE_TEXT
-  text: "🔵 СИНИЕ: 11    🔴 КРАСНЫЕ: 7"
+  text: "\360\237\224\265 \320\241\320\230\320\235\320\230\320\225: 11    \360\237\224\264 \320\232\320\240\320\220\320\241\320\235\320\253\320\225: 7"
   font: "system_font"
   id: "minimap_legend"
   parent: "minimap_bg"
@@ -455,7 +437,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -8.0
   }
   size {
@@ -481,16 +462,11 @@ nodes {
   alpha: 0.95
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   size {
     x: 24.0
     y: 24.0
   }
   color {
-    x: 1
     y: 0.9
     z: 0.3
   }
@@ -520,7 +496,6 @@ nodes {
   id: "m_sec_1"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -541,7 +516,6 @@ nodes {
   id: "m_sec_2"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -562,7 +536,6 @@ nodes {
   id: "m_sec_3"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -583,7 +556,6 @@ nodes {
   id: "m_sec_4"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -604,7 +576,6 @@ nodes {
   id: "m_sec_5"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -625,7 +596,6 @@ nodes {
   id: "m_sec_6"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -646,7 +616,6 @@ nodes {
   id: "m_sec_7"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -667,7 +636,6 @@ nodes {
   id: "m_sec_8"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -688,7 +656,6 @@ nodes {
   id: "m_sec_9"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -709,7 +676,6 @@ nodes {
   id: "m_sec_10"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -730,7 +696,6 @@ nodes {
   id: "m_sec_11"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -751,7 +716,6 @@ nodes {
   id: "m_sec_12"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -772,7 +736,6 @@ nodes {
   id: "m_sec_13"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -793,7 +756,6 @@ nodes {
   id: "m_sec_14"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -814,7 +776,6 @@ nodes {
   id: "m_sec_15"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -835,7 +796,6 @@ nodes {
   id: "m_sec_16"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -856,7 +816,6 @@ nodes {
   id: "m_sec_17"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -877,11 +836,9 @@ nodes {
   id: "m_sec_18"
   parent: "minimap_radar_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
-    x: 0.0
     y: -90.0
   }
   size {
@@ -898,7 +855,6 @@ nodes {
   id: "minimap_bar_bg"
   parent: "minimap_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
@@ -917,14 +873,12 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "minimap_bar_fill"
-  parent: "minimap_bg"
   pivot: PIVOT_W
+  parent: "minimap_bg"
   inherit_alpha: true
-  alpha: 1
 }
 nodes {
   position {
-    x: 0.0
     y: -106.0
   }
   scale {
@@ -941,7 +895,7 @@ nodes {
     z: 0.6
   }
   type: TYPE_TEXT
-  text: "Контроль острова: 11 / 18 (61%)"
+  text: "\320\232\320\276\320\275\321\202\321\200\320\276\320\273\321\214 \320\276\321\201\321\202\321\200\320\276\320\262\320\260: 11 / 18 (61%)"
   font: "system_font"
   id: "minimap_status_lbl"
   parent: "minimap_bg"
@@ -973,13 +927,8 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 1
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.58
     y: 0.58
@@ -988,13 +937,8 @@ nodes {
     x: 320.0
     y: 30.0
   }
-  color {
-    x: 1
-    y: 1
-    z: 1
-  }
   type: TYPE_TEXT
-  text: "ВЕРНУТЬСЯ В ШТАБ 🎖️"
+  text: "\320\222\320\225\320\240\320\235\320\243\320\242\320\254\320\241\320\257 \320\222 \320\250\320\242\320\220\320\221 \360\237\216\226\357\270\217"
   font: "system_font"
   id: "txt_next_level"
   parent: "btn_next_level"
@@ -1026,13 +970,8 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 1
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.56
     y: 0.56
@@ -1041,13 +980,8 @@ nodes {
     x: 320.0
     y: 30.0
   }
-  color {
-    x: 1
-    y: 1
-    z: 1
-  }
   type: TYPE_TEXT
-  text: "ВОСКРЕСИТЬСЯ (+50 HP)"
+  text: "\320\222\320\236\320\241\320\232\320\240\320\225\320\241\320\230\320\242\320\254\320\241\320\257 (+50 HP)"
   font: "system_font"
   id: "txt_revive"
   parent: "btn_revive"
@@ -1079,13 +1013,8 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 1
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.46
     y: 0.46
@@ -1094,13 +1023,8 @@ nodes {
     x: 220.0
     y: 28.0
   }
-  color {
-    x: 1
-    y: 1
-    z: 1
-  }
   type: TYPE_TEXT
-  text: "ПЕРЕИГРАТЬ 🔄"
+  text: "\320\237\320\225\320\240\320\225\320\230\320\223\320\240\320\220\320\242\320\254 \360\237\224\204"
   font: "system_font"
   id: "txt_rematch"
   parent: "btn_rematch"
@@ -1132,13 +1056,8 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 1
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.46
     y: 0.46
@@ -1147,13 +1066,8 @@ nodes {
     x: 200.0
     y: 28.0
   }
-  color {
-    x: 1
-    y: 1
-    z: 1
-  }
   type: TYPE_TEXT
-  text: "МАГАЗИН 🛒"
+  text: "\320\234\320\220\320\223\320\220\320\227\320\230\320\235 \360\237\233\222"
   font: "system_font"
   id: "txt_shop"
   parent: "btn_shop"
@@ -1185,13 +1099,8 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 1
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.46
     y: 0.46
@@ -1200,13 +1109,8 @@ nodes {
     x: 180.0
     y: 28.0
   }
-  color {
-    x: 1
-    y: 1
-    z: 1
-  }
   type: TYPE_TEXT
-  text: "В МЕНЮ 🏠"
+  text: "\320\222 \320\234\320\225\320\235\320\256 \360\237\217\240"
   font: "system_font"
   id: "txt_menu"
   parent: "btn_menu"
@@ -1218,12 +1122,10 @@ nodes {
   position {
     x: 480.0
     y: 270.0
-    z: 0.0
   }
   size {
     x: 960.0
     y: 540.0
-    z: 0.0
   }
   color {
     x: 0.04
@@ -1238,19 +1140,15 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 160.0
-    z: 0.0
   }
   scale {
     x: 1.45
     y: 1.45
-    z: 1.0
   }
   size {
     x: 700.0
     y: 60.0
-    z: 0.0
   }
   color {
     x: 0.2
@@ -1258,7 +1156,7 @@ nodes {
     z: 0.45
   }
   type: TYPE_TEXT
-  text: "ПОБЕДА!"
+  text: "\320\237\320\236\320\221\320\225\320\224\320\220!"
   font: "system_font"
   id: "seamless_title"
   parent: "seamless_panel"
@@ -1268,14 +1166,11 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 95.0
-    z: 0.0
   }
   size {
     x: 300.0
     y: 46.0
-    z: 0.0
   }
   color {
     x: 0.12
@@ -1296,28 +1191,20 @@ nodes {
   alpha: 0.95
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-  }
   scale {
     x: 0.75
     y: 0.75
-    z: 1.0
   }
   size {
     x: 280.0
     y: 36.0
-    z: 0.0
   }
   color {
-    x: 1.0
     y: 0.88
     z: 0.25
   }
   type: TYPE_TEXT
-  text: "🪙 +100 МОНЕТ"
+  text: "\360\237\252\231 +100 \320\234\320\236\320\235\320\225\320\242"
   font: "system_font"
   id: "seamless_coins_text"
   parent: "seamless_coins_bg"
@@ -1327,17 +1214,14 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -42.0
-    z: 0.0
   }
   size {
     x: 380.0
     y: 210.0
-    z: 0.0
   }
   color {
-    x: 0.10
+    x: 0.1
     y: 0.15
     z: 0.24
   }
@@ -1356,27 +1240,22 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 78.0
-    z: 0.0
   }
   scale {
     x: 0.52
     y: 0.52
-    z: 1.0
   }
   size {
     x: 350.0
     y: 24.0
-    z: 0.0
   }
   color {
     x: 0.4
     y: 0.85
-    z: 1.0
   }
   type: TYPE_TEXT
-  text: "★ НОВАЯ ШАПКА! ★"
+  text: "\342\230\205 \320\235\320\236\320\222\320\220\320\257 \320\250\320\220\320\237\320\232\320\220! \342\230\205"
   font: "system_font"
   id: "seamless_hat_badge"
   parent: "seamless_hat_card"
@@ -1386,14 +1265,11 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 6.0
-    z: 0.0
   }
   size {
-    x: 150.0
-    y: 150.0
-    z: 0.0
+    x: 130.0
+    y: 130.0
   }
   color {
     x: 1.0
@@ -1405,18 +1281,16 @@ nodes {
   id: "seamless_hat_glow"
   parent: "seamless_hat_card"
   inherit_alpha: true
-  alpha: 0.35
+  alpha: 0.3
 }
 nodes {
   position {
     x: -80.0
     y: 30.0
-    z: 0.0
   }
   size {
-    x: 28.0
-    y: 28.0
-    z: 0.0
+    x: 24.0
+    y: 24.0
   }
   color {
     x: 1.0
@@ -1434,12 +1308,10 @@ nodes {
   position {
     x: 80.0
     y: 30.0
-    z: 0.0
   }
   size {
-    x: 28.0
-    y: 28.0
-    z: 0.0
+    x: 24.0
+    y: 24.0
   }
   color {
     x: 1.0
@@ -1455,55 +1327,36 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 8.0
-    z: 0.0
   }
   scale {
     x: 1.4
     y: 1.4
-    z: 1.0
   }
   size {
     x: 96.0
     y: 96.0
-    z: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_BOX
   texture: "game/hat_cap"
   id: "seamless_hat_sprite"
   parent: "seamless_hat_card"
   inherit_alpha: true
-  alpha: 1.0
 }
 nodes {
   position {
-    x: 0.0
     y: -70.0
-    z: 0.0
   }
   scale {
     x: 0.75
     y: 0.75
-    z: 1.0
   }
   size {
     x: 350.0
     y: 30.0
-    z: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
-  text: "КЕПКА БОЙЦА"
+  text: "\320\232\320\225\320\237\320\232\320\220 \320\221\320\236\320\231\320\246\320\220"
   font: "system_font"
   id: "seamless_hat_name"
   parent: "seamless_hat_card"
@@ -1515,12 +1368,10 @@ nodes {
   position {
     x: 480.0
     y: 270.0
-    z: 0.0
   }
   size {
     x: 960.0
     y: 540.0
-    z: 0.0
   }
   color {
     x: 0.0

@@ -143,11 +143,13 @@ function on_message(self, message_id, message, sender)
 
 			-- Pulsating glowing aura
 			gui.set_scale(hat_glow, vmath.vector3(0.85, 0.85, 1.0))
-			gui.animate(hat_glow, "scale", vmath.vector3(1.35, 1.35, 1.0), gui.EASING_INOUTQUAD, 0.75, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+			gui.animate(hat_glow, "scale", vmath.vector3(1.20, 1.20, 1.0), gui.EASING_INOUTQUAD, 0.75, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 
-			-- Spinning stars
-			gui.animate(star1, "rotation.z", 360, gui.EASING_LINEAR, 3.0, 0, nil, gui.PLAYBACK_LOOP_FORWARD)
-			gui.animate(star2, "rotation.z", -360, gui.EASING_LINEAR, 3.0, 0, nil, gui.PLAYBACK_LOOP_FORWARD)
+			-- Twinkling stars
+			gui.set_scale(star1, vmath.vector3(0.85, 0.85, 1.0))
+			gui.animate(star1, "scale", vmath.vector3(1.25, 1.25, 1.0), gui.EASING_INOUTQUAD, 0.60, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+			gui.set_scale(star2, vmath.vector3(0.85, 0.85, 1.0))
+			gui.animate(star2, "scale", vmath.vector3(1.25, 1.25, 1.0), gui.EASING_INOUTQUAD, 0.60, 0.15, nil, gui.PLAYBACK_LOOP_PINGPONG)
 
 			-- Sound cues
 			if is_win then
