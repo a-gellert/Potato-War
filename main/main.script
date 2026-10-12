@@ -17,6 +17,26 @@ local classes = require("lua_modules.classes")
 local inventory_manager = require("lua_modules.inventory_manager")
 local strategic_campaign = require("lua_modules.strategic_campaign")
 
+-- Control Mode Flag: "auto" (Mobile=slingshot, PC=direct), "direct", or "slingshot"
+go.property("aim_control_mode", hash("auto")) -- options: hash("auto"), hash("direct"), or hash("slingshot")
+local AIM_CONTROL_MODE = "auto" -- "auto", "direct", or "slingshot"
+
+local function is_mobile_platform()
+	local s_info = sys.get_sys_info()
+	local name = s_info.system_name or ""
+	if name == "Android" or name == "iPhone OS" then
+		return true
+	end
+	-- Check for HTML5 touch device detection (Poki Mobile Web)
+	if html5 and html5.run then
+		local has_touch = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'")
+		if has_touch == "1" then
+			return true
+		end
+	end
+	return false
+end
+
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
 		pcall(function()
@@ -123,24 +143,49 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 
 	-- Apply skin & hat from lobby match configuration or player profile
 	local match_cfg = game_state.match_config
-	if match_cfg then
-		local s_id = (team == constants.TEAM_BLUE) and match_cfg.skin_blue or match_cfg.skin_red
-		local s_obj = player_profile.SKINS_BY_ID[s_id] or player_profile.SKINS[1]
-		if s_obj then
-			msg.post(url, "set_skin", { tint = s_obj.tint, hat = s_obj.hat, skin_id = s_obj.id })
-		end
-	else
-		if team == constants.TEAM_BLUE then
-			local skin = player_profile.get_equipped_skin()
-			if skin then
-				msg.post(url, "set_skin", { tint = skin.tint, hat = skin.hat, skin_id = skin.id })
+	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
+	if team == constants.TEAM_BLUE then
+		local hat_to_wear = (match_cfg and match_cfg.hat_blue)
+		if not hat_to_wear then
+			local s_id = match_cfg and match_cfg.skin_blue
+			if s_id and player_profile.SKINS_BY_ID[s_id] then
+				hat_to_wear = player_profile.SKINS_BY_ID[s_id].hat
 			end
-		else
-			-- Red enemy can wear random hat from roster
-			local hats_pool = { "none", "hat_cap", "hat_bandana", "hat_beret", "hat_viking", "hat_tophat" }
-			local rnd_hat = hats_pool[math.random(#hats_pool)]
-			msg.post(url, "set_hat", { hat = rnd_hat })
 		end
+		if not hat_to_wear or hat_to_wear == "" or hat_to_wear == "none" then
+			if not is_tutorial then
+				local skin = player_profile.get_equipped_skin()
+				hat_to_wear = skin and skin.hat or "hat_cap"
+			else
+				hat_to_wear = "none"
+			end
+		end
+		msg.post(url, "set_hat", { hat = hat_to_wear })
+	else
+		-- Red enemy team: wear distinct other hats
+		local red_idx = potato_id - (match_cfg and (match_cfg.blue_count or match_cfg.player_count) or 2)
+		red_idx = math.max(1, red_idx)
+		local enemy_hat = (match_cfg and match_cfg.red_hats and match_cfg.red_hats[red_idx])
+		if not enemy_hat then
+			local s_id = match_cfg and match_cfg.skin_red
+			if s_id and player_profile.SKINS_BY_ID[s_id] and player_profile.SKINS_BY_ID[s_id].hat ~= "none" then
+				enemy_hat = player_profile.SKINS_BY_ID[s_id].hat
+			end
+		end
+		if not enemy_hat or enemy_hat == "none" then
+			if not is_tutorial then
+				local pool = { "hat_viking", "hat_beret", "hat_bandana", "hat_tophat", "hat_crown" }
+				local my_hat = (match_cfg and match_cfg.hat_blue) or (player_profile.get_equipped_skin() and player_profile.get_equipped_skin().hat)
+				local filtered = {}
+				for _, h in ipairs(pool) do
+					if h ~= my_hat then table.insert(filtered, h) end
+				end
+				enemy_hat = (#filtered > 0) and filtered[((red_idx - 1) % #filtered) + 1] or "hat_viking"
+			else
+				enemy_hat = "none"
+			end
+		end
+		msg.post(url, "set_hat", { hat = enemy_hat })
 	end
 
 	table.insert(self.spawned_potatoes, record)
@@ -160,10 +205,14 @@ local function start_game_match(self, mode, level, lobby_config)
 		game_state.start_match(mode, level)
 	end
 
+	local is_tutorial = (mode == constants.MODE_TUTORIAL) or (game_state.mode == constants.MODE_TUTORIAL)
+	if is_tutorial then
+		game_state.gameplay_started = false
+	end
+
 	local config = game_state.get_current_config()
 	local terrain_preset = config.terrain_type or config.terrain_preset or "hills"
 	local biome = config.biome or level_config.deduce_biome(terrain_preset)
-	local is_tutorial = (mode == constants.MODE_TUTORIAL) or (game_state.mode == constants.MODE_TUTORIAL)
 	if is_tutorial then
 		terrain_preset = "flat"
 		biome = "grass"
@@ -215,19 +264,26 @@ local function start_game_match(self, mode, level, lobby_config)
 	else
 		-- Spawn Blue Potatoes (in campaign mode: uses squad composition and classes from player profile; in quick battle: random specialized classes)
 		local player_squad = is_campaign and player_profile.get_squad() or nil
-		local blue_count = player_squad and #player_squad or (config.player_count or config.blue_count or 1)
-		local left_min = 220
-		local left_max = 750
+		local blue_count = (lobby_config and (lobby_config.blue_count or lobby_config.potato_count))
+			or (config and (config.player_count or config.blue_count))
+			or (player_squad and #player_squad) or 1
+		local left_min = (terrain_preset == "floating_islands") and 340 or 220
+		local left_max = (terrain_preset == "floating_islands") and 520 or 750
 		local step_blue = (left_max - left_min) / math.max(1, blue_count)
 		local player_max_hp = constants.PLAYER_HP
 		local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
-		local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55) or nil
+		local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55)
+			or ((terrain_preset == "floating_islands") and (constants.WORLD_HEIGHT * 0.85))
+			or nil
 
 		if is_defense and terrain_grid.get_defense_spawn_points then
 			local def_pts = terrain_grid.get_defense_spawn_points(blue_count)
 			for i = 1, blue_count do
 				local pt = def_pts[i] or { x = left_min + (i - 0.5) * step_blue }
-				local c_id = is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit") or classes.get_random_specialized_class()
+				local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
+					or (config and config.blue_classes and config.blue_classes[i])
+					or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
+					or classes.get_random_specialized_class()
 				local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
 				local cur_hp = is_campaign and player_hp or nil
 				local cur_max = is_campaign and player_max_hp or nil
@@ -235,8 +291,11 @@ local function start_game_match(self, mode, level, lobby_config)
 			end
 		else
 			for i = 1, blue_count do
-				local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 25
-				local c_id = is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit") or classes.get_random_specialized_class()
+				local x = left_min + (i - 0.5) * step_blue + (math.random() - 0.5) * 20
+				local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
+					or (config and config.blue_classes and config.blue_classes[i])
+					or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
+					or classes.get_random_specialized_class()
 				local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
 				local cur_hp = is_campaign and player_hp or nil
 				local cur_max = is_campaign and player_max_hp or nil
@@ -245,15 +304,20 @@ local function start_game_match(self, mode, level, lobby_config)
 		end
 
 		-- Spawn Red Potatoes using level configuration (enemy count, HP, class, and rank level; in quick battle: random specialized classes)
-		local red_count = config.enemy_count or config.red_count or level_config.get_enemy_count(active_level) or 1
-		local right_min = 1180
-		local right_max = 1720
+		local red_count = (lobby_config and (lobby_config.red_count or lobby_config.potato_count))
+			or (config and (config.enemy_count or config.red_count))
+			or level_config.get_enemy_count(active_level) or 1
+		local right_min = (terrain_preset == "floating_islands") and 1420 or 1180
+		local right_max = (terrain_preset == "floating_islands") and 1580 or 1720
 		local step_red = (right_max - right_min) / math.max(1, red_count)
 		for i = 1, red_count do
-			local enemy_class = is_campaign and ((config.enemy_classes and config.enemy_classes[i]) or level_config.get_enemy_class(active_level, i)) or classes.get_random_specialized_class()
+			local enemy_class = (lobby_config and lobby_config.red_classes and lobby_config.red_classes[i])
+				or (config and config.red_classes and config.red_classes[i])
+				or (is_campaign and ((config.enemy_classes and config.enemy_classes[i]) or level_config.get_enemy_class(active_level, i)))
+				or classes.get_random_specialized_class()
 			local enemy_lvl = is_campaign and ((config.enemy_levels and config.enemy_levels[i]) or level_config.get_enemy_level(active_level, i)) or math.random(1, 2)
 			local enemy_hp = is_campaign and level_config.get_enemy_hp(active_level, i) or nil
-			local x = right_min + (i - 0.5) * step_red + (math.random() - 0.5) * 25
+			local x = right_min + (i - 0.5) * step_red + (math.random() - 0.5) * 20
 			spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl)
 		end
 
@@ -307,6 +371,22 @@ function init(self)
 	constants.log(">>> MAIN SCRIPT INIT STARTED")
 	msg.post(".", "acquire_input_focus")
 
+	local cfg_mode = AIM_CONTROL_MODE
+	if self.aim_control_mode and self.aim_control_mode ~= hash("auto") then
+		if self.aim_control_mode == hash("slingshot") or self.aim_control_mode == "slingshot" then
+			cfg_mode = "slingshot"
+		elseif self.aim_control_mode == hash("direct") or self.aim_control_mode == "direct" then
+			cfg_mode = "direct"
+		end
+	end
+
+	local effective_mode = cfg_mode
+	if effective_mode == "auto" then
+		effective_mode = is_mobile_platform() and "slingshot" or "direct"
+	end
+	game_state.aim_control_mode = effective_mode
+	constants.log(">>> AIM CONTROL MODE:", effective_mode, "(configured:", cfg_mode, "mobile:", is_mobile_platform(), ")")
+
 	self.spawned_potatoes = {}
 	self.spawned_barrels = {}
 	self.spawned_crates = {}
@@ -329,6 +409,7 @@ function init(self)
 	self.victory_potato = nil
 	self.pending_game_over_data = nil
 	self.damage_focus = nil
+	self.seamless_stage = 0
 
 	-- Delay settling until damage zoom-in camera focus finishes (1.5 seconds)
 	game_state.can_settle = function()
@@ -410,10 +491,9 @@ function init(self)
 			end
 		end
 
-		local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
-		if is_tutorial and winner_team == constants.TEAM_BLUE then
-			player_profile.set_tutorial_completed(true)
-		end
+		local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL) or (self.seamless_stage == 1)
+		local is_seamless_1 = is_tutorial or (self.seamless_stage == 1) or (player_profile.get_onboarding_stage() == 0)
+		local is_seamless_2 = (self.seamless_stage == 2) or (game_state.match_config and game_state.match_config.is_seamless_battle)
 
 		local game_over_data = {
 			winner = winner_team,
@@ -430,6 +510,39 @@ function init(self)
 			is_tutorial = is_tutorial,
 		}
 
+		if is_seamless_1 then
+			-- Seamless Stage 1: First victory reward
+			player_profile.unlock_hat("cap")
+			player_profile.equip_hat("cap")
+			player_profile.add_points(100)
+			player_profile.set_onboarding_stage(1)
+
+			local is_ru = (i18n.current_lang == "ru")
+			game_over_data.seamless = true
+			game_over_data.seamless_stage = 1
+			game_over_data.unlocked_hat_id = "cap"
+			game_over_data.unlocked_hat_name = is_ru and "КЕПКА БОЙЦА" or "FIGHTER CAP"
+			game_over_data.unlocked_hat_sprite = "hat_cap"
+			game_over_data.coins_awarded = 100
+			game_over_data.total_coins = player_profile.get_points()
+
+		elseif is_seamless_2 then
+			-- Seamless Stage 2: Second battle reward
+			player_profile.unlock_hat("bandana")
+			player_profile.add_points(150)
+			player_profile.set_tutorial_completed(true)
+			player_profile.set_onboarding_stage(2)
+
+			local is_ru = (i18n.current_lang == "ru")
+			game_over_data.seamless = true
+			game_over_data.seamless_stage = 2
+			game_over_data.unlocked_hat_id = "bandana"
+			game_over_data.unlocked_hat_name = is_ru and "БАНДАНА НИНДЗЯ" or "NINJA BANDANA"
+			game_over_data.unlocked_hat_sprite = "hat_bandana"
+			game_over_data.coins_awarded = 150
+			game_over_data.total_coins = player_profile.get_points()
+		end
+
 		if winner_team == constants.TEAM_BLUE then
 			-- Victory Celebration: Camera Zoom on victorious potato & background fireworks salute!
 			local winning_potato = nil
@@ -441,7 +554,7 @@ function init(self)
 			end
 
 			self.victory_celebration = true
-			self.victory_timer = 2.4
+			self.victory_timer = (game_over_data.seamless) and 0.8 or 2.4
 			self.victory_jump_timer = 0.55
 			self.victory_potato = winning_potato
 			self.pending_game_over_data = game_over_data
@@ -464,14 +577,19 @@ function init(self)
 		end
 	end
 
-	-- Launch sequence: First launch -> Jump immediately into training combat!
+	-- Launch sequence: Auto-start tutorial on first start, otherwise show main menu
+	clear_match_entities(self)
+	camera_controller.reset(480, 270)
 	if not player_profile.is_tutorial_completed() then
-		constants.log(">>> FIRST LAUNCH DETECTED -> STARTING TRAINING SANDBOX BATTLE!")
-		start_game_match(self, constants.MODE_TUTORIAL, 1)
+		if player_profile.get_onboarding_stage() == 1 then
+			constants.log(">>> RESUMING SEAMLESS EXPERIENCE: BATTLE 2")
+			msg.post(".", "start_seamless_battle_2")
+		else
+			self.seamless_stage = 1
+			constants.log(">>> FIRST START: AUTO-LAUNCHING TUTORIAL SANDBOX")
+			start_game_match(self, constants.MODE_TUTORIAL, 1)
+		end
 	else
-		-- Return user: show main menu
-		clear_match_entities(self)
-		camera_controller.reset(480, 270)
 		msg.post("/gui_hud", "disable")
 		msg.post("/gui_game_over", "disable")
 		msg.post("/gui_campaign_map", "disable")
@@ -583,17 +701,28 @@ function update(self, dt)
 				camera_controller.follow(p.pos.x, p.pos.y, true)
 				sound_manager.play_jump()
 			elseif result == "water_splash" and p.url then
-				camera_controller.shake(4, 0.15)
+				camera_controller.shake(8, 0.25)
+				msg.post("/main#main", "spawn_explosion", {
+					x = p.pos.x,
+					y = constants.WATER_LEVEL + 4,
+					radius = 24
+				})
 				msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
 				msg.post("/gui_hud#gui", "show_damage", {
 					x = p.pos.x,
 					y = p.pos.y + 12,
-					amount = 30
+					amount = 30,
+					label = "💦 ВОДА!"
 				})
 			elseif result == "drowned" and p.url then
+				camera_controller.shake(12, 0.35)
+				msg.post("/main#main", "spawn_explosion", {
+					x = p.pos.x,
+					y = constants.WATER_LEVEL + 4,
+					radius = 32
+				})
 				msg.post(p.url, "drowned")
 				p.url = nil
-				camera_controller.shake(5, 0.2)
 				if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
 					local ach = achievements.on_drown(p, game_state.active_team)
 					if ach then
@@ -1076,9 +1205,24 @@ function update(self, dt)
 			-- Do NOT snap back to the shooter!
 
 		elseif game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato and game_state.active_potato.is_alive then
-			-- 4) Turn active: focus on current active potato (the new turn's worm)
-			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
-			camera_controller.set_zoom(1.0)
+			-- 4) Turn active:
+			if game_state.is_aiming and not game_state.is_bot_turn() then
+				-- When player is aiming: zoom out to 0.78 to show more of the battlefield,
+				-- and lead the camera slightly towards the aim direction / crosshair!
+				local aim_target_x = game_state.active_potato.pos.x
+				local aim_target_y = game_state.active_potato.pos.y
+				if game_state.aim_target_x and game_state.aim_target_y then
+					-- Blend 60% potato + 40% aim target point
+					aim_target_x = game_state.active_potato.pos.x * 0.60 + game_state.aim_target_x * 0.40
+					aim_target_y = (game_state.active_potato.pos.y + 12) * 0.60 + game_state.aim_target_y * 0.40
+				end
+				camera_controller.follow(aim_target_x, aim_target_y)
+				camera_controller.set_zoom(0.78)
+			else
+				-- Standard focus on active potato
+				camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
+				camera_controller.set_zoom(1.0)
+			end
 		else
 			camera_controller.set_zoom(1.0)
 		end
@@ -1089,6 +1233,13 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+	if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+		if action.pressed or (action_id == hash("touch") and action.pressed) then
+			game_state.gameplay_started = true
+			game_state.poki_gameplay_start()
+		end
+	end
+
 	if action_id == hash("left") then
 		self.key_left_held = not action.released
 	elseif action_id == hash("right") then
@@ -1139,6 +1290,27 @@ function on_message(self, message_id, message, sender)
 	if message_id == hash("start_battle") then
 		start_game_match(self, nil, 1, message)
 
+	elseif message_id == hash("start_seamless_battle_2") then
+		self.seamless_stage = 2
+		local battle_cfg = {
+			opponent_type = "bot",
+			potato_count = 2,
+			blue_count = 2,
+			red_count = 2,
+			terrain_type = "floating_islands",
+			terrain_preset = "floating_islands",
+			biome = "desert",
+			is_seamless_battle = true,
+			seamless_stage = 2,
+			hat_blue = "hat_cap",
+			blue_classes = { "assault", "sniper" },
+			red_hats = { "hat_viking", "hat_beret" },
+			red_classes = { "medic", "tank" },
+			enemy_skill = "normal",
+			bot_difficulty = "normal",
+		}
+		start_game_match(self, constants.MODE_QUICK_BOT, 1, battle_cfg)
+
 	elseif message_id == hash("start_match") then
 		start_game_match(self, message.mode, message.level)
 
@@ -1181,14 +1353,26 @@ function on_message(self, message_id, message, sender)
 		game_state.set_state(constants.STATE_MENU)
 
 	elseif message_id == hash("player_move_state") then
+		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+			game_state.gameplay_started = true
+			game_state.poki_gameplay_start()
+		end
 		self.touch_move_dir = message.dir or 0
 		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
 
 	elseif message_id == hash("player_move") then
+		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+			game_state.gameplay_started = true
+			game_state.poki_gameplay_start()
+		end
 		self.touch_move_dir = message.dir or 0
 		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
 
 	elseif message_id == hash("player_jump") then
+		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+			game_state.gameplay_started = true
+			game_state.poki_gameplay_start()
+		end
 		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 			local potato = game_state.active_potato
 			if potato and potato.is_alive then

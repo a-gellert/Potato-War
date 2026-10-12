@@ -6,6 +6,7 @@ local weapons = require("lua_modules.weapons")
 local physics_sim = require("lua_modules.physics_sim")
 local terrain_grid = require("lua_modules.terrain_grid")
 local game_state = require("lua_modules.game_state")
+local camera_controller = require("lua_modules.camera_controller")
 
 local MAX_DOTS = 14
 
@@ -20,6 +21,8 @@ local function hide_guide(self)
 			end
 		end
 	end
+	game_state.aim_target_x = nil
+	game_state.aim_target_y = nil
 end
 
 local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
@@ -44,6 +47,10 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 		local last_pt = points[#points]
 		go.set_position(vmath.vector3(last_pt.x, last_pt.y, 0.35), self.crosshair)
 
+		-- Update aim target coordinates for dynamic camera zoom & framing
+		game_state.aim_target_x = last_pt.x
+		game_state.aim_target_y = last_pt.y
+
 		-- Alert enemy potatoes if directly targeted during player turn
 		if not game_state.is_bot_turn() then
 			for _, p in ipairs(game_state.potatoes) do
@@ -58,6 +65,8 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 		end
 	elseif self.crosshair then
 		msg.post(self.crosshair, "disable")
+		game_state.aim_target_x = nil
+		game_state.aim_target_y = nil
 	end
 end
 
@@ -121,11 +130,19 @@ function on_input(self, action_id, action)
 			end
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
+			if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+				game_state.gameplay_started = true
+				game_state.poki_gameplay_start()
+			end
 
 		elseif self.dragging and not action.released then
-			-- Direct Aim: drag towards target to aim in that direction!
-			local aim_x = action.x - self.drag_start.x
-			local aim_y = action.y - self.drag_start.y
+			local raw_dx = action.x - self.drag_start.x
+			local raw_dy = action.y - self.drag_start.y
+			local is_slingshot = (game_state.aim_control_mode == "slingshot")
+
+			-- Slingshot pulls backward to shoot forward; Direct aims towards drag
+			local aim_x = is_slingshot and (-raw_dx) or raw_dx
+			local aim_y = is_slingshot and (-raw_dy) or raw_dy
 			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
 			if len > 12 then
@@ -155,8 +172,11 @@ function on_input(self, action_id, action)
 		elseif action.released and self.dragging then
 			self.dragging = false
 			game_state.is_aiming = false
-			local aim_x = action.x - self.drag_start.x
-			local aim_y = action.y - self.drag_start.y
+			local raw_dx = action.x - self.drag_start.x
+			local raw_dy = action.y - self.drag_start.y
+			local is_slingshot = (game_state.aim_control_mode == "slingshot")
+			local aim_x = is_slingshot and (-raw_dx) or raw_dx
+			local aim_y = is_slingshot and (-raw_dy) or raw_dy
 			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
 			hide_guide(self)

@@ -54,12 +54,27 @@ function update(self)
 	render.clear(self.clear_buffers)
 	render.set_depth_mask(false)
 
-	-- 1. World Pass: Apply dynamic camera view and orthographic world projection
+	-- 1. World Pass: Dynamic orthographic projection preserving 16:9 aspect ratio without stretching
 	render.set_viewport(0, 0, self.window_width, self.window_height)
+
+	local target_w = 960
+	local target_h = 540
+	local aspect = self.window_width / self.window_height
+	local proj_w = target_w
+	local proj_h = target_h
+
+	if aspect > (target_w / target_h) then
+		proj_w = target_h * aspect
+	else
+		proj_h = target_w / aspect
+	end
+
+	local offset_x = (proj_w - target_w) * 0.5
+	local offset_y = (proj_h - target_h) * 0.5
 
 	local world_view = camera_controller.get_view_matrix() or self.view
 	render.set_view(world_view)
-	render.set_projection(vmath.matrix4_orthographic(0, 960, 0, 540, -1000, 1000))
+	render.set_projection(vmath.matrix4_orthographic(-offset_x, target_w + offset_x, -offset_y, target_h + offset_y, -1000, 1000))
 
 	local blend_src = (graphics and (graphics.BLEND_FACTOR_SRC_ALPHA or graphics.BLEND_SRC_ALPHA)) or (render and render.BLEND_SRC_ALPHA)
 	local blend_dst = (graphics and (graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA or graphics.BLEND_ONE_MINUS_SRC_ALPHA)) or (render and render.BLEND_ONE_MINUS_SRC_ALPHA)

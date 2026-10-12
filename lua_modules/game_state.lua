@@ -351,7 +351,10 @@ function M.start_match(mode, campaign_lvl)
 		}
 	end
 
-	M.poki_gameplay_start()
+	-- For regular matches, notify Poki gameplay_start. For tutorial, defer until player's first input.
+	if M.mode ~= constants.MODE_TUTORIAL then
+		M.poki_gameplay_start()
+	end
 
 	-- Offer bonus card selection in campaign mode only for subsequent levels (level > 1)
 	-- Level 1 starts INSTANTLY with 0 friction into battle!
@@ -414,13 +417,19 @@ function M.get_current_config()
 		return {
 			name = "Командный Бой",
 			enemy_hp = 100,
-			enemy_count = M.match_config.potato_count,
-			red_count = M.match_config.potato_count,
-			player_count = M.match_config.potato_count,
-			blue_count = M.match_config.potato_count,
+			enemy_count = M.match_config.red_count or M.match_config.potato_count,
+			red_count = M.match_config.red_count or M.match_config.potato_count,
+			player_count = M.match_config.blue_count or M.match_config.potato_count,
+			blue_count = M.match_config.blue_count or M.match_config.potato_count,
 			terrain_type = M.match_config.terrain_type or "hills",
-			terrain_preset = M.match_config.terrain_type or "hills",
+			terrain_preset = M.match_config.terrain_preset or M.match_config.terrain_type or "hills",
 			biome = M.match_config.biome or "grass",
+			blue_classes = M.match_config.blue_classes,
+			red_classes = M.match_config.red_classes,
+			hat_blue = M.match_config.hat_blue,
+			red_hats = M.match_config.red_hats,
+			is_seamless_battle = M.match_config.is_seamless_battle,
+			seamless_stage = M.match_config.seamless_stage,
 			enemy_skill = "normal",
 			bot_difficulty = "normal",
 		}

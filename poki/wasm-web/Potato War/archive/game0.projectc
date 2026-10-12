@@ -259,6 +259,7 @@ input_key_back = key_back
 input_key_enter = key_enter
 input_key_space = key_space
 input_key_backspace = key_backspace
+input_key_delete = key_del
 input_multitouch = touch_multi
 input_scroll_up = mouse_wheel_up
 input_scroll_down = mouse_wheel_down

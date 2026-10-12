@@ -143,8 +143,8 @@ function M.analyze_situation(bot, enemies, terrain)
 	sit.dist_left = dist_l
 	sit.dist_right = dist_r
 
-	-- Jump height of potato is ~38px (impulse 190, gravity 460)
-	local JUMP_CAPABLE_H = 34.0
+	-- Jump height of potato with impulse 295, gravity 460 is ~94px
+	local JUMP_CAPABLE_H = 65.0
 	sit.can_jump_left = (sit.left_wall_h <= JUMP_CAPABLE_H)
 	sit.can_jump_right = (sit.right_wall_h <= JUMP_CAPABLE_H)
 

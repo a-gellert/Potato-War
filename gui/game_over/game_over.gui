@@ -1214,4 +1214,323 @@ nodes {
   outline_alpha: 0.0
   shadow_alpha: 0.0
 }
+nodes {
+  position {
+    x: 480.0
+    y: 270.0
+    z: 0.0
+  }
+  size {
+    x: 960.0
+    y: 540.0
+    z: 0.0
+  }
+  color {
+    x: 0.04
+    y: 0.06
+    z: 0.1
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "seamless_panel"
+  inherit_alpha: true
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 160.0
+    z: 0.0
+  }
+  scale {
+    x: 1.45
+    y: 1.45
+    z: 1.0
+  }
+  size {
+    x: 700.0
+    y: 60.0
+    z: 0.0
+  }
+  color {
+    x: 0.2
+    y: 0.95
+    z: 0.45
+  }
+  type: TYPE_TEXT
+  text: "ПОБЕДА!"
+  font: "system_font"
+  id: "seamless_title"
+  parent: "seamless_panel"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 95.0
+    z: 0.0
+  }
+  size {
+    x: 300.0
+    y: 46.0
+    z: 0.0
+  }
+  color {
+    x: 0.12
+    y: 0.18
+    z: 0.28
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "seamless_coins_bg"
+  parent: "seamless_panel"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  scale {
+    x: 0.75
+    y: 0.75
+    z: 1.0
+  }
+  size {
+    x: 280.0
+    y: 36.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.88
+    z: 0.25
+  }
+  type: TYPE_TEXT
+  text: "🪙 +100 МОНЕТ"
+  font: "system_font"
+  id: "seamless_coins_text"
+  parent: "seamless_coins_bg"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -42.0
+    z: 0.0
+  }
+  size {
+    x: 380.0
+    y: 210.0
+    z: 0.0
+  }
+  color {
+    x: 0.10
+    y: 0.15
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "seamless_hat_card"
+  parent: "seamless_panel"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 78.0
+    z: 0.0
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+    z: 1.0
+  }
+  size {
+    x: 350.0
+    y: 24.0
+    z: 0.0
+  }
+  color {
+    x: 0.4
+    y: 0.85
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "★ НОВАЯ ШАПКА! ★"
+  font: "system_font"
+  id: "seamless_hat_badge"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 6.0
+    z: 0.0
+  }
+  size {
+    x: 150.0
+    y: 150.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.3
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "seamless_hat_glow"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  alpha: 0.35
+}
+nodes {
+  position {
+    x: -80.0
+    y: 30.0
+    z: 0.0
+  }
+  size {
+    x: 28.0
+    y: 28.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.9
+    z: 0.3
+  }
+  type: TYPE_BOX
+  texture: "game/star"
+  id: "seamless_hat_star_1"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 80.0
+    y: 30.0
+    z: 0.0
+  }
+  size {
+    x: 28.0
+    y: 28.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.9
+    z: 0.3
+  }
+  type: TYPE_BOX
+  texture: "game/star"
+  id: "seamless_hat_star_2"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  alpha: 0.95
+}
+nodes {
+  position {
+    x: 0.0
+    y: 8.0
+    z: 0.0
+  }
+  scale {
+    x: 1.4
+    y: 1.4
+    z: 1.0
+  }
+  size {
+    x: 96.0
+    y: 96.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  texture: "game/hat_cap"
+  id: "seamless_hat_sprite"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  alpha: 1.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -70.0
+    z: 0.0
+  }
+  scale {
+    x: 0.75
+    y: 0.75
+    z: 1.0
+  }
+  size {
+    x: 350.0
+    y: 30.0
+    z: 0.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "КЕПКА БОЙЦА"
+  font: "system_font"
+  id: "seamless_hat_name"
+  parent: "seamless_hat_card"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 270.0
+    z: 0.0
+  }
+  size {
+    x: 960.0
+    y: 540.0
+    z: 0.0
+  }
+  color {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  type: TYPE_BOX
+  texture: "game/white_pixel"
+  id: "seamless_blackout"
+  inherit_alpha: true
+  alpha: 0.0
+}
 material: "/builtins/materials/gui.material"

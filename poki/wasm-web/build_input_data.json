@@ -11,8 +11,8 @@
     "payload-sha1" : "ffb370f8a939b44c2f681026273b7ad0b73b55b6"
   }, {
     "url" : "https://github.com/Insality/druid/archive/master.zip",
-    "commit-sha1" : "95f1ca9c9b6ce1df443e71a2a420892d37971c94",
-    "payload-sha1" : "3a6c67ff2a9083cbd14627b44db2beb976305d2a"
+    "commit-sha1" : "3eeb5c7ab701bd99503cc83ff5aa49cbeffbea24",
+    "payload-sha1" : "23cde74eb8d1474c64e7f551b88772208687c89b"
   }, {
     "url" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
     "commit-sha1" : "387370806f7689114ade6d77f98a4341e6b5c062",

@@ -133,6 +133,7 @@ M.data = {
 	unlocked_skins = { ["classic"] = true },
 	equipped_skin = "classic",
 	tutorial_completed = false,
+	onboarding_stage = 0,
 	campaign_hp = 100,
 	campaign_max_hp = 100,
 	meta_upgrades = {
@@ -184,6 +185,7 @@ function M.load()
 		M.data.campaign_map = loaded.campaign_map
 		M.data.campaign_turn = loaded.campaign_turn or 1
 		M.data.tutorial_completed = (loaded.tutorial_completed == true)
+		M.data.onboarding_stage = loaded.onboarding_stage or (loaded.tutorial_completed and 2 or 0)
 		M.data.campaign_stats = loaded.campaign_stats or {
 			battles_won = 0,
 			battles_lost = 0,
@@ -202,6 +204,7 @@ function M.load()
 		M.data.unlocked_skins = { ["classic"] = true }
 		M.data.equipped_skin = "classic"
 		M.data.tutorial_completed = false
+		M.data.onboarding_stage = 0
 		M.data.campaign_hp = 100
 		M.data.campaign_max_hp = 100
 		M.data.meta_upgrades = { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
@@ -475,6 +478,23 @@ function M.set_tutorial_completed(completed)
 	M.data.tutorial_completed = (completed ~= false)
 	M.save()
 end
+
+function M.get_onboarding_stage()
+	return M.data.onboarding_stage or (M.data.tutorial_completed and 2 or 0)
+end
+
+function M.set_onboarding_stage(stage)
+	M.data.onboarding_stage = stage or 0
+	M.save()
+end
+
+function M.unlock_hat(skin_id)
+	if not skin_id or not M.SKINS_BY_ID[skin_id] then return false end
+	M.data.unlocked_skins[skin_id] = true
+	M.save()
+	return true
+end
+M.unlock_skin = M.unlock_hat
 
 -- Initialize by loading on startup
 M.load()

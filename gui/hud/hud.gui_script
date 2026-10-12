@@ -599,23 +599,45 @@ function update(self, dt)
 							gui.set_color(hint_text, vmath.vector4(1.0, 0.7, 0.2, 1.0))
 						else
 							-- Step 4: Aim & Shoot
+							local is_slingshot = (game_state.aim_control_mode == "slingshot")
 							if self.tap_hint_timer and self.tap_hint_timer > 0 then
-								local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону мишени для силы выстрела!" or "💡 HOLD & DRAG towards target to set power!"
+								local tap_msg
+								if is_slingshot then
+									tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД как рогатку для силы выстрела!" or "💡 PULL BACK like a slingshot to set power!"
+								else
+									tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону мишени для силы выстрела!" or "💡 HOLD & DRAG towards target to set power!"
+								end
 								gui.set_text(hint_text, tap_msg)
 								gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
 							else
-								local shoot_msg = is_ru and "🎯 ШАГ 4: Наведи прицел и зажми ЛКМ для выстрела в мишень!" or "🎯 STEP 4: Aim and hold mouse to shoot the target!"
+								local shoot_msg
+								if is_slingshot then
+									shoot_msg = is_ru and "🎯 ШАГ 4: Оттяни картошку назад и отпусти для выстрела!" or "🎯 STEP 4: Pull back and release like a slingshot to shoot!"
+								else
+									shoot_msg = is_ru and "🎯 ШАГ 4: Наведи прицел и зажми ЛКМ для выстрела в мишень!" or "🎯 STEP 4: Aim and hold mouse to shoot the target!"
+								end
 								gui.set_text(hint_text, shoot_msg)
 								gui.set_color(hint_text, vmath.vector4(0.2, 0.85, 1.0, 1.0))
 							end
 						end
 					else
+						local is_slingshot = (game_state.aim_control_mode == "slingshot")
 						if self.tap_hint_timer and self.tap_hint_timer > 0 then
-							local tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
+							local tap_msg
+							if is_slingshot then
+								tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД от врага и отпусти для выстрела!" or "💡 PULL BACK away from enemy and release to shoot!"
+							else
+								tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
+							end
 							gui.set_text(hint_text, tap_msg)
 							gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
 						else
-							gui.set_text(hint_text, i18n.t("tutorial_hint"))
+							if is_slingshot then
+								local sling_msg = is_ru and "🎯 Оттяни назад и отпусти для выстрела!" or "🎯 Pull back and release like a slingshot to shoot!"
+								gui.set_text(hint_text, sling_msg)
+							else
+								gui.set_text(hint_text, i18n.t("tutorial_hint"))
+							end
 							gui.set_color(hint_text, vmath.vector4(1.0, 0.90, 0.25, 1.0))
 						end
 					end
@@ -662,6 +684,7 @@ function update(self, dt)
 					end
 				end)
 
+				local is_slingshot = (game_state.aim_control_mode == "slingshot")
 				local alpha = 0
 				local scale = 0.62
 				local x_off = 11
@@ -677,20 +700,30 @@ function update(self, dt)
 					ripple_alpha = 0.55 * (1.0 - t)
 					ripple_scale = 0.3 + 0.5 * t
 				elseif cycle < 1.00 then
-					-- 2. Drag towards enemy (to the right & slightly up)
+					-- 2. Drag towards enemy (direct) OR pull backwards like slingshot
 					local t = (cycle - 0.25) / 0.75
 					local eased = (t < 0.5) and (2 * t * t) or (-1 + (4 - 2 * t) * t)
 					alpha = 0.75
 					scale = 0.62
-					x_off = 11 + 75 * eased
-					y_off = -17 + 24 * math.sin(eased * math.pi * 0.5)
+					if is_slingshot then
+						x_off = 11 - 70 * eased
+						y_off = -17 - 24 * math.sin(eased * math.pi * 0.5)
+					else
+						x_off = 11 + 75 * eased
+						y_off = -17 + 24 * math.sin(eased * math.pi * 0.5)
+					end
 				elseif cycle < 1.30 then
 					-- 3. Release & fade out
 					local t = (cycle - 1.00) / 0.30
 					alpha = 0.75 * (1.0 - t)
 					scale = 0.62 + 0.14 * t
-					x_off = 11 + 75
-					y_off = -17 + 24
+					if is_slingshot then
+						x_off = 11 - 70
+						y_off = -17 - 24
+					else
+						x_off = 11 + 75
+						y_off = -17 + 24
+					end
 				else
 					-- 4. Pause before repeating
 					alpha = 0
@@ -802,10 +835,10 @@ function on_message(self, message_id, message, sender)
 
 			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), text_str)
 			gui.set_font(txt_node, "system_font")
-			local scale = is_heal and 0.80 or (is_crit and 0.85 or (label and 0.70 or 0.65))
-			gui.set_scale(txt_node, vmath.vector3(scale, scale, 1.0))
+			local base_scale = is_heal and 0.85 or (is_crit and 1.15 or (label and 0.80 or 0.75))
+			gui.set_scale(txt_node, vmath.vector3(base_scale * 1.5, base_scale * 1.5, 1.0))
 			if is_heal then
-				gui.set_color(txt_node, vmath.vector4(0.18, 0.95, 0.35, 1.0)) -- Vibrant emerald green
+				gui.set_color(txt_node, vmath.vector4(0.18, 1.0, 0.45, 1.0)) -- Vibrant emerald green
 			elseif label and string.find(label, "ЯД") then
 				gui.set_color(txt_node, vmath.vector4(0.35, 1.0, 0.30, 1.0)) -- Poison green
 			elseif label and string.find(label, "ОЖОГ") then
@@ -813,14 +846,17 @@ function on_message(self, message_id, message, sender)
 			elseif label and string.find(label, "КЛЕЙ") then
 				gui.set_color(txt_node, vmath.vector4(1.0, 0.90, 0.25, 1.0)) -- Honey yellow
 			elseif is_crit then
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.22, 0.15, 1.0)) -- Crit red
+				gui.set_color(txt_node, vmath.vector4(1.0, 0.18, 0.12, 1.0)) -- Crit red
 			else
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.85, 0.2, 1.0)) -- Gold/yellow
+				gui.set_color(txt_node, vmath.vector4(1.0, 0.88, 0.2, 1.0)) -- Gold/yellow
 			end
 
-			-- Floating upward & fading
-			gui.animate(txt_node, "position.y", y + 42, gui.EASING_OUTQUAD, 0.75)
-			gui.animate(txt_node, "color.w", 0.0, gui.EASING_INQUAD, 0.75, 0.15, function()
+			-- Punchy scale-down pop and drifting upward with horizontal scatter
+			local scatter_x = (math.random() - 0.5) * 24
+			gui.animate(txt_node, "scale", vmath.vector3(base_scale, base_scale, 1.0), gui.EASING_OUTBACK, 0.22)
+			gui.animate(txt_node, "position.x", x + scatter_x, gui.EASING_OUTQUAD, 0.75)
+			gui.animate(txt_node, "position.y", y + (is_crit and 58 or 44), gui.EASING_OUTQUAD, 0.75)
+			gui.animate(txt_node, "color.w", 0.0, gui.EASING_INQUAD, 0.75, 0.25, function()
 				pcall(gui.delete_node, txt_node)
 			end)
 		end)

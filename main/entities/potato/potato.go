@@ -132,3 +132,43 @@ embedded_components {
     y: 0.5
   }
 }
+embedded_components {
+  id: "hit_spark1"
+  type: "sprite"
+  data: "default_animation: \"spark\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.2
+  }
+  scale {
+    x: 0.1
+    y: 0.1
+  }
+}
+embedded_components {
+  id: "hit_spark2"
+  type: "sprite"
+  data: "default_animation: \"dirt_particle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.2
+  }
+  scale {
+    x: 0.1
+    y: 0.1
+  }
+}

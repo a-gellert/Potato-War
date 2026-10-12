@@ -43,6 +43,17 @@ function init(self)
 	if t then
 		go.set("#sprite", "tint", vmath.vector4(t[1], t[2], t[3], t[4]))
 	end
+
+	-- Projectile smoke & spark trail initialization
+	self.trail_timer = 0
+	pcall(function()
+		go.set("#trail1", "tint", vmath.vector4(1.0, 0.95, 0.7, 0.0))
+		go.set("#trail2", "tint", vmath.vector4(1.4, 0.9, 0.3, 0.0))
+		go.set("#trail3", "tint", vmath.vector4(0.9, 0.9, 0.9, 0.0))
+		go.set("#trail1", "scale", vmath.vector3(0.5, 0.5, 1.0))
+		go.set("#trail2", "scale", vmath.vector3(0.4, 0.4, 1.0))
+		go.set("#trail3", "scale", vmath.vector3(0.6, 0.6, 1.0))
+	end)
 end
 
 local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
@@ -201,7 +212,18 @@ function update(self, dt)
 		detonate(self, hx, hy, hit_potato)
 	elseif status == "water" then
 		self.is_active = false
-		camera_controller.shake(4, 0.2)
+		camera_controller.shake(6, 0.25)
+		msg.post("/main#main", "spawn_explosion", {
+			x = self.pos.x,
+			y = constants.WATER_LEVEL + 4,
+			radius = 18
+		})
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = self.pos.x,
+			y = constants.WATER_LEVEL + 16,
+			amount = 0,
+			label = "💦 БУЛЬК!"
+		})
 		go.delete()
 	else
 		-- Update game object transform
@@ -211,5 +233,24 @@ function update(self, dt)
 			self.rot_angle = math.atan2(self.vel.y, self.vel.x)
 		end
 		go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
+
+		-- Animate juicy trailing smoke/spark particles behind projectile
+		self.trail_timer = (self.trail_timer or 0) + dt * 14.0
+		pcall(function()
+			local t1_a = math.min(0.85, (speed / 120.0)) * (0.6 + 0.4 * math.sin(self.trail_timer))
+			local t2_a = math.min(0.95, (speed / 100.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 2.0))
+			local t3_a = math.min(0.70, (speed / 150.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 4.0))
+
+			go.set("#trail1", "tint.w", t1_a)
+			go.set("#trail2", "tint.w", t2_a)
+			go.set("#trail3", "tint.w", t3_a)
+
+			local s1 = 0.45 + 0.25 * math.sin(self.trail_timer)
+			local s2 = 0.35 + 0.20 * math.cos(self.trail_timer * 1.5)
+			local s3 = 0.60 + 0.30 * math.sin(self.trail_timer * 0.8)
+			go.set("#trail1", "scale", vmath.vector3(s1, s1, 1.0))
+			go.set("#trail2", "scale", vmath.vector3(s2, s2, 1.0))
+			go.set("#trail3", "scale", vmath.vector3(s3, s3, 1.0))
+		end)
 	end
 end

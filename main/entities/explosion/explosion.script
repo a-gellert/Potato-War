@@ -24,48 +24,57 @@ function init(self)
 	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1.6, 1.6, 1.0), go.EASING_OUTQUAD, 0.48)
 	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48)
 
-	-- Flying dirt & glowing earth debris particles
-	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4" }
+	-- Flying dirt & glowing earth debris particles (8 dynamic chunks)
+	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }
 	local dirt_colors = {
-		vmath.vector4(1.3, 0.95, 0.45, 1.0),
-		vmath.vector4(1.2, 0.65, 0.35, 1.0),
-		vmath.vector4(0.65, 1.25, 0.55, 1.0),
-		vmath.vector4(1.35, 0.75, 0.40, 1.0),
+		vmath.vector4(1.4, 0.95, 0.45, 1.0),
+		vmath.vector4(1.3, 0.65, 0.35, 1.0),
+		vmath.vector4(0.85, 1.35, 0.55, 1.0),
+		vmath.vector4(1.45, 0.75, 0.40, 1.0),
+		vmath.vector4(1.1, 0.85, 0.45, 1.0),
+		vmath.vector4(1.5, 0.55, 0.30, 1.0),
+		vmath.vector4(0.9, 1.15, 0.45, 1.0),
+		vmath.vector4(1.3, 0.80, 0.35, 1.0),
 	}
 	for i, d_id in ipairs(dirt_ids) do
-		local angle = math.rad((i - 1) * 90 + math.random(-25, 25))
-		local dist = self.radius * (0.95 + math.random() * 0.85)
+		local angle = math.rad((i - 1) * 45 + math.random(-18, 18))
+		local dist = self.radius * (1.1 + math.random() * 0.95)
 		local target_x = math.cos(angle) * dist
-		local target_y = math.sin(angle) * dist + math.random(12, 28)
+		local target_y = math.sin(angle) * dist + math.random(15, 38)
 		pcall(function()
 			go.set(d_id, "tint", dirt_colors[i])
-			go.set(d_id, "scale", vmath.vector3(1.1 + math.random() * 0.5, 1.1 + math.random() * 0.5, 1.0))
-			go.animate(d_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTQUAD, 0.45)
-			go.animate(d_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y - 28, go.EASING_INQUAD, 0.45)
-			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45, 0.12)
+			go.set(d_id, "scale", vmath.vector3(1.2 + math.random() * 0.6, 1.2 + math.random() * 0.6, 1.0))
+			go.animate(d_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTQUAD, 0.48)
+			go.animate(d_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y - 35, go.EASING_INQUAD, 0.48)
+			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.48)
+			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48, 0.12)
 		end)
 	end
 
-	-- High-speed neon-gold & fiery sparks
-	local spark_ids = { "#spark1", "#spark2", "#spark3", "#spark4" }
+	-- High-speed neon-gold & fiery sparks (8 radiating sparks)
+	local spark_ids = { "#spark1", "#spark2", "#spark3", "#spark4", "#spark5", "#spark6", "#spark7", "#spark8" }
 	local spark_colors = {
-		vmath.vector4(1.6, 1.4, 0.3, 1.0),
-		vmath.vector4(1.6, 0.65, 0.2, 1.0),
-		vmath.vector4(1.5, 0.35, 0.75, 1.0),
-		vmath.vector4(0.4, 1.5, 1.3, 1.0),
+		vmath.vector4(1.8, 1.5, 0.4, 1.0),
+		vmath.vector4(1.8, 0.70, 0.2, 1.0),
+		vmath.vector4(1.6, 0.40, 0.85, 1.0),
+		vmath.vector4(0.5, 1.6, 1.4, 1.0),
+		vmath.vector4(1.9, 1.3, 0.3, 1.0),
+		vmath.vector4(1.9, 0.50, 0.2, 1.0),
+		vmath.vector4(1.0, 1.8, 0.5, 1.0),
+		vmath.vector4(0.4, 1.4, 1.8, 1.0),
 	}
 	for i, s_id in ipairs(spark_ids) do
-		local angle = math.rad((i - 1) * 90 + 45 + math.random(-20, 20))
-		local dist = self.radius * (1.35 + math.random() * 0.95)
+		local angle = math.rad((i - 1) * 45 + 22.5 + math.random(-15, 15))
+		local dist = self.radius * (1.6 + math.random() * 1.2)
 		local target_x = math.cos(angle) * dist
-		local target_y = math.sin(angle) * dist + math.random(14, 36)
+		local target_y = math.sin(angle) * dist + math.random(18, 48)
 		pcall(function()
 			go.set(s_id, "tint", spark_colors[i])
-			go.set(s_id, "scale", vmath.vector3(1.45, 1.45, 1.0))
-			go.animate(s_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTEXPO, 0.38)
-			go.animate(s_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y, go.EASING_OUTQUAD, 0.38)
-			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.1, 0.1, 1.0), go.EASING_INQUAD, 0.38)
-			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.38)
+			go.set(s_id, "scale", vmath.vector3(1.6, 1.6, 1.0))
+			go.animate(s_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTEXPO, 0.42)
+			go.animate(s_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y, go.EASING_OUTQUAD, 0.42)
+			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.05, 0.05, 1.0), go.EASING_INQUAD, 0.42)
+			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.42)
 		end)
 	end
 

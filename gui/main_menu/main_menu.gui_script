@@ -227,12 +227,19 @@ function init(self)
 		end)
 	end
 
-	-- CAMPAIGN MAP button (Opens Global Island Campaign Map)
+	-- CAMPAIGN MAP button (Opens Tutorial for new players or Campaign Map for returning players)
 	self.ui:button("btn_campaign", function()
 		sound_manager.play_click()
 		msg.post(".", "disable")
-		msg.post("/gui_campaign_map", "enable")
-		msg.post("/gui_campaign_map#gui", "show")
+		if not player_profile.is_tutorial_completed() then
+			msg.post("/main#main", "start_match", {
+				mode = constants.MODE_TUTORIAL,
+				level = 1
+			})
+		else
+			msg.post("/gui_campaign_map", "enable")
+			msg.post("/gui_campaign_map#gui", "show")
+		end
 	end)
 
 	-- SKIRMISH LOBBY button (Opens Quick Match Setup)

@@ -272,7 +272,7 @@ function M.jump_potato(p, allow_midair_count)
 	if p.is_alive and (p.is_grounded or (p.air_jumps or 0) < allow_midair_count) then
 		p.air_jumps = (p.air_jumps or 0) + 1
 		p.vel.y = constants.POTATO_JUMP_IMPULSE * jump_mult
-		p.vel.x = p.facing * (55.0 * (is_glued and 0.5 or 1.0))
+		p.vel.x = p.facing * (70.0 * (is_glued and 0.5 or 1.0))
 		p.is_grounded = false
 		return true
 	end
