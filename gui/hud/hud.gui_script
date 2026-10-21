@@ -129,7 +129,8 @@ local function update_squad_widget(self)
 	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		local title_node = gui.get_node("squad_title")
-		gui.set_text(title_node, is_ru and "ОТРЯД СИНИХ" or "BLUE SQUAD")
+		gui.set_text(title_node, is_ru and "📟 КПК ОТРЯДА" or "📟 SQUAD PDA")
+		gui.set_color(title_node, vmath.vector4(0.15, 0.78, 0.95, 1.0))
 
 		local blue_spuds = {}
 		for _, p in ipairs(game_state.potatoes or {}) do
@@ -167,11 +168,11 @@ local function update_squad_widget(self)
 					local frac = math.max(0, math.min(1.0, p.hp / math.max(1, p.max_hp or 100)))
 					gui.set_size(hp_bar, vmath.vector3(60.0 * frac, 8.0, 0))
 					if frac > 0.5 then
-						gui.set_color(hp_bar, vmath.vector4(0.18, 0.80, 0.44, 1.0))
+						gui.set_color(hp_bar, vmath.vector4(0.15, 0.78, 0.95, 1.0)) -- Tactical Cyan
 					elseif frac > 0.25 then
-						gui.set_color(hp_bar, vmath.vector4(0.95, 0.77, 0.06, 1.0))
+						gui.set_color(hp_bar, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Amber
 					else
-						gui.set_color(hp_bar, vmath.vector4(0.91, 0.30, 0.24, 1.0))
+						gui.set_color(hp_bar, vmath.vector4(0.95, 0.35, 0.45, 1.0)) -- Coral
 					end
 				else
 					gui.set_text(hp_txt, "💀")
@@ -579,11 +580,17 @@ function update(self, dt)
 				gui.set_scale(t_fill, vmath.vector3(fraction, 1.0, 1.0))
 
 				if seconds_left <= 5 then
-					gui.set_color(t_bg, vmath.vector4(0.91, 0.30, 0.24, 1.0))
-					gui.set_color(t_fill, vmath.vector4(0.91, 0.30, 0.24, 1.0))
+					-- Pulsing Alert Red in final 5 seconds
+					gui.set_color(t_bg, vmath.vector4(0.85, 0.22, 0.22, 1.0))
+					gui.set_color(t_fill, vmath.vector4(0.95, 0.28, 0.24, 1.0))
+					gui.set_color(t_txt, vmath.vector4(1.0, 0.95, 0.95, 1.0))
 				else
-					gui.set_color(t_bg, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-					gui.set_color(t_fill, vmath.vector4(0.18, 0.80, 0.44, 1.0))
+					-- Military Dark Steel Plate with Rivets
+					gui.set_color(t_bg, vmath.vector4(0.12, 0.16, 0.22, 1.0))
+					-- Tactical Steel Gold / Amber Progress Bar (no toxic green!)
+					gui.set_color(t_fill, vmath.vector4(0.92, 0.72, 0.22, 1.0))
+					-- Crisp Gold / White Digits
+					gui.set_color(t_txt, vmath.vector4(1.0, 0.88, 0.35, 1.0))
 				end
 			end)
 		end

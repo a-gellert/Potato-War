@@ -745,11 +745,18 @@ function update(self, dt)
 					label = "💦 ВОДА!"
 				})
 			elseif result == "drowned" and p.url then
-				camera_controller.shake(12, 0.35)
+				camera_controller.shake(14, 0.40)
+				sound_manager.play_explosion()
 				msg.post("/main#main", "spawn_explosion", {
 					x = p.pos.x,
-					y = constants.WATER_LEVEL + 4,
-					radius = 32
+					y = constants.WATER_LEVEL + 6,
+					radius = 36
+				})
+				msg.post("/gui_hud#gui", "show_damage", {
+					x = p.pos.x,
+					y = constants.WATER_LEVEL + 26,
+					amount = 999,
+					label = "🔥 ФРИТЮРНИЦА!"
 				})
 				msg.post(p.url, "drowned")
 				p.url = nil

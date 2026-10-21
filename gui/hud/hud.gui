@@ -164,9 +164,9 @@ nodes {
     y: 112.0
   }
   color {
-    x: 0.08
-    y: 0.11
-    z: 0.15
+    x: 0.13
+    y: 0.17
+    z: 0.24
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -180,7 +180,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.7
+  alpha: 0.96
 }
 nodes {
   position {

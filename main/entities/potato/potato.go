@@ -78,7 +78,7 @@ embedded_components {
 embedded_components {
   id: "hp_bg"
   type: "sprite"
-  data: "default_animation: \"white_pixel\"\n"
+  data: "default_animation: \"hp_frame\"\n"
   "material: \"/builtins/materials/sprite.material\"\n"
   "textures {\n"
   "  sampler: \"texture_sampler\"\n"
@@ -90,8 +90,8 @@ embedded_components {
     z: 0.08
   }
   scale {
-    x: 4.0
-    y: 0.6
+    x: 0.74
+    y: 0.70
   }
 }
 embedded_components {
@@ -109,8 +109,32 @@ embedded_components {
     z: 0.09
   }
   scale {
-    x: 3.8
-    y: 0.5
+    x: 2.05
+    y: 0.38
+  }
+}
+embedded_components {
+  id: "hp_text"
+  type: "label"
+  data: "size { x: 160.0 y: 24.0 }\n"
+  "color { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }\n"
+  "outline { x: 0.05 y: 0.08 z: 0.12 w: 1.0 }\n"
+  "shadow { x: 0.0 y: 0.0 z: 0.0 w: 0.0 }\n"
+  "leading: 1.0\n"
+  "tracking: 0.0\n"
+  "pivot: PIVOT_CENTER\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  "line_break: false\n"
+  "text: \"100/100\"\n"
+  "font: \"/main/assets/game.font\"\n"
+  "material: \"/builtins/fonts/label-df.material\"\n"
+  position {
+    y: 31.0
+    z: 0.10
+  }
+  scale {
+    x: 0.22
+    y: 0.22
   }
 }
 embedded_components {

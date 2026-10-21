@@ -12,16 +12,26 @@ go.property("facing", 1)
 local function update_hp_bar(self)
 	local pct = math.max(0, math.min(1.0, self.hp / self.max_hp))
 
-	go.set("#hp_fill", "scale", vmath.vector3(3.8 * pct, 0.5, 1.0))
+	-- Compact shoulder-width HP bar (~34px wide)
+	local total_w = 2.05
+	local cur_w = total_w * pct
+	local offset_x = -((total_w - cur_w) * 16.0) * 0.5
+	go.set("#hp_fill", "scale", vmath.vector3(cur_w, 0.38, 1.0))
+	go.set("#hp_fill", "position", vmath.vector3(offset_x, 31.0, 0.09))
 
-	-- HP bar color distinguishes the team! (Blue team = bright cyan/blue, Red team = vivid red/coral)
+	-- Crisp white HP counter inside bar
+	pcall(function()
+		label.set_text("#hp_text", string.format("%d/%d", math.max(0, math.floor(self.hp)), math.floor(self.max_hp)))
+	end)
+
+	-- HP bar color distinguishes the team!
 	local team_hp_color
 	if self.team == 1 then
-		-- Blue Team
-		team_hp_color = vmath.vector4(0.18, 0.65, 1.0, 1.0)
+		-- Blue Team: Soft Serene Cyan
+		team_hp_color = vmath.vector4(0.15, 0.78, 0.95, 1.0)
 	else
-		-- Red Team
-		team_hp_color = vmath.vector4(1.0, 0.28, 0.24, 1.0)
+		-- Red Team: Vivid Soft Coral
+		team_hp_color = vmath.vector4(0.96, 0.35, 0.48, 1.0)
 	end
 	go.set("#hp_fill", "tint", team_hp_color)
 end
@@ -169,12 +179,13 @@ function init(self)
 	pcall(function() msg.post("#hat_sprite", "disable") end)
 
 	-- Setup health bar colors (background dark slate)
-	go.set("#hp_bg", "tint", vmath.vector4(0.08, 0.10, 0.14, 0.75))
+	go.set("#hp_bg", "tint", vmath.vector4(1.0, 1.0, 1.0, 0.95))
 	update_hp_bar(self)
 
 	-- Always keep HP bar enabled above every potato fighter in their team color
 	msg.post("#hp_bg", "enable")
 	msg.post("#hp_fill", "enable")
+	pcall(function() msg.post("#hp_text", "enable") end)
 
 	-- Hide weapon, reticle, and hit sparks by default until active
 	msg.post("#weapon_sprite", "disable")
@@ -324,6 +335,7 @@ local function process_turn_start(self)
 			msg.post("#weapon_sprite", "disable")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
+	pcall(function() msg.post("#hp_text", "disable") end)
 		end
 	end
 end

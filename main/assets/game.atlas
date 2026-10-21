@@ -151,4 +151,10 @@ images {
 images {
   image: "/main/assets/smiles/s_wow.png"
 }
+images {
+  image: "/main/assets/hp_frame.png"
+}
+images {
+  image: "/main/assets/spore.png"
+}
 extrude_borders: 2
