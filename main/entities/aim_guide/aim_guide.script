@@ -9,6 +9,7 @@ local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
 
 local MAX_DOTS = 14
+local MAX_TUTORIAL_DOTS = 28
 
 local function hide_guide(self)
 	if self.crosshair then
@@ -25,6 +26,152 @@ local function hide_guide(self)
 	game_state.aim_target_y = nil
 end
 
+local function hide_tutorial_guide(self)
+	if self.tutorial_dots then
+		for i = 1, MAX_TUTORIAL_DOTS do
+			if self.tutorial_dots[i] then
+				msg.post(self.tutorial_dots[i], "disable")
+			end
+		end
+	end
+end
+
+local function update_tutorial_trajectory(self, dt)
+	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
+		or (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1 and not game_state.tutorial_first_shot_done)
+
+	if not is_tutorial
+		or game_state.state ~= constants.STATE_TURN_ACTIVE
+		or game_state.is_bot_turn()
+		or game_state.active_team ~= constants.TEAM_BLUE then
+		hide_tutorial_guide(self)
+		return
+	end
+
+	local player_p = game_state.active_potato
+	if not player_p or not player_p.is_alive then
+		hide_tutorial_guide(self)
+		return
+	end
+
+	-- Find enemy target
+	local enemy_p = nil
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive and p.team ~= game_state.active_team then
+			if p.is_target then
+				enemy_p = p
+				break
+			elseif not enemy_p then
+				enemy_p = p
+			end
+		end
+	end
+
+	if not enemy_p then
+		hide_tutorial_guide(self)
+		return
+	end
+
+	-- Recalculate ballistic trajectory if player or enemy moved significantly
+	local target_x = enemy_p.pos.x
+	local target_y = enemy_p.pos.y
+	local origin_x = player_p.pos.x
+	local origin_y = player_p.pos.y + 8
+
+	local weapon = weapons.get(game_state.selected_weapon_id) or weapons.get("bazooka")
+	local need_recalc = not self.cached_tut_points
+		or math.abs((self.last_tut_ox or 0) - origin_x) > 4
+		or math.abs((self.last_tut_oy or 0) - origin_y) > 4
+		or math.abs((self.last_tut_tx or 0) - target_x) > 4
+		or math.abs((self.last_tut_ty or 0) - target_y) > 4
+		or self.last_tut_weapon ~= weapon.id
+
+	if need_recalc then
+		self.last_tut_ox = origin_x
+		self.last_tut_oy = origin_y
+		self.last_tut_tx = target_x
+		self.last_tut_ty = target_y
+		self.last_tut_weapon = weapon.id
+
+		local grav = constants.GRAVITY * (weapon.gravity_mult or 0.4)
+		local sim_dt = 0.035
+		local dx = target_x - origin_x
+		local dir = dx > 0 and 1 or -1
+
+		local min_deg = dir > 0 and 15 or 115
+		local max_deg = dir > 0 and 75 or 165
+
+		local best_vx = dir * 250
+		local best_vy = 250
+		local min_err = 999999
+		local best_pts = nil
+
+		for deg = min_deg, max_deg, 2 do
+			local rad = deg * 3.14159 / 180
+			local cos_a = math.cos(rad)
+			local sin_a = math.sin(rad)
+			for pwr = 180, math.min(weapon.max_power or 700, 680), 15 do
+				local cur_vx = cos_a * pwr
+				local cur_vy = sin_a * pwr
+				local cx = origin_x
+				local cy = origin_y
+				local pts = {}
+				local best_track_err = 999999
+
+				for step = 1, 140 do
+					cur_vy = cur_vy - grav * sim_dt
+					cx = cx + cur_vx * sim_dt
+					cy = cy + cur_vy * sim_dt
+
+					if step % 3 == 0 then
+						table.insert(pts, { x = cx, y = cy })
+					end
+
+					local dist = math.sqrt((cx - target_x)^2 + (cy - target_y)^2)
+					if dist < best_track_err then
+						best_track_err = dist
+					end
+
+					if terrain_grid.is_solid(cx, cy) or cy <= (constants.WATER_LEVEL + 5) then
+						break
+					end
+				end
+
+				if best_track_err < min_err then
+					min_err = best_track_err
+					best_vx = cos_a * pwr
+					best_vy = sin_a * pwr
+					best_pts = pts
+				end
+			end
+		end
+
+		self.cached_tut_points = best_pts or {}
+	end
+
+	local pts = self.cached_tut_points or {}
+	self.tut_pulse_timer = (self.tut_pulse_timer or 0) + (dt or 0.016)
+	local pulse = 0.38 + 0.14 * math.sin(self.tut_pulse_timer * 4.0)
+
+	for i = 1, MAX_TUTORIAL_DOTS do
+		local dot_url = self.tutorial_dots[i]
+		if dot_url then
+			if i <= #pts then
+				msg.post(dot_url, "enable")
+				go.set_position(vmath.vector3(pts[i].x, pts[i].y, 0.28), dot_url)
+				local dot_scale = 0.22
+				go.set_scale(vmath.vector3(dot_scale, dot_scale, 1.0), dot_url)
+				local sprite_url = msg.url(nil, dot_url, "sprite")
+				-- Semi-transparent dotted trail towards enemy
+				local alpha = pulse * (1.0 - (i / (MAX_TUTORIAL_DOTS + 12)))
+				go.set(sprite_url, "tint", vmath.vector4(1.0, 0.92, 0.40, math.max(0.18, alpha)))
+			else
+				msg.post(dot_url, "disable")
+			end
+		end
+	end
+end
+
 local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS, game_state.wind_vector)
 
@@ -36,6 +183,8 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 				go.set_position(vmath.vector3(points[i].x, points[i].y, 0.3), dot_url)
 				local s = 0.28 * (1.0 - (i / (MAX_DOTS + 4)))
 				go.set_scale(vmath.vector3(s, s, 1.0), dot_url)
+				local sprite_url = msg.url(nil, dot_url, "sprite")
+				go.set(sprite_url, "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
 			else
 				msg.post(dot_url, "disable")
 			end
@@ -77,7 +226,7 @@ function init(self)
 	self.last_vx = 0
 	self.last_vy = 0
 
-	-- Spawn trajectory dot game objects
+	-- Spawn player trajectory dot game objects
 	self.dots = {}
 	for i = 1, MAX_DOTS do
 		local d = factory.create("#dot_factory", vmath.vector3(-100, -100, 0.3))
@@ -85,9 +234,21 @@ function init(self)
 		self.dots[i] = d
 	end
 
+	-- Spawn tutorial semi-transparent trajectory hint dots
+	self.tutorial_dots = {}
+	for i = 1, MAX_TUTORIAL_DOTS do
+		local td = factory.create("#dot_factory", vmath.vector3(-100, -100, 0.28))
+		msg.post(td, "disable")
+		self.tutorial_dots[i] = td
+	end
+
 	-- Spawn crosshair game object
 	self.crosshair = factory.create("#crosshair_factory", vmath.vector3(-100, -100, 0.35))
 	msg.post(self.crosshair, "disable")
+end
+
+function update(self, dt)
+	update_tutorial_trajectory(self, dt)
 end
 
 function final(self)
@@ -97,6 +258,11 @@ function final(self)
 	if self.dots then
 		for _, d in ipairs(self.dots) do
 			pcall(go.delete, d)
+		end
+	end
+	if self.tutorial_dots then
+		for _, td in ipairs(self.tutorial_dots) do
+			pcall(go.delete, td)
 		end
 	end
 end
@@ -130,7 +296,7 @@ function on_input(self, action_id, action)
 			end
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
-			game_state.poki_gameplay_start()
+			game_state.gameplay_start()
 
 		elseif self.dragging and not action.released then
 			local raw_dx = action.x - self.drag_start.x

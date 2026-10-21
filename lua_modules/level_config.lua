@@ -99,9 +99,15 @@ function M.normalize_level(entry, level_index)
 		end
 	end
 
-	local is_ru = (i18n.current_lang == "ru")
-	local lvl_name = (is_ru and entry.name) or entry.name_en or entry.name or ((is_ru and "Сектор " or "Sector ") .. tostring(lvl))
-	local lvl_desc = (is_ru and entry.desc) or entry.desc_en or entry.desc or ""
+	local lang = i18n.current_lang or "en"
+	local territory_map = package.loaded["lua_modules.territory_map"]
+	local lvl_name
+	if territory_map and territory_map.get_sector_name then
+		lvl_name = territory_map.get_sector_name(lvl, lang)
+	else
+		lvl_name = (lang == "ru" and entry.name) or entry.name_en or entry.name or (i18n.t("hud_sector") .. " " .. tostring(lvl))
+	end
+	local lvl_desc = (lang == "ru" and entry.desc) or entry.desc_en or entry.desc or ""
 
 	return {
 		level = lvl,

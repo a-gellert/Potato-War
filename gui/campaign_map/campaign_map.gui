@@ -4477,6 +4477,7 @@ nodes {
   id: "barracks_overlay"
   inherit_alpha: true
   alpha: 0.96
+  enabled: false
 }
 nodes {
   size {
@@ -4952,6 +4953,22 @@ nodes {
 }
 nodes {
   position {
+    x: 2.0
+    y: 110.0
+  }
+  scale {
+    x: 1.2
+    y: 1.2
+  }
+  type: TYPE_BOX
+  texture: "game/s_angry"
+  id: "box"
+  parent: "b_slot_card_1"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
     x: -110.0
     y: -30.0
   }
@@ -5217,6 +5234,22 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 2.0
+    y: 110.0
+  }
+  scale {
+    x: 1.2
+    y: 1.2
+  }
+  type: TYPE_BOX
+  texture: "game/s_wow"
+  id: "box1"
+  parent: "b_slot_card_2"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
 }
 nodes {
   position {
@@ -5532,6 +5565,22 @@ nodes {
 }
 nodes {
   position {
+    x: 2.0
+    y: 110.0
+  }
+  scale {
+    x: 1.2
+    y: 1.2
+  }
+  type: TYPE_BOX
+  texture: "game/s_happy"
+  id: "box2"
+  parent: "b_slot_card_3"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
     x: 330.0
     y: -30.0
   }
@@ -5841,5 +5890,21 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 2.0
+    y: 110.0
+  }
+  scale {
+    x: 1.2
+    y: 1.2
+  }
+  type: TYPE_BOX
+  texture: "game/s_angry2"
+  id: "box3"
+  parent: "b_slot_card_4"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
 }
 material: "/builtins/materials/gui.material"

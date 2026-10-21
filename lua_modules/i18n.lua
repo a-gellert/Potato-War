@@ -1,143 +1,38 @@
 -- lua_modules/i18n.lua
--- Internationalization module for Potato War (Russian & English)
--- Auto-detects language from Poki SDK, browser (html5), or system settings.
+-- Internationalization module for Potato War
+-- Languages: English, Russian, Turkish, Spanish, Portuguese, French
+-- Auto-detects language from Playgama Bridge SDK, browser (html5), or system settings.
 
 local M = {}
 
-M.LANG_RU = "ru"
 M.LANG_EN = "en"
+M.LANG_RU = "ru"
+M.LANG_TR = "tr"
+M.LANG_ES = "es"
+M.LANG_PT = "pt"
+M.LANG_FR = "fr"
+
+-- Ordered cycle for language switcher
+M.LANG_ORDER = { M.LANG_EN, M.LANG_RU, M.LANG_TR, M.LANG_ES, M.LANG_PT, M.LANG_FR }
+
+-- Flag sprite names (must match atlas image basenames without extension)
+M.LANG_FLAG = {
+	en = "flagENG",
+	ru = "flagRUS",
+	tr = "flagTUR",
+	es = "flagESP",
+	pt = "flagPOR",
+	fr = "flagFRA",
+}
 
 M.current_lang = M.LANG_EN
 
 local dictionary = {
-	ru = {
-		-- Main Menu
-		title = "POTATO WAR",
-		subtitle = "Битва Картошек — Пошаговая артиллерия",
-		btn_campaign = "БОЙ",
-		btn_battle = "БОЙ",
-		btn_upgrades = "ПРОКАЧКА / УЛУЧШЕНИЯ",
-		btn_quick_bot = "БЫСТРЫЙ БОЙ VS БОТ",
-		upgrades_title = "ГЛОБАЛЬНЫЕ УЛУЧШЕНИЯ",
-
-		-- Campaign Map
-		camp_title = "КАРТА ВОЙНЫ",
-		camp_sectors_fmt = "Секторы: %d/%d (%d%%)",
-		camp_supplies_fmt = "Припасы: %d 🥔",
-		camp_turn_fmt = "Ход: %d",
-		camp_recon_dossier = "ДОСЬЕ РАЗВЕДКИ",
-		camp_owner_blue = "Контроль: 🔵 СИНИЕ",
-		camp_owner_red = "Контроль: 🔴 КРАСНЫЕ",
-		camp_def_fmt = "Оборона: %s (%s)",
-		camp_def_1 = "Полевой лагерь",
-		camp_def_2 = "Укрепленный форпост",
-		camp_def_3 = "Бункерная цитадель",
-		camp_garrison_fmt = "Гарнизон: %d картошки",
-		camp_income_fmt = "Доход: +%d 🥔 / ход",
-		camp_terrain_fmt = "Рельеф: %s",
-		camp_status_ready = "⚡ Рубеж готов к штурму",
-		camp_status_deep = "🔒 В тылу врага (нет границы)",
-		camp_status_under_attack = "⚠️ ВРАГ АТАКУЕТ СЕКТОР!",
-		camp_status_defend = "🛡️ Союзный рубеж обороны",
-		camp_btn_attack = "⚔️ В АТАКУ!",
-		camp_btn_fortify = "🛡️ УКРЕПИТЬ (%d 🥔)",
-		camp_btn_max_fort = "🛡️ МАКС. УКРЕПЛЕНИЕ",
-		camp_btn_back = "В МЕНЮ",
-		camp_hint_bottom = "Кликните на сектор для разведданных. Золотая линия — линия фронта.",
-		camp_alert_siren = "⚠️ ТРЕВОГА! ВРАЖЕСКИЙ ШТУРМ СЕКТОРА #%02d!",
-
-		-- Lobby
-		lobby_title = "НАСТРОЙКА БОЯ",
-		lobby_subtitle = "Настройте параметры командной битвы",
-		lbl_potatoes_count = "Картошек в команде:",
-		lbl_mode = "Соперник:",
-		mode_bot_opt = "🤖 Против Бота",
-		mode_human_opt = "⚔️ Против Человека",
-		lbl_skin_blue = "Шапка Синих:",
-		lbl_skin_red = "Шапка Красных:",
-		lbl_location = "Местность:",
-		lbl_relief = "Рельеф:",
-		btn_start_battle = "⚔️ В БОЙ!",
-		btn_back = "◄ НАЗАД",
-		btn_buy = "КУПИТЬ (%d)",
-		btn_max = "МАКСИМУМ",
-		level_format = "Ур. %d/%d",
-		hint_controls = "Управление: A / D — ходьба | W / Пробел — прыжок | Q / клик слева — арсенал\nСтрельба: зажмите мышь/экран, направьте прицел на врага и отпустите!",
-		lang_btn = "ЯЗЫК: RU",
-
-		-- HUD
-		turn_blue = "Ход: Картошка (Синие)",
-		turn_red_bot = "Ход: Компьютер (Красные)",
-		turn_red_pvp = "Ход: Игрок 2 (Красные)",
-		turn_red_pvp_bot = "Ход: PvP Бот (Красные)",
-		weapon_grenade = "ГОРЯЧАЯ КАРТОШКА",
-		weapon_rifle = "ШАМПУР-СНАЙПЕР",
-		weapon_knife = "КАРТОФЕЛЕЧИСТКА",
-		weapon_molotov = "ФРИТЮРНОЕ МАСЛО",
-		weapon_burst = "ФРИ-АВТОМАТ",
-		weapon_bazooka = "ПЮРЕ-БАЗУКА",
-		weapon_shotgun = "КУХОННАЯ ТЁРКА",
-		weapon_holy_grenade = "ЗОЛОТОЙ КЛУБЕНЬ",
-		weapon_beetle = "КОЛОРАДСКИЙ ДЕСАНТ",
-		weapon_drill = "ГРЯДКОВЫЙ БУР",
-		weapon_pepper = "ПЕРЦЕМОЛКА «ЧИЛИ»",
-		weapon_garlic = "ЧЕСНОЧНЫЙ ДИНАМИТ",
-		touch_left = "◄ A",
-		touch_jump = "▲ W",
-		touch_right = "D ►",
-		btn_pause = "МЕНЮ [ESC]",
-		btn_inventory = "ОРУЖИЕ [Q]",
-		inventory_title = "ИНВЕНТАРЬ ОРУЖИЯ [Q]",
-		inventory_sub = "ВЫБЕРИТЕ ОРУЖИЕ ДЛЯ ВЫСТРЕЛА",
-		points_lbl = "Очки: ",
-		mission_format = "Арена %d",
-		mode_bot = "Бой vs Бот",
-		mode_pvp = "Игра 1 на 1",
-		mode_pvp_bots = "PvP 3x3 vs Боты",
-		tutorial_hint = "🎯 Направь прицел на врага и отпусти для выстрела!",
-		tutorial_sub = "Зажми мышь/экран и потяни в сторону врага",
-		cards_start_title = "ВЫБЕРИТЕ БОНУС АРЕНЫ",
-		cards_start_subtitle = "Выберите оружие или усиление на эту арену",
-
-		-- Game Over
-		victory = "ПОБЕДА!",
-		defeat = "ПОРАЖЕНИЕ!",
-		draw = "НИЧЬЯ!",
-		sub_victory = "Синяя команда картошек разгромила соперника!",
-		sub_defeat = "Красные картошки одержали победу!",
-		sub_draw = "Все картошки превратились в пюре!",
-		btn_rematch = "НАЧАТЬ ЗАНОВО",
-		btn_play_again = "СЫГРАТЬ ЕЩЕ РАЗ",
-		btn_next_level = "СЛЕДУЮЩАЯ АРЕНА",
-		btn_revive = "ВОСКРЕСИТЬСЯ (+50 HP)",
-		btn_shop = "МАГАЗИН ШАПОК 🎩",
-		btn_menu = "ГЛАВНОЕ МЕНЮ",
-		achieve_bonus = "БОНУСЫ ЗА МАСТЕРСТВО:",
-		achieve_total = "ИТОГО:",
-		air_raid_warn = "⚠️ ВОЗДУШНЫЙ НАЛЕТ!",
-		debrief_title = "★ ВОЕННАЯ СВОДКА ГЕНШТАБА ★",
-		debrief_sector_liberated = "★ СЕКТОР %s ОСВОБОЖДЕН! ★",
-		debrief_sub_liberated = "Флаг Синих поднят! Сектор перешел под контроль штаба.",
-		debrief_attack_repelled = "🛡️ АТАКА ОТБИТА: %s! 🛡️",
-		debrief_sub_repelled = "Вражеский штурм сокрушен! Оборона рубежа удержана.",
-		debrief_sector_lost = "⚠️ СЕКТОР %s ПОТЕРЯН! ⚠️",
-		debrief_sub_lost = "Оборона прорвана Красными. Сектор перешел к врагу.",
-		debrief_assault_failed = "ШТУРМ ЗАХЛЕБНУЛСЯ",
-		debrief_sub_failed = "Штурмовой отряд понес потери и отступил на базу.",
-		debrief_campaign_won = "🏆 ОСТРОВ ПОЛНОСТЬЮ ОСВОБОЖДЕН! 🏆",
-		debrief_sub_camp_won = "Все 18 секторов под контролем Синих! Кампания выиграна!",
-		debrief_campaign_lost = "💀 КАМПАНИЯ ПРОИГРАНА 💀",
-		debrief_sub_camp_lost = "Все опорные пункты пали. Штаб эвакуирован.",
-		btn_return_hq = "ВЕРНУТЬСЯ В ШТАБ 🎖️",
-		frontline_minimap = "КАРТА ЛИНИИ ФРОНТА",
-		frontline_control_fmt = "Контроль острова: %d / 18 (%d%%)",
-		debrief_combat_report = "★ БОЕВОЕ ДОНЕСЕНИЕ ★",
-	},
 	en = {
 		-- Main Menu
 		title = "POTATO WAR",
 		subtitle = "Potato Battle — Turn-Based Artillery",
-		btn_campaign = "BATTLE",
+		btn_campaign = "CAMPAIGN",
 		btn_battle = "BATTLE",
 		btn_upgrades = "UPGRADES & PERKS",
 		btn_quick_bot = "QUICK BATTLE VS BOT",
@@ -183,7 +78,7 @@ local dictionary = {
 		btn_start_battle = "⚔️ TO BATTLE!",
 		btn_back = "◄ BACK",
 		btn_buy = "BUY (%d)",
-		btn_max = "MAX LEVEL",
+		btn_equiped = "EQUIPED",
 		level_format = "Lvl %d/%d",
 		hint_controls = "Controls: A / D — Walk | W / Space — Jump | Q / left button — Arsenal\nShooting: Hold mouse/touch, drag towards enemy & release to fire!",
 		lang_btn = "LANG: EN",
@@ -255,10 +150,768 @@ local dictionary = {
 		frontline_minimap = "FRONTLINE RADAR MAP",
 		frontline_control_fmt = "Island Control: %d / 18 (%d%%)",
 		debrief_combat_report = "★ COMBAT REPORT ★",
-	}
+		-- HUD widgets
+		hud_wind = "WIND:",
+		hud_wind_unit = " m/s",
+		hud_defense = "🛡️ DEFENSE: ",
+		hud_assault = "⚔️ ASSAULT: ",
+		hud_squad_pda = "📟 SQUAD PDA",
+		hud_sector = "Sector",
+		hud_unit = "Spud",
+		hud_you = "YOU",
+		hud_enemy = "ENEMY",
+		-- Barracks & Map
+		barracks_title = "BARRACKS & GANG PROMOTIONS",
+		barracks_stars_fmt = "Stars: %d",
+		barracks_points_fmt = "Points: %d",
+		barracks_buy_star = "+1 star for 1000 pts",
+		barracks_slot_fmt = "Spud #%d",
+		barracks_stats_fmt = "HP: %d | Spd: %d%%",
+		barracks_max_class = "MAX CLASS\nVeteran",
+		barracks_cost_stars = "%s (%d stars)",
+		barracks_slot_locked = "Slot Locked",
+		barracks_unlock_btn = "Unlock Spud\n(%d stars)",
+		barracks_unlock_req = "Unlock Spud #3\nfirst",
+		barracks_btn = "BARRACKS",
+	},
+	ru = {
+		-- Main Menu
+		title = "POTATO WAR",
+		subtitle = "Битва Картошек — Пошаговая артиллерия",
+		btn_campaign = "КАМПАНИЯ",
+		btn_battle = "БОЙ",
+		btn_upgrades = "ПРОКАЧКА / УЛУЧШЕНИЯ",
+		btn_quick_bot = "БЫСТРЫЙ БОЙ VS БОТ",
+		upgrades_title = "ГЛОБАЛЬНЫЕ УЛУЧШЕНИЯ",
+
+		-- Campaign Map
+		camp_title = "КАРТА ВОЙНЫ",
+		camp_sectors_fmt = "Секторы: %d/%d (%d%%)",
+		camp_supplies_fmt = "Припасы: %d 🥔",
+		camp_turn_fmt = "Ход: %d",
+		camp_recon_dossier = "ДОСЬЕ РАЗВЕДКИ",
+		camp_owner_blue = "Контроль: 🔵 СИНИЕ",
+		camp_owner_red = "Контроль: 🔴 КРАСНЫЕ",
+		camp_def_fmt = "Оборона: %s (%s)",
+		camp_def_1 = "Полевой лагерь",
+		camp_def_2 = "Укрепленный форпост",
+		camp_def_3 = "Бункерная цитадель",
+		camp_garrison_fmt = "Гарнизон: %d картошки",
+		camp_income_fmt = "Доход: +%d 🥔 / ход",
+		camp_terrain_fmt = "Рельеф: %s",
+		camp_status_ready = "⚡ Рубеж готов к штурму",
+		camp_status_deep = "🔒 В тылу врага (нет границы)",
+		camp_status_under_attack = "⚠️ ВРАГ АТАКУЕТ СЕКТОР!",
+		camp_status_defend = "🛡️ Союзный рубеж обороны",
+		camp_btn_attack = "⚔️ В АТАКУ!",
+		camp_btn_fortify = "🛡️ УКРЕПИТЬ (%d 🥔)",
+		camp_btn_max_fort = "🛡️ МАКС. УКРЕПЛЕНИЕ",
+		camp_btn_back = "В МЕНЮ",
+		camp_hint_bottom = "Кликните на сектор для разведданных. Золотая линия — линия фронта.",
+		camp_alert_siren = "⚠️ ТРЕВОГА! ВРАЖЕСКИЙ ШТУРМ СЕКТОРА #%02d!",
+
+		-- Lobby
+		lobby_title = "НАСТРОЙКА БОЯ",
+		lobby_subtitle = "Настройте параметры командной битвы",
+		lbl_potatoes_count = "Картошек в команде:",
+		lbl_mode = "Соперник:",
+		mode_bot_opt = "🤖 Против Бота",
+		mode_human_opt = "⚔️ Против Человека",
+		lbl_skin_blue = "Шапка Синих:",
+		lbl_skin_red = "Шапка Красных:",
+		lbl_location = "Местность:",
+		lbl_relief = "Рельеф:",
+		btn_start_battle = "⚔️ В БОЙ!",
+		btn_back = "◄ НАЗАД",
+		btn_buy = "КУПИТЬ (%d)",
+		btn_equiped = "НАДЕТО",
+		level_format = "Ур. %d/%d",
+		hint_controls = "Управление: A / D — ходьба | W / Пробел — прыжок | Q / клик слева — арсенал\nСтрельба: зажмите мышь/экран, направьте прицел на врага и отпустите!",
+		lang_btn = "ЯЗЫК: RU",
+
+		-- HUD
+		turn_blue = "Ход: Картошка (Синие)",
+		turn_red_bot = "Ход: Компьютер (Красные)",
+		turn_red_pvp = "Ход: Игрок 2 (Красные)",
+		turn_red_pvp_bot = "Ход: PvP Бот (Красные)",
+		weapon_grenade = "ГОРЯЧАЯ КАРТОШКА",
+		weapon_rifle = "ШАМПУР-СНАЙПЕР",
+		weapon_knife = "КАРТОФЕЛЕЧИСТКА",
+		weapon_molotov = "ФРИТЮРНОЕ МАСЛО",
+		weapon_burst = "ФРИ-АВТОМАТ",
+		weapon_bazooka = "ПЮРЕ-БАЗУКА",
+		weapon_shotgun = "КУХОННАЯ ТЁРКА",
+		weapon_holy_grenade = "ЗОЛОТОЙ КЛУБЕНЬ",
+		weapon_beetle = "КОЛОРАДСКИЙ ДЕСАНТ",
+		weapon_drill = "ГРЯДКОВЫЙ БУР",
+		weapon_pepper = "ПЕРЦЕМОЛКА «ЧИЛИ»",
+		weapon_garlic = "ЧЕСНОЧНЫЙ ДИНАМИТ",
+		touch_left = "◄ A",
+		touch_jump = "▲ W",
+		touch_right = "D ►",
+		btn_pause = "МЕНЮ [ESC]",
+		btn_inventory = "ОРУЖИЕ [Q]",
+		inventory_title = "ИНВЕНТАРЬ ОРУЖИЯ [Q]",
+		inventory_sub = "ВЫБЕРИТЕ ОРУЖИЕ ДЛЯ ВЫСТРЕЛА",
+		points_lbl = "Очки: ",
+		mission_format = "Арена %d",
+		mode_bot = "Бой vs Бот",
+		mode_pvp = "Игра 1 на 1",
+		mode_pvp_bots = "PvP 3x3 vs Боты",
+		tutorial_hint = "🎯 Направь прицел на врага и отпусти для выстрела!",
+		tutorial_sub = "Зажми мышь/экран и потяни в сторону врага",
+		cards_start_title = "ВЫБЕРИТЕ БОНУС АРЕНЫ",
+		cards_start_subtitle = "Выберите оружие или усиление на эту арену",
+
+		-- Game Over
+		victory = "ПОБЕДА!",
+		defeat = "ПОРАЖЕНИЕ!",
+		draw = "НИЧЬЯ!",
+		sub_victory = "Синяя команда картошек разгромила соперника!",
+		sub_defeat = "Красные картошки одержали победу!",
+		sub_draw = "Все картошки превратились в пюре!",
+		btn_rematch = "НАЧАТЬ ЗАНОВО",
+		btn_play_again = "СЫГРАТЬ ЕЩЕ РАЗ",
+		btn_next_level = "СЛЕДУЮЩАЯ АРЕНА",
+		btn_revive = "ВОСКРЕСИТЬСЯ (+50 HP)",
+		btn_shop = "МАГАЗИН ШАПОК 🎩",
+		btn_menu = "ГЛАВНОЕ МЕНЮ",
+		achieve_bonus = "БОНУСЫ ЗА МАСТЕРСТВО:",
+		achieve_total = "ИТОГО:",
+		air_raid_warn = "⚠️ ВОЗДУШНЫЙ НАЛЕТ!",
+		debrief_title = "★ ВОЕННАЯ СВОДКА ГЕНШТАБА ★",
+		debrief_sector_liberated = "★ СЕКТОР %s ОСВОБОЖДЕН! ★",
+		debrief_sub_liberated = "Флаг Синих поднят! Сектор перешел под контроль штаба.",
+		debrief_attack_repelled = "🛡️ АТАКА ОТБИТА: %s! 🛡️",
+		debrief_sub_repelled = "Вражеский штурм сокрушен! Оборона рубежа удержана.",
+		debrief_sector_lost = "⚠️ СЕКТОР %s ПОТЕРЯН! ⚠️",
+		debrief_sub_lost = "Оборона прорвана Красными. Сектор перешел к врагу.",
+		debrief_assault_failed = "ШТУРМ ЗАХЛЕБНУЛСЯ",
+		debrief_sub_failed = "Штурмовой отряд понес потери и отступил на базу.",
+		debrief_campaign_won = "🏆 ОСТРОВ ПОЛНОСТЬЮ ОСВОБОЖДЕН! 🏆",
+		debrief_sub_camp_won = "Все 18 секторов под контролем Синих! Кампания выиграна!",
+		debrief_campaign_lost = "💀 КАМПАНИЯ ПРОИГРАНА 💀",
+		debrief_sub_camp_lost = "Все опорные пункты пали. Штаб эвакуирован.",
+		btn_return_hq = "ВЕРНУТЬСЯ В ШТАБ 🎖️",
+		frontline_minimap = "КАРТА ЛИНИИ ФРОНТА",
+		frontline_control_fmt = "Контроль острова: %d / 18 (%d%%)",
+		debrief_combat_report = "★ БОЕВОЕ ДОНЕСЕНИЕ ★",
+		-- HUD widgets
+		hud_wind = "ВЕТЕР:",
+		hud_wind_unit = " м/с",
+		hud_defense = "🛡️ ОБОРОНА: ",
+		hud_assault = "⚔️ ШТУРМ: ",
+		hud_squad_pda = "📟 КПК ОТРЯДА",
+		hud_sector = "Сектор",
+		hud_unit = "Боец",
+		hud_you = "ТЫ",
+		hud_enemy = "ВРАГ",
+		-- Barracks & Map
+		barracks_title = "КАЗАРМА И ПРОКАЧКА БАНДЫ",
+		barracks_stars_fmt = "Звезды: %d",
+		barracks_points_fmt = "Очки: %d",
+		barracks_buy_star = "+1 звезда за 1000 очков",
+		barracks_slot_fmt = "Боец #%d",
+		barracks_stats_fmt = "HP: %d | Скор: %d%%",
+		barracks_max_class = "МАКС. КЛАСС\nБоец обучен",
+		barracks_cost_stars = "%s (%d зв.)",
+		barracks_slot_locked = "Слот заблокирован",
+		barracks_unlock_btn = "Открыть бойца\n(%d звезд)",
+		barracks_unlock_req = "Сначала откройте\nбойца #3",
+		barracks_btn = "КАЗАРМА",
+	},
+	tr = {
+		-- Main Menu
+		title = "POTATO WAR",
+		subtitle = "Patates Savaşı — Sıra Tabanlı Topçu",
+		btn_campaign = "SEFER",
+		btn_battle = "SAVAŞ",
+		btn_upgrades = "GELİŞTİRMELER",
+		btn_quick_bot = "HIZLI SAVAŞ VS BOT",
+		upgrades_title = "META GELİŞTİRMELER",
+
+		-- Campaign Map
+		camp_title = "SAVAŞ HARİTASI",
+		camp_sectors_fmt = "Sektörler: %d/%d (%%%d)",
+		camp_supplies_fmt = "İkmal: %d 🥔",
+		camp_turn_fmt = "Tur: %d",
+		camp_recon_dossier = "KEŞİF DOSYASI",
+		camp_owner_blue = "Kontrol: 🔵 MAVİ",
+		camp_owner_red = "Kontrol: 🔴 KIRMIZI",
+		camp_def_fmt = "Savunma: %s (%s)",
+		camp_def_1 = "Saha Kampı",
+		camp_def_2 = "Tahkimat Karakolu",
+		camp_def_3 = "Sığınak Kalesi",
+		camp_garrison_fmt = "Garnizon: %d patates",
+		camp_income_fmt = "Gelir: +%d 🥔 / tur",
+		camp_terrain_fmt = "Arazi: %s",
+		camp_status_ready = "⚡ Cephe hatta saldırıya hazır",
+		camp_status_deep = "🔒 Düşman gerisinde (sınır yok)",
+		camp_status_under_attack = "⚠️ DÜŞMAN SEKTÖRÜ SALDIRIYOR!",
+		camp_status_defend = "🛡️ Müttefik savunma hattı",
+		camp_btn_attack = "⚔️ SALDIRI!",
+		camp_btn_fortify = "🛡️ TAHKİM ET (%d 🥔)",
+		camp_btn_max_fort = "🛡️ MAKSİMUM SAVUNMA",
+		camp_btn_back = "MENÜ",
+		camp_hint_bottom = "Keşif bilgisi için sektöre tıkla. Altın çizgi ön cephe hattıdır.",
+		camp_alert_siren = "⚠️ ALARM! DÜŞMAN #%02d. SEKTÖRÜ SALDIRIYOR!",
+
+		-- Lobby
+		lobby_title = "SAVAŞ LOBİSİ",
+		lobby_subtitle = "Takım savaşı maçını yapılandır",
+		lbl_potatoes_count = "Takımdaki patates:",
+		lbl_mode = "Rakip:",
+		mode_bot_opt = "🤖 Bot'a Karşı",
+		mode_human_opt = "⚔️ İnsana Karşı",
+		lbl_skin_blue = "Mavi Takım Şapkası:",
+		lbl_skin_red = "Kırmızı Takım Şapkası:",
+		lbl_location = "Konum:",
+		lbl_relief = "Arazi:",
+		btn_start_battle = "⚔️ SAVAŞA!",
+		btn_back = "◄ GERİ",
+		btn_buy = "SATIN AL (%d)",
+		btn_equiped = "EQUIPED",
+		level_format = "Seviye %d/%d",
+		hint_controls = "Kontroller: A / D — Yürü | W / Boşluk — Zıpla | Q / sol tık — Cephanelik\nAteş: Fareyi/ekranı basılı tut, düşmana doğru çek ve bırak!",
+		lang_btn = "DİL: TR",
+
+		-- HUD
+		turn_blue = "Sıra: Patates (Mavi)",
+		turn_red_bot = "Sıra: Bilgisayar (Kırmızı)",
+		turn_red_pvp = "Sıra: Oyuncu 2 (Kırmızı)",
+		turn_red_pvp_bot = "Sıra: PvP Bot (Kırmızı)",
+		weapon_grenade = "SICAK PATATES",
+		weapon_rifle = "ŞİŞ KESKİN NİŞANCI",
+		weapon_knife = "PATATES SOYUCU",
+		weapon_molotov = "KIZARTMA YAĞI",
+		weapon_burst = "KİZARTMA OTOMATİK",
+		weapon_bazooka = "PÜRÜZ-ZUKA",
+		weapon_shotgun = "MUTFAK RENDESI",
+		weapon_holy_grenade = "KUTSAL PATATES",
+		weapon_beetle = "BÖCEK SÜRÜSÜ",
+		weapon_drill = "BAHÇE MATKAPı",
+		weapon_pepper = "BİBER DEĞİRMENİ",
+		weapon_garlic = "SARIMSAK DİNAMİT",
+		touch_left = "◄ A",
+		touch_jump = "▲ W",
+		touch_right = "D ►",
+		btn_pause = "MENÜ [ESC]",
+		btn_inventory = "SİLAHLAR [Q]",
+		inventory_title = "SİLAH DEPOSU [Q]",
+		inventory_sub = "ATEŞLEMEk İÇİN SİLAH SEÇ",
+		points_lbl = "Puanlar: ",
+		mission_format = "Arena %d",
+		mode_bot = "Bot Savaşı",
+		mode_pvp = "1'e 1 Oyun",
+		mode_pvp_bots = "PvP 3v3 vs Botlar",
+		tutorial_hint = "🎯 Düşmana doğru sürükle, ateş etmek için bırak!",
+		tutorial_sub = "Fareyi / ekranı basılı tut ve hedefe doğru sürükle",
+		cards_start_title = "ARENA BONUSU SEÇ",
+		cards_start_subtitle = "Bu savaş için silah veya ikmal bonusu seç",
+
+		-- Game Over
+		victory = "ZAFER!",
+		defeat = "YENILGI!",
+		draw = "BERABERLIK!",
+		sub_victory = "Mavi patates takımı düşmanı ezdi!",
+		sub_defeat = "Kırmızı patatesler savaşı kazandı!",
+		sub_draw = "Tüm patatesler püreye döndü!",
+		btn_rematch = "BAŞTAN BAŞLA",
+		btn_play_again = "TEKRAR OYNA",
+		btn_next_level = "SONRAKİ ARENA",
+		btn_revive = "DİRİL (+50 HP)",
+		btn_shop = "ŞAPKA DÜKKAN 🎩",
+		btn_menu = "ANA MENÜ",
+		achieve_bonus = "BAŞARI BONUSLARI:",
+		achieve_total = "TOPLAM:",
+		air_raid_warn = "⚠️ HAVA SALDIRISI GELİYOR!",
+		debrief_title = "★ GENEL KURMAY MUHAREBE RAPORU ★",
+		debrief_sector_liberated = "★ SEKTÖR %s KURTARILDI! ★",
+		debrief_sub_liberated = "Mavi bayrak çekildi! Sektör karargah kontrolüne geçti.",
+		debrief_attack_repelled = "🛡️ SALDIRI GERİ PÜSKÜRTÜLDÜ: %s! 🛡️",
+		debrief_sub_repelled = "Düşman saldırısı ezildi! Sektör savunması tuttu.",
+		debrief_sector_lost = "⚠️ SEKTÖR %s KAYBEDİLDİ! ⚠️",
+		debrief_sub_lost = "Kırmızı kuvvetler savunmayı deldi. Sektör ele geçirildi.",
+		debrief_assault_failed = "SALDIRI BAŞARISIZ",
+		debrief_sub_failed = "Saldırı gücü ağır kayıp verdi ve geri çekildi.",
+		debrief_campaign_won = "🏆 ADA TAMAMEN KURTARILDI! 🏆",
+		debrief_sub_camp_won = "18 sektörün tamamı Mavi Ordu kontrolünde! Kampanya kazanıldı!",
+		debrief_campaign_lost = "💀 KAMPANYA KAYBEDİLDİ 💀",
+		debrief_sub_camp_lost = "Tüm karakollar düştü. Karargah tahliye edildi.",
+		btn_return_hq = "KARARGAHA DÖN 🎖️",
+		frontline_minimap = "CEPHE HAT RADAR HARİTASI",
+		frontline_control_fmt = "Ada Kontrolü: %d / 18 (%%%d)",
+		debrief_combat_report = "★ MUHAREBE RAPORU ★",
+		-- HUD widgets
+		hud_wind = "RÜZGAR:",
+		hud_wind_unit = " m/s",
+		hud_defense = "🛡️ SAVUNMA: ",
+		hud_assault = "⚔️ SALDIRI: ",
+		hud_squad_pda = "📟 MANGA PDA",
+		hud_sector = "Sektör",
+		hud_unit = "Patates",
+		hud_you = "SEN",
+		hud_enemy = "DÜŞMAN",
+		-- Barracks & Map
+		barracks_title = "KIŞLA VE ÇETE GELİŞTİRMELERİ",
+		barracks_stars_fmt = "Yıldızlar: %d",
+		barracks_points_fmt = "Puanlar: %d",
+		barracks_buy_star = "1000 puana +1 yıldız",
+		barracks_slot_fmt = "Patates #%d",
+		barracks_stats_fmt = "HP: %d | Hız: %d%%",
+		barracks_max_class = "MAKS. SINIF\nKıdemli",
+		barracks_cost_stars = "%s (%d yıldız)",
+		barracks_slot_locked = "Yuva Kilitli",
+		barracks_unlock_btn = "Patates Aç\n(%d yıldız)",
+		barracks_unlock_req = "Önce #3. Patatesi\naçın",
+		barracks_btn = "KIŞLA",
+	},
+	es = {
+		-- Main Menu
+		title = "POTATO WAR",
+		subtitle = "Batalla de Papas — Artillería por Turnos",
+		btn_campaign = "CAMPAÑA",
+		btn_battle = "BATALLA",
+		btn_upgrades = "MEJORAS Y VENTAJAS",
+		btn_quick_bot = "BATALLA RÁPIDA VS BOT",
+		upgrades_title = "MEJORAS META",
+
+		-- Campaign Map
+		camp_title = "MAPA DE GUERRA",
+		camp_sectors_fmt = "Sectores: %d/%d (%d%%)",
+		camp_supplies_fmt = "Suministros: %d 🥔",
+		camp_turn_fmt = "Turno: %d",
+		camp_recon_dossier = "EXPEDIENTE DE RECONOCIMIENTO",
+		camp_owner_blue = "Control: 🔵 AZUL",
+		camp_owner_red = "Control: 🔴 ROJO",
+		camp_def_fmt = "Defensa: %s (%s)",
+		camp_def_1 = "Campamento de Campo",
+		camp_def_2 = "Puesto Fortificado",
+		camp_def_3 = "Ciudadela Búnker",
+		camp_garrison_fmt = "Guarnición: %d papas",
+		camp_income_fmt = "Ingresos: +%d 🥔 / turno",
+		camp_terrain_fmt = "Terreno: %s",
+		camp_status_ready = "⚡ Línea frontal lista para atacar",
+		camp_status_deep = "🔒 En territorio enemigo profundo",
+		camp_status_under_attack = "⚠️ ¡ENEMIGO ATACANDO SECTOR!",
+		camp_status_defend = "🛡️ Línea defensiva aliada",
+		camp_btn_attack = "⚔️ ¡ATACAR!",
+		camp_btn_fortify = "🛡️ FORTIFIC. (%d 🥔)",
+		camp_btn_max_fort = "🛡️ DEFENSA MÁXIMA",
+		camp_btn_back = "MENÚ",
+		camp_hint_bottom = "Haz clic en un sector para ver inteligencia. Línea dorada es la línea frontal.",
+		camp_alert_siren = "⚠️ ¡ALERTA! ¡ASALTO ENEMIGO AL SECTOR #%02d!",
+
+		-- Lobby
+		lobby_title = "LOBBY DE BATALLA",
+		lobby_subtitle = "Configura tu partida de batalla por equipos",
+		lbl_potatoes_count = "Papas por equipo:",
+		lbl_mode = "Oponente:",
+		mode_bot_opt = "🤖 vs Bot",
+		mode_human_opt = "⚔️ vs Humano",
+		lbl_skin_blue = "Sombrero Equipo Azul:",
+		lbl_skin_red = "Sombrero Equipo Rojo:",
+		lbl_location = "Ubicación:",
+		lbl_relief = "Relieve:",
+		btn_start_battle = "⚔️ ¡A LA BATALLA!",
+		btn_back = "◄ ATRÁS",
+		btn_buy = "COMPRAR (%d)",
+		btn_equiped = "EQUIPADO",
+		level_format = "Niv %d/%d",
+		hint_controls = "Controles: A / D — Caminar | W / Espacio — Saltar | Q / clic izq — Arsenal\n¡Disparo: Mantén el ratón/toque, arrastra hacia el enemigo y suelta!",
+		lang_btn = "IDIOMA: ES",
+
+		-- HUD
+		turn_blue = "Turno: Papas (Azul)",
+		turn_red_bot = "Turno: Computadora (Rojo)",
+		turn_red_pvp = "Turno: Jugador 2 (Rojo)",
+		turn_red_pvp_bot = "Turno: Bot PvP (Rojo)",
+		weapon_grenade = "PAPA CALIENTE",
+		weapon_rifle = "FRANCOTIRADOR PINCHO",
+		weapon_knife = "PELADOR DE PAPAS",
+		weapon_molotov = "ACEITE DE FREIDURÍA",
+		weapon_burst = "FREIDOR AUTOMÁTICO",
+		weapon_bazooka = "PURÉ-ZUCA",
+		weapon_shotgun = "RALLADOR DE COCINA",
+		weapon_holy_grenade = "PAPA SAGRADA",
+		weapon_beetle = "ENJAMBRE DE ESCARABAJOS",
+		weapon_drill = "TALADRO DE JARDÍN",
+		weapon_pepper = "MOLINO DE CHILE",
+		weapon_garlic = "DINAMITA DE AJO",
+		touch_left = "◄ A",
+		touch_jump = "▲ W",
+		touch_right = "D ►",
+		btn_pause = "MENÚ [ESC]",
+		btn_inventory = "ARMAS [Q]",
+		inventory_title = "ARSENAL [Q]",
+		inventory_sub = "ELIGE UN ARMA PARA DISPARAR",
+		points_lbl = "Puntos: ",
+		mission_format = "Arena %d",
+		mode_bot = "Batalla vs Bot",
+		mode_pvp = "Juego 1 vs 1",
+		mode_pvp_bots = "PvP 3v3 vs Bots",
+		tutorial_hint = "🎯 ¡Arrastra hacia el enemigo para apuntar y suelta para disparar!",
+		tutorial_sub = "Mantén el ratón / toque y arrastra hacia el objetivo",
+		cards_start_title = "ELIGE BONO DE ARENA",
+		cards_start_subtitle = "Selecciona arma o bono de suministro para esta batalla",
+
+		-- Game Over
+		victory = "¡VICTORIA!",
+		defeat = "¡DERROTA!",
+		draw = "¡EMPATE!",
+		sub_victory = "¡El equipo azul de papas aplastó al enemigo!",
+		sub_defeat = "¡Las papas rojas ganaron la batalla!",
+		sub_draw = "¡Todas las papas se convirtieron en puré!",
+		btn_rematch = "REINTENTAR DESDE EL INICIO",
+		btn_play_again = "JUGAR DE NUEVO",
+		btn_next_level = "SIGUIENTE ARENA",
+		btn_revive = "REVIVIR (+50 HP)",
+		btn_shop = "TIENDA DE SOMBREROS 🎩",
+		btn_menu = "MENÚ PRINCIPAL",
+		achieve_bonus = "BONOS DE HABILIDAD:",
+		achieve_total = "TOTAL:",
+		air_raid_warn = "⚠️ ¡ATAQUE AÉREO EN CAMINO!",
+		debrief_title = "★ INFORME DE COMBATE DEL ESTADO MAYOR ★",
+		debrief_sector_liberated = "★ ¡SECTOR %s LIBERADO! ★",
+		debrief_sub_liberated = "¡Bandera azul izada! El sector está bajo control del cuartel general.",
+		debrief_attack_repelled = "🛡️ ¡ASALTO REPELIDO: %s! 🛡️",
+		debrief_sub_repelled = "¡Asalto enemigo aplastado! La defensa del sector resistió.",
+		debrief_sector_lost = "⚠️ ¡SECTOR %s PERDIDO! ⚠️",
+		debrief_sub_lost = "Fuerzas rojas rompieron la defensa. Sector capturado.",
+		debrief_assault_failed = "ASALTO FALLIDO",
+		debrief_sub_failed = "La fuerza de asalto tuvo bajas pesadas y se retiró.",
+		debrief_campaign_won = "🏆 ¡ISLA COMPLETAMENTE LIBERADA! 🏆",
+		debrief_sub_camp_won = "¡Los 18 sectores bajo control del Ejército Azul! ¡Campaña ganada!",
+		debrief_campaign_lost = "💀 CAMPAÑA PERDIDA 💀",
+		debrief_sub_camp_lost = "Todos los bastiones cayeron. Cuartel general evacuado.",
+		btn_return_hq = "VOLVER AL CUARTEL 🎖️",
+		frontline_minimap = "MAPA RADAR DE LA LÍNEA FRONTAL",
+		frontline_control_fmt = "Control de la Isla: %d / 18 (%d%%)",
+		debrief_combat_report = "★ INFORME DE COMBATE ★",
+		-- HUD widgets
+		hud_wind = "VIENTO:",
+		hud_wind_unit = " m/s",
+		hud_defense = "🛡️ DEFENSA: ",
+		hud_assault = "⚔️ ASALTO: ",
+		hud_squad_pda = "📟 PDA DEL ESCUADRÓN",
+		hud_sector = "Sector",
+		hud_unit = "Papa",
+		hud_you = "TÚ",
+		hud_enemy = "ENEMIGO",
+		-- Barracks & Map
+		barracks_title = "CUARTEL Y MEJORAS DE LA BANDA",
+		barracks_stars_fmt = "Estrellas: %d",
+		barracks_points_fmt = "Puntos: %d",
+		barracks_buy_star = "+1 estrella por 1000 pts",
+		barracks_slot_fmt = "Papa #%d",
+		barracks_stats_fmt = "HP: %d | Vel: %d%%",
+		barracks_max_class = "CLASE MÁX\nVeterano",
+		barracks_cost_stars = "%s (%d est.)",
+		barracks_slot_locked = "Ranura Bloqueada",
+		barracks_unlock_btn = "Desbloquear Papa\n(%d estrellas)",
+		barracks_unlock_req = "Desbloquea la Papa #3\nprimero",
+		barracks_btn = "CUARTEL",
+	},
+	pt = {
+		-- Main Menu
+		title = "POTATO WAR",
+		subtitle = "Batalha de Batatas — Artilharia por Turnos",
+		btn_campaign = "CAMPANHA",
+		btn_battle = "BATALHA",
+		btn_upgrades = "MELHORIAS E VANTAGENS",
+		btn_quick_bot = "BATALHA RÁPIDA VS BOT",
+		upgrades_title = "MELHORIAS META",
+
+		-- Campaign Map
+		camp_title = "MAPA DE GUERRA",
+		camp_sectors_fmt = "Setores: %d/%d (%d%%)",
+		camp_supplies_fmt = "Suprimentos: %d 🥔",
+		camp_turn_fmt = "Turno: %d",
+		camp_recon_dossier = "DOSSIÊ DE RECONHECIMENTO",
+		camp_owner_blue = "Controle: 🔵 AZUL",
+		camp_owner_red = "Controle: 🔴 VERMELHO",
+		camp_def_fmt = "Defesa: %s (%s)",
+		camp_def_1 = "Acampamento de Campo",
+		camp_def_2 = "Posto Fortificado",
+		camp_def_3 = "Cidadela Bunker",
+		camp_garrison_fmt = "Guarnição: %d batatas",
+		camp_income_fmt = "Renda: +%d 🥔 / turno",
+		camp_terrain_fmt = "Terreno: %s",
+		camp_status_ready = "⚡ Linha de frente pronta para atacar",
+		camp_status_deep = "🔒 Em território inimigo profundo",
+		camp_status_under_attack = "⚠️ INIMIGO ATACANDO SETOR!",
+		camp_status_defend = "🛡️ Linha defensiva aliada",
+		camp_btn_attack = "⚔️ ATACAR!",
+		camp_btn_fortify = "🛡️ FORTIFICAR (%d 🥔)",
+		camp_btn_max_fort = "🛡️ DEFESA MÁXIMA",
+		camp_btn_back = "MENU",
+		camp_hint_bottom = "Clique num setor para ver inteligência. Linha dourada é a linha de frente.",
+		camp_alert_siren = "⚠️ ALERTA! ASSALTO INIMIGO AO SETOR #%02d!",
+
+		-- Lobby
+		lobby_title = "LOBBY DE BATALHA",
+		lobby_subtitle = "Configure sua partida de batalha por equipes",
+		lbl_potatoes_count = "Batatas por equipe:",
+		lbl_mode = "Oponente:",
+		mode_bot_opt = "🤖 vs Bot",
+		mode_human_opt = "⚔️ vs Humano",
+		lbl_skin_blue = "Chapéu Equipe Azul:",
+		lbl_skin_red = "Chapéu Equipe Vermelha:",
+		lbl_location = "Localização:",
+		lbl_relief = "Relevo:",
+		btn_start_battle = "⚔️ PARA A BATALHA!",
+		btn_back = "◄ VOLTAR",
+		btn_buy = "COMPRAR (%d)",
+		btn_equiped = "EQUIPADO",
+		level_format = "Nív %d/%d",
+		hint_controls = "Controles: A / D — Andar | W / Espaço — Pular | Q / clique esq — Arsenal\nDisparo: Segure o mouse/toque, arraste em direção ao inimigo e solte!",
+		lang_btn = "IDIOMA: PT",
+
+		-- HUD
+		turn_blue = "Turno: Batatas (Azul)",
+		turn_red_bot = "Turno: Computador (Vermelho)",
+		turn_red_pvp = "Turno: Jogador 2 (Vermelho)",
+		turn_red_pvp_bot = "Turno: Bot PvP (Vermelho)",
+		weapon_grenade = "BATATA QUENTE",
+		weapon_rifle = "FRANCO-ATIRADOR ESPETO",
+		weapon_knife = "DESCASCADOR DE BATATAS",
+		weapon_molotov = "ÓLEO DE FRITURA",
+		weapon_burst = "FRITADEIRA AUTOMÁTICA",
+		weapon_bazooka = "PURÊ-ZUCA",
+		weapon_shotgun = "RALADOR DE COZINHA",
+		weapon_holy_grenade = "BATATA SAGRADA",
+		weapon_beetle = "ENXAME DE BESOUROS",
+		weapon_drill = "FURADEIRA DE JARDIM",
+		weapon_pepper = "MOEDOR DE PIMENTA",
+		weapon_garlic = "DINAMITE DE ALHO",
+		touch_left = "◄ A",
+		touch_jump = "▲ W",
+		touch_right = "D ►",
+		btn_pause = "MENU [ESC]",
+		btn_inventory = "ARMAS [Q]",
+		inventory_title = "ARSENAL [Q]",
+		inventory_sub = "ESCOLHA UMA ARMA PARA ATIRAR",
+		points_lbl = "Pontos: ",
+		mission_format = "Arena %d",
+		mode_bot = "Batalha vs Bot",
+		mode_pvp = "Jogo 1 vs 1",
+		mode_pvp_bots = "PvP 3v3 vs Bots",
+		tutorial_hint = "🎯 Arraste em direção ao inimigo para mirar e solte para atirar!",
+		tutorial_sub = "Segure o mouse / toque e arraste em direção ao alvo",
+		cards_start_title = "ESCOLHA BÔNUS DE ARENA",
+		cards_start_subtitle = "Selecione arma ou bônus de suprimento para esta batalha",
+
+		-- Game Over
+		victory = "VITÓRIA!",
+		defeat = "DERROTA!",
+		draw = "EMPATE!",
+		sub_victory = "A equipe azul de batatas esmagou o inimigo!",
+		sub_defeat = "As batatas vermelhas venceram a batalha!",
+		sub_draw = "Todas as batatas viraram purê!",
+		btn_rematch = "TENTAR NOVAMENTE",
+		btn_play_again = "JOGAR NOVAMENTE",
+		btn_next_level = "PRÓXIMA ARENA",
+		btn_revive = "REVIVER (+50 HP)",
+		btn_shop = "LOJA DE CHAPÉUS 🎩",
+		btn_menu = "MENU PRINCIPAL",
+		achieve_bonus = "BÔNUS DE HABILIDADE:",
+		achieve_total = "TOTAL:",
+		air_raid_warn = "⚠️ ATAQUE AÉREO A CAMINHO!",
+		debrief_title = "★ RELATÓRIO DE COMBATE DO ESTADO-MAIOR ★",
+		debrief_sector_liberated = "★ SETOR %s LIBERTADO! ★",
+		debrief_sub_liberated = "Bandeira azul hasteada! Setor sob controle do quartel-general.",
+		debrief_attack_repelled = "🛡️ ASSALTO REPELIDO: %s! 🛡️",
+		debrief_sub_repelled = "Assalto inimigo esmagado! Defesa do setor mantida.",
+		debrief_sector_lost = "⚠️ SETOR %s PERDIDO! ⚠️",
+		debrief_sub_lost = "Forças vermelhas romperam a defesa. Setor capturado.",
+		debrief_assault_failed = "ASSALTO FALHOU",
+		debrief_sub_failed = "Força de assalto teve baixas pesadas e recuou.",
+		debrief_campaign_won = "🏆 ILHA COMPLETAMENTE LIBERTADA! 🏆",
+		debrief_sub_camp_won = "Todos os 18 setores sob controle do Exército Azul! Campanha vencida!",
+		debrief_campaign_lost = "💀 CAMPANHA PERDIDA 💀",
+		debrief_sub_camp_lost = "Todos os baluartes caíram. Quartel-general evacuado.",
+		btn_return_hq = "VOLTAR AO QG 🎖️",
+		frontline_minimap = "MAPA RADAR DA LINHA DE FRENTE",
+		frontline_control_fmt = "Controle da Ilha: %d / 18 (%d%%)",
+		debrief_combat_report = "★ RELATÓRIO DE COMBATE ★",
+		-- HUD widgets
+		hud_wind = "VENTO:",
+		hud_wind_unit = " m/s",
+		hud_defense = "🛡️ DEFESA: ",
+		hud_assault = "⚔️ ASSALTO: ",
+		hud_squad_pda = "📟 PDA DO ESQUADRÃO",
+		hud_sector = "Setor",
+		hud_unit = "Batata",
+		hud_you = "VOCÊ",
+		hud_enemy = "INIMIGO",
+		-- Barracks & Map
+		barracks_title = "QUARTEL E PROMOÇÕES DO BANDO",
+		barracks_stars_fmt = "Estrelas: %d",
+		barracks_points_fmt = "Pontos: %d",
+		barracks_buy_star = "+1 estrela por 1000 pts",
+		barracks_slot_fmt = "Batata #%d",
+		barracks_stats_fmt = "HP: %d | Vel: %d%%",
+		barracks_max_class = "CLASSE MÁX\nVeterano",
+		barracks_cost_stars = "%s (%d est.)",
+		barracks_slot_locked = "Espaço Bloqueado",
+		barracks_unlock_btn = "Desbloquear Batata\n(%d estrelas)",
+		barracks_unlock_req = "Desbloqueie a Batata #3\nprimeiro",
+		barracks_btn = "QUARTEL",
+	},
+	fr = {
+		-- Main Menu
+		title = "POTATO WAR",
+		subtitle = "Bataille de Patates — Artillerie au Tour par Tour",
+		btn_campaign = "CAMPAGNE",
+		btn_battle = "BATAILLE",
+		btn_upgrades = "AMÉLIORATIONS ET AVANTAGES",
+		btn_quick_bot = "BATAILLE RAPIDE VS BOT",
+		upgrades_title = "AMÉLIORATIONS META",
+
+		-- Campaign Map
+		camp_title = "CARTE DE GUERRE",
+		camp_sectors_fmt = "Secteurs : %d/%d (%d%%)",
+		camp_supplies_fmt = "Ravitaillement : %d 🥔",
+		camp_turn_fmt = "Tour : %d",
+		camp_recon_dossier = "DOSSIER DE RECONNAISSANCE",
+		camp_owner_blue = "Contrôle : 🔵 BLEU",
+		camp_owner_red = "Contrôle : 🔴 ROUGE",
+		camp_def_fmt = "Défense : %s (%s)",
+		camp_def_1 = "Camp de Campagne",
+		camp_def_2 = "Avant-Poste Fortifié",
+		camp_def_3 = "Citadelle Bunker",
+		camp_garrison_fmt = "Garnison : %d patates",
+		camp_income_fmt = "Revenus : +%d 🥔 / tour",
+		camp_terrain_fmt = "Terrain : %s",
+		camp_status_ready = "⚡ Ligne de front prête à l'assaut",
+		camp_status_deep = "🔒 En territoire ennemi profond",
+		camp_status_under_attack = "⚠️ ENNEMI ATTAQUANT LE SECTEUR !",
+		camp_status_defend = "🛡️ Ligne défensive alliée",
+		camp_btn_attack = "⚔️ ATTAQUER !",
+		camp_btn_fortify = "🛡️ FORTIFIER (%d 🥔)",
+		camp_btn_max_fort = "🛡️ DÉFENSE MAXIMALE",
+		camp_btn_back = "MENU",
+		camp_hint_bottom = "Cliquez sur un secteur pour voir le renseignement. La ligne dorée est la ligne de front.",
+		camp_alert_siren = "⚠️ ALERTE ! ASSAUT ENNEMI SUR LE SECTEUR #%02d !",
+
+		-- Lobby
+		lobby_title = "LOBBY DE BATAILLE",
+		lobby_subtitle = "Configurez votre match de bataille d'équipe",
+		lbl_potatoes_count = "Patates par équipe :",
+		lbl_mode = "Adversaire :",
+		mode_bot_opt = "🤖 vs Bot",
+		mode_human_opt = "⚔️ vs Humain",
+		lbl_skin_blue = "Chapeau Équipe Bleue :",
+		lbl_skin_red = "Chapeau Équipe Rouge :",
+		lbl_location = "Emplacement :",
+		lbl_relief = "Relief :",
+		btn_start_battle = "⚔️ EN BATAILLE !",
+		btn_back = "◄ RETOUR",
+		btn_buy = "ACHETER (%d)",
+		btn_equiped = "ÉQUIPÉ",
+		level_format = "Niv %d/%d",
+		hint_controls = "Contrôles : A / D — Marcher | W / Espace — Sauter | Q / clic gauche — Arsenal\nTir : Maintenez souris/écran, faites glisser vers l'ennemi et relâchez !",
+		lang_btn = "LANGUE : FR",
+
+		-- HUD
+		turn_blue = "Tour : Patates (Bleu)",
+		turn_red_bot = "Tour : Ordinateur (Rouge)",
+		turn_red_pvp = "Tour : Joueur 2 (Rouge)",
+		turn_red_pvp_bot = "Tour : Bot PvP (Rouge)",
+		weapon_grenade = "PATATE CHAUDE",
+		weapon_rifle = "SNIPER BROCHETTE",
+		weapon_knife = "ÉPLUCHEUR DE PATATES",
+		weapon_molotov = "HUILE DE FRITURE",
+		weapon_burst = "FRITEUSE AUTOMATIQUE",
+		weapon_bazooka = "PURÉE-ZOOKA",
+		weapon_shotgun = "RÂPE DE CUISINE",
+		weapon_holy_grenade = "PATATE SACRÉE",
+		weapon_beetle = "NUÉE DE COLÉOPTÈRES",
+		weapon_drill = "PERCEUSE DE JARDIN",
+		weapon_pepper = "MOULIN À PIMENT",
+		weapon_garlic = "DYNAMITE À L'AIL",
+		touch_left = "◄ A",
+		touch_jump = "▲ W",
+		touch_right = "D ►",
+		btn_pause = "MENU [ESC]",
+		btn_inventory = "ARMES [Q]",
+		inventory_title = "ARSENAL [Q]",
+		inventory_sub = "CHOISISSEZ UNE ARME POUR TIRER",
+		points_lbl = "Points : ",
+		mission_format = "Arène %d",
+		mode_bot = "Bataille vs Bot",
+		mode_pvp = "Jeu 1 vs 1",
+		mode_pvp_bots = "PvP 3v3 vs Bots",
+		tutorial_hint = "🎯 Faites glisser vers l'ennemi pour viser et relâchez pour tirer !",
+		tutorial_sub = "Maintenez souris / écran et faites glisser vers la cible",
+		cards_start_title = "CHOISISSEZ LE BONUS D'ARÈNE",
+		cards_start_subtitle = "Sélectionnez arme ou bonus de ravitaillement pour cette bataille",
+
+		-- Game Over
+		victory = "VICTOIRE !",
+		defeat = "DÉFAITE !",
+		draw = "MATCH NUL !",
+		sub_victory = "L'équipe bleue de patates a écrasé l'ennemi !",
+		sub_defeat = "Les patates rouges ont gagné la bataille !",
+		sub_draw = "Toutes les patates sont devenues de la purée !",
+		btn_rematch = "RECOMMENCER",
+		btn_play_again = "REJOUER",
+		btn_next_level = "ARÈNE SUIVANTE",
+		btn_revive = "REVIVRE (+50 HP)",
+		btn_shop = "BOUTIQUE DE CHAPEAUX 🎩",
+		btn_menu = "MENU PRINCIPAL",
+		achieve_bonus = "BONUS DE COMPÉTENCE :",
+		achieve_total = "TOTAL :",
+		air_raid_warn = "⚠️ RAID AÉRIEN EN APPROCHE !",
+		debrief_title = "★ RAPPORT DE COMBAT DE L'ÉTAT-MAJOR ★",
+		debrief_sector_liberated = "★ SECTEUR %s LIBÉRÉ ! ★",
+		debrief_sub_liberated = "Drapeau bleu hissé ! Le secteur est sous contrôle du quartier général.",
+		debrief_attack_repelled = "🛡️ ASSAUT REPOUSSÉ : %s ! 🛡️",
+		debrief_sub_repelled = "Assaut ennemi écrasé ! La défense du secteur a tenu.",
+		debrief_sector_lost = "⚠️ SECTEUR %s PERDU ! ⚠️",
+		debrief_sub_lost = "Les forces rouges ont percé la défense. Secteur capturé.",
+		debrief_assault_failed = "ASSAUT ÉCHOUÉ",
+		debrief_sub_failed = "La force d'assaut a subi de lourdes pertes et a battu en retraite.",
+		debrief_campaign_won = "🏆 ÎLE COMPLÈTEMENT LIBÉRÉE ! 🏆",
+		debrief_sub_camp_won = "Les 18 secteurs sous contrôle de l'Armée Bleue ! Campagne gagnée !",
+		debrief_campaign_lost = "💀 CAMPAGNE PERDUE 💀",
+		debrief_sub_camp_lost = "Tous les bastions sont tombés. Quartier général évacué.",
+		btn_return_hq = "RETOURNER AU QG 🎖️",
+		frontline_minimap = "CARTE RADAR DE LA LIGNE DE FRONT",
+		frontline_control_fmt = "Contrôle de l'Île : %d / 18 (%d%%)",
+		debrief_combat_report = "★ RAPPORT DE COMBAT ★",
+		-- HUD widgets
+		hud_wind = "VENT :",
+		hud_wind_unit = " m/s",
+		hud_defense = "🛡️ DÉFENSE : ",
+		hud_assault = "⚔️ ASSAUT : ",
+		hud_squad_pda = "📟 PDA DE L'ESCOUADE",
+		hud_sector = "Secteur",
+		hud_unit = "Patate",
+		hud_you = "VOUS",
+		hud_enemy = "ENNEMI",
+		-- Barracks & Map
+		barracks_title = "CASERNE ET PROMOTIONS DU GANG",
+		barracks_stars_fmt = "Étoiles : %d",
+		barracks_points_fmt = "Points : %d",
+		barracks_buy_star = "+1 étoile pour 1000 pts",
+		barracks_slot_fmt = "Patate #%d",
+		barracks_stats_fmt = "HP : %d | Vit : %d%%",
+		barracks_max_class = "CLASSE MAX\nVétéran",
+		barracks_cost_stars = "%s (%d ét.)",
+		barracks_slot_locked = "Emplacement Verrouillé",
+		barracks_unlock_btn = "Débloquer Patate\n(%d étoiles)",
+		barracks_unlock_req = "Débloquez la Patate #3\nd'abord",
+		barracks_btn = "CASERNE",
+	},
 }
 
--- Detect language from saved preference, Poki SDK, or default to English
+-- Returns the flag sprite name for the current language
+function M.get_flag()
+	return M.LANG_FLAG[M.current_lang] or "flagENG"
+end
+
+-- Detect language from saved preference, Playgama Bridge SDK, or default to English
 function M.detect_language()
 	-- 1. Check if user previously saved a manual language preference
 	local saved_lang = nil
@@ -268,7 +921,7 @@ function M.detect_language()
 			saved_lang = player_profile.get_language()
 		end
 	end)
-	if saved_lang == M.LANG_RU or saved_lang == M.LANG_EN then
+	if dictionary[saved_lang] then
 		M.current_lang = saved_lang
 		print(">>> I18N: Using saved language preference:", M.current_lang)
 		return M.current_lang
@@ -276,78 +929,77 @@ function M.detect_language()
 
 	local detected_lang = nil
 
-	-- 2. Query Poki SDK in HTML5 / Web environment
-	-- Official Poki SDK exposes PokiSDK.getLanguage() returning ISO 639-1 code (e.g. 'en', 'ru')
-	if html5 then
+	-- 2. Query Playgama Bridge SDK Wrapper
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if sdk_ok and sdk and sdk.get_language then
+		local lang = sdk.get_language()
+		if lang and type(lang) == "string" and lang ~= "" then
+			detected_lang = lang
+			print(">>> I18N: Detected from Playgama SDK wrapper:", detected_lang)
+		end
+	end
+
+	-- 3. Query Playgama Bridge directly in HTML5 / Web environment
+	if not detected_lang and html5 then
 		pcall(function()
 			local js_lang = html5.eval([[(function() {
 				try {
-					if (typeof PokiSDK !== 'undefined') {
-						if (typeof PokiSDK.getLanguage === 'function') {
-							var pl = PokiSDK.getLanguage();
-							if (pl && typeof pl === 'string' && pl.length >= 2) return pl;
-						}
-						if (typeof PokiSDK.getURLParam === 'function') {
-							var up = PokiSDK.getURLParam('lang') || PokiSDK.getURLParam('locale') || PokiSDK.getURLParam('language');
-							if (up && typeof up === 'string' && up.length >= 2) return up;
+					var b = window.bridge || window.playgamaBridge;
+					if (b && b.platform) {
+						if (typeof b.platform.language === 'function') {
+							var bl = b.platform.language();
+							if (bl && typeof bl === 'string' && bl.length >= 2) return bl;
+						} else if (typeof b.platform.language === 'string' && b.platform.language.length >= 2) {
+							return b.platform.language;
 						}
 					}
 					if (window.location && window.location.search) {
 						var sp = new URLSearchParams(window.location.search);
-						var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang');
+						var ql = sp.get('lang') || sp.get('locale') || sp.get('language');
 						if (ql && typeof ql === 'string' && ql.length >= 2) return ql;
 					}
+					return navigator.language || navigator.userLanguage || '';
 				} catch(e) {}
 				return '';
 			})()]])
 			if js_lang and type(js_lang) == "string" and js_lang ~= "" then
 				detected_lang = js_lang
-				print(">>> I18N: Detected from Poki SDK (HTML5):", detected_lang)
+				print(">>> I18N: Detected from Playgama Bridge (HTML5):", detected_lang)
 			end
 		end)
 	end
 
-	-- 3. Query Defold poki_sdk native extension
-	if not detected_lang and poki_sdk then
-		pcall(function()
-			if poki_sdk.get_language then
-				local pl = poki_sdk.get_language()
-				if pl and type(pl) == "string" and pl ~= "" then
-					detected_lang = pl
-					print(">>> I18N: Detected from poki_sdk.get_language:", detected_lang)
-				end
-			end
-			if not detected_lang and poki_sdk.get_url_param then
-				local up = poki_sdk.get_url_param("lang") or poki_sdk.get_url_param("locale") or poki_sdk.get_url_param("language")
-				if up and type(up) == "string" and up ~= "" then
-					detected_lang = up
-					print(">>> I18N: Detected from poki_sdk.get_url_param:", detected_lang)
-				end
-			end
-		end)
-	end
-
-	-- 4. Evaluate Poki SDK language
+	-- 4. Map detected raw code to supported language
 	if detected_lang and type(detected_lang) == "string" then
 		local lower = string.lower(detected_lang)
-		if string.sub(lower, 1, 2) == "ru" then
+		local prefix = string.sub(lower, 1, 2)
+		if dictionary[prefix] then
+			M.current_lang = prefix
+		elseif prefix == "ru" or prefix == "be" or prefix == "uk" or prefix == "kk" then
 			M.current_lang = M.LANG_RU
+		elseif prefix == "tr" then
+			M.current_lang = M.LANG_TR
+		elseif prefix == "es" then
+			M.current_lang = M.LANG_ES
+		elseif prefix == "pt" then
+			M.current_lang = M.LANG_PT
+		elseif prefix == "fr" then
+			M.current_lang = M.LANG_FR
 		else
-			-- On Poki, all non-Russian locales map to standard English
 			M.current_lang = M.LANG_EN
 		end
-		print(">>> I18N: Active language via Poki SDK:", M.current_lang, "(raw:", detected_lang .. ")")
+		print(">>> I18N: Active language via Playgama SDK:", M.current_lang, "(raw:", detected_lang .. ")")
 		return M.current_lang
 	end
 
-	-- 5. Standard Global Default: English (Never force Russian from local OS/browser locale)
+	-- 5. Standard Global Default: English
 	M.current_lang = M.LANG_EN
 	print(">>> I18N: Defaulting to standard English:", M.current_lang)
 	return M.current_lang
 end
 
 function M.set_lang(lang_code)
-	if lang_code == M.LANG_RU or lang_code == M.LANG_EN then
+	if dictionary[lang_code] then
 		M.current_lang = lang_code
 		pcall(function()
 			local player_profile = require("lua_modules.player_profile")
@@ -358,13 +1010,23 @@ function M.set_lang(lang_code)
 	end
 end
 
-function M.toggle_lang()
-	if M.current_lang == M.LANG_RU then
-		M.set_lang(M.LANG_EN)
-	else
-		M.set_lang(M.LANG_RU)
+-- Cycle through languages in order: en → ru → tr → es → pt → fr → en → ...
+function M.next_lang()
+	local current_idx = 1
+	for i, lang in ipairs(M.LANG_ORDER) do
+		if lang == M.current_lang then
+			current_idx = i
+			break
+		end
 	end
+	local next_idx = (current_idx % #M.LANG_ORDER) + 1
+	M.set_lang(M.LANG_ORDER[next_idx])
 	return M.current_lang
+end
+
+-- Legacy toggle (kept for backward compatibility — now cycles through all 6)
+function M.toggle_lang()
+	return M.next_lang()
 end
 
 function M.t(key, ...)

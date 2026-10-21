@@ -17,29 +17,33 @@ local DEF_STARS = {
 }
 
 local function get_defense_name(lvl)
-	local is_ru = (i18n.current_lang == "ru")
 	if lvl == 1 then
-		return is_ru and i18n.t("camp_def_1") or i18n.t("camp_def_1")
+		return i18n.t("camp_def_1")
 	elseif lvl == 2 then
-		return is_ru and i18n.t("camp_def_2") or i18n.t("camp_def_2")
+		return i18n.t("camp_def_2")
 	else
-		return is_ru and i18n.t("camp_def_3") or i18n.t("camp_def_3")
+		return i18n.t("camp_def_3")
 	end
 end
 
+local TERRAIN_NAMES = {
+	hills            = { ru = "Холмы",            en = "Hills",            tr = "Tepeler",            es = "Colinas",            pt = "Colinas",            fr = "Collines" },
+	flat             = { ru = "Равнина",          en = "Plains",           tr = "Düzlük",             es = "Llanuras",           pt = "Planícies",          fr = "Plaines" },
+	canyon_bridge    = { ru = "Каньон и Мост",    en = "Canyon Bridge",    tr = "Kanyon Köprüsü",    es = "Puente del Cañón",   pt = "Ponte do Cânion",    fr = "Pont du Canyon" },
+	swiss_cheese     = { ru = "Сырный Каньон",    en = "Swiss Cheese",    tr = "İsviçre Peyniri",   es = "Queso Suizo",        pt = "Queijo Suíço",       fr = "Gruyère" },
+	floating_islands = { ru = "Парящие Острова",  en = "Floating Islands", tr = "Uçan Adalar",       es = "Islas Flotantes",    pt = "Ilhas Flutuantes",   fr = "Îles Flottantes" },
+	cavern           = { ru = "Пещеры",           en = "Caverns",          tr = "Mağaralar",         es = "Cavernas",           pt = "Cavernas",           fr = "Cavernes" },
+	bunkers          = { ru = "Бункеры",          en = "Bunkers",          tr = "Sığınaklar",        es = "Búnkeres",           pt = "Bunkers",            fr = "Bunkers" },
+	islands          = { ru = "Острова",           en = "Islands",          tr = "Adalar",            es = "Islas",              pt = "Ilhas",              fr = "Îles" },
+}
+
 local function get_terrain_display_name(preset)
-	local is_ru = (i18n.current_lang == "ru")
-	local names = {
-		hills = is_ru and "Холмы" or "Hills",
-		flat = is_ru and "Равнина" or "Plains",
-		canyon_bridge = is_ru and "Каньон и Мост" or "Canyon Bridge",
-		swiss_cheese = is_ru and "Сырный Каньон" or "Swiss Cheese",
-		floating_islands = is_ru and "Парящие Острова" or "Floating Islands",
-		cavern = is_ru and "Пещеры" or "Caverns",
-		bunkers = is_ru and "Бункеры" or "Bunkers",
-		islands = is_ru and "Острова" or "Islands",
-	}
-	return names[preset] or (is_ru and "Холмы" or "Hills")
+	local lang = i18n.current_lang or "en"
+	local entry = TERRAIN_NAMES[preset]
+	if entry then
+		return entry[lang] or entry.en or preset
+	end
+	return preset or ""
 end
 
 local function update_inspector(self)
@@ -57,13 +61,12 @@ local function update_inspector(self)
 
 		-- Badge & Title
 		gui.set_text(gui.get_node("insp_badge_txt"), i18n.t("camp_recon_dossier"))
-		local s_name = is_ru and s.name_ru or s.name_en
+		local s_name = territory_map.get_sector_name(s, i18n.current_lang)
 		local id_prefix = string.format("[#%02d] ", s.id)
 		gui.set_text(gui.get_node("insp_title"), id_prefix .. s_name)
 
 		-- Region
-		local reg_info = territory_map.REGIONS[s.region]
-		local reg_name = reg_info and (is_ru and reg_info.name_ru or reg_info.name_en) or ""
+		local reg_name = territory_map.get_region_name(s.region, i18n.current_lang)
 		local reg_icon = (s.region == 1 and "🌿 ") or (s.region == 2 and "🏜️ ") or (s.region == 3 and "❄️ ") or "🌋 "
 		gui.set_text(gui.get_node("insp_region"), reg_icon .. reg_name)
 
@@ -82,8 +85,8 @@ local function update_inspector(self)
 		local def_lvl = s.defense_level or 1
 		local stars = DEF_STARS[def_lvl] or "★☆☆"
 		local def_name = get_defense_name(def_lvl)
-		local def_str = string.format("%s (%s)", stars, def_name)
-		gui.set_text(gui.get_node("insp_def_txt"), (is_ru and "Оборона: " or "Defense: ") .. def_str)
+		local def_str = string.format(i18n.t("camp_def_fmt"), stars, def_name)
+		gui.set_text(gui.get_node("insp_def_txt"), def_str)
 
 		local lvl_cfg = level_config.get(s.id)
 		local gar_count = (not is_blue and lvl_cfg.enemy_count) or s.garrison or 2
@@ -91,8 +94,7 @@ local function update_inspector(self)
 		if not is_blue and lvl_cfg.enemy_classes and #lvl_cfg.enemy_classes > 0 then
 			local cls_names = {}
 			for idx, cid in ipairs(lvl_cfg.enemy_classes) do
-				local cdef = classes.get(cid)
-				local cname = (is_ru and cdef.name) or cdef.name_en or cid
+				local cname = classes.get_class_name(cid, i18n.current_lang)
 				local clvl = (lvl_cfg.enemy_levels and lvl_cfg.enemy_levels[idx]) or 1
 				if clvl > 1 then
 					cname = cname .. "★"
@@ -210,10 +212,10 @@ local function update_barracks_ui(self)
 		local stars = player_profile.get_stars()
 		local pts = player_profile.get_points()
 
-		gui.set_text(gui.get_node("barracks_title"), is_ru and "КАЗАРМА И ПРОКАЧКА БАНДЫ" or "BARRACKS & GANG PROMOTIONS")
-		gui.set_text(gui.get_node("barracks_stars_txt"), (is_ru and "Звезды: " or "Stars: ") .. tostring(stars))
-		gui.set_text(gui.get_node("barracks_points_txt"), (is_ru and "Очки: " or "Points: ") .. tostring(pts))
-		gui.set_text(gui.get_node("txt_barracks_buy_star"), is_ru and "+1 звезда за 1000 очков" or "+1 star for 1000 pts")
+		gui.set_text(gui.get_node("barracks_title"), i18n.t("barracks_title"))
+		gui.set_text(gui.get_node("barracks_stars_txt"), string.format(i18n.t("barracks_stars_fmt"), stars))
+		gui.set_text(gui.get_node("barracks_points_txt"), string.format(i18n.t("barracks_points_fmt"), pts))
+		gui.set_text(gui.get_node("txt_barracks_buy_star"), i18n.t("barracks_buy_star"))
 
 		local buy_btn = gui.get_node("btn_barracks_buy_star")
 		if pts >= 1000 then
@@ -243,7 +245,7 @@ local function update_barracks_ui(self)
 			local btn3 = gui.get_node("b_slot_upg3_btn_" .. i)
 			local txt3 = gui.get_node("b_slot_upg3_txt_" .. i)
 
-			gui.set_text(title_node, (is_ru and "Боец #" or "Spud #") .. tostring(i))
+			gui.set_text(title_node, string.format(i18n.t("barracks_slot_fmt"), i))
 
 			local member = squad[i]
 			if member then
@@ -254,12 +256,12 @@ local function update_barracks_ui(self)
 				gui.set_enabled(stats_node, true)
 
 				local c_def = classes.get(member.class_id)
-				local c_name = is_ru and c_def.name or c_def.name_en
+				local c_name = classes.get_class_name(member.class_id, i18n.current_lang)
 				gui.set_text(class_node, c_name)
 
 				local hp_val = c_def.stats and c_def.stats.base_hp or 100
 				local spd_val = math.floor((c_def.stats and c_def.stats.walk_speed_mult or 1.0) * 100)
-				gui.set_text(stats_node, string.format("HP: %d | Скор: %d%%", hp_val, spd_val))
+				gui.set_text(stats_node, string.format(i18n.t("barracks_stats_fmt"), hp_val, spd_val))
 
 				local tex_name = CLASS_AVATARS[member.class_id] or "recruit"
 				gui.play_flipbook(avatar, hash(tex_name))
@@ -271,7 +273,7 @@ local function update_barracks_ui(self)
 					gui.set_enabled(btn2, false)
 					gui.set_enabled(btn3, false)
 					gui.set_enabled(max_node, true)
-					gui.set_text(max_node, is_ru and "МАКС. КЛАСС\nБоец обучен" or "MAX CLASS\nVeteran")
+					gui.set_text(max_node, i18n.t("barracks_max_class"))
 				else
 					gui.set_enabled(max_node, false)
 					local upg_btns = { { btn = btn1, txt = txt1 }, { btn = btn2, txt = txt2 }, { btn = btn3, txt = txt3 } }
@@ -281,9 +283,9 @@ local function update_barracks_ui(self)
 						local b_pair = upg_btns[u]
 						if p_class then
 							gui.set_enabled(b_pair.btn, true)
-							local p_name = is_ru and p_class.name or p_class.name_en
+							local p_name = classes.get_class_name(p_class.id, i18n.current_lang)
 							local cost = p_class.star_cost or 2
-							gui.set_text(b_pair.txt, string.format(is_ru and "%s (%d зв.)" or "%s (%d stars)", p_name, cost))
+							gui.set_text(b_pair.txt, string.format(i18n.t("barracks_cost_stars"), p_name, cost))
 							self.barracks_upgrades[i][u] = { class_id = p_class.id, cost = cost }
 
 							if stars >= cost then
@@ -307,15 +309,14 @@ local function update_barracks_ui(self)
 				gui.set_enabled(btn3, false)
 				gui.set_enabled(unlock_btn, true)
 
-				gui.set_text(class_node, is_ru and "Слот заблокирован" or "Slot Locked")
+				gui.set_text(class_node, i18n.t("barracks_slot_locked"))
 
 				-- Determine unlock cost: 3rd potato = 3 stars, 4th potato = 7 stars
 				local unlock_cost = (i == 3) and 3 or 7
 				local can_unlock_now = (i == (#squad + 1))
 
 				if can_unlock_now then
-					local star_word = (unlock_cost == 3) and (is_ru and "звезды" or "stars") or (is_ru and "звезд" or "stars")
-					gui.set_text(unlock_txt, string.format(is_ru and "Открыть бойца\n(%d %s)" or "Unlock Spud\n(%d %s)", unlock_cost, star_word))
+					gui.set_text(unlock_txt, string.format(i18n.t("barracks_unlock_btn"), unlock_cost))
 					if stars >= unlock_cost then
 						gui.set_color(unlock_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
 					else
@@ -323,7 +324,7 @@ local function update_barracks_ui(self)
 					end
 				else
 					-- Prerequisite needed (e.g. slot 4 requires slot 3 first)
-					gui.set_text(unlock_txt, is_ru and "Сначала откройте\nбойца #3" or "Unlock Spud #3\nfirst")
+					gui.set_text(unlock_txt, i18n.t("barracks_unlock_req"))
 					gui.set_color(unlock_btn, vmath.vector4(0.25, 0.28, 0.32, 0.5))
 				end
 			end
@@ -358,7 +359,7 @@ function M_update_visuals(self)
 		gui.set_text(gui.get_node("txt_top_sectors"), string.format(i18n.t("camp_sectors_fmt"), stats.blue_count, stats.total_count, stats.progress_pct))
 		gui.set_text(gui.get_node("txt_top_supplies"), string.format(i18n.t("camp_supplies_fmt"), supplies))
 		gui.set_text(gui.get_node("txt_top_turn"), string.format(i18n.t("camp_turn_fmt"), turn))
-		gui.set_text(gui.get_node("txt_top_barracks"), is_ru and "КАЗАРМА" or "BARRACKS")
+		gui.set_text(gui.get_node("txt_top_barracks"), i18n.t("barracks_btn"))
 		gui.set_text(gui.get_node("txt_top_menu"), i18n.t("camp_btn_back"))
 		gui.set_text(gui.get_node("txt_bot_hint"), i18n.t("camp_hint_bottom"))
 	end)
@@ -420,6 +421,31 @@ function M_update_visuals(self)
 					gui.set_color(btn, vmath.vector4(0.74, 0.18, 0.20, 1.0))
 					gui.set_color(potato, vmath.vector4(1.0, 0.85, 0.85, 1.0))
 				end
+
+				-- Emotion expression on sec_potato
+				if not self.sec_emotions then
+					self.sec_emotions = {}
+				end
+				local emo_node = self.sec_emotions[i]
+				if not emo_node then
+					emo_node = gui.new_box_node(vmath.vector3(0, 5.5, 0), vmath.vector3(14, 14, 0))
+					gui.set_texture(emo_node, "game")
+					gui.set_parent(emo_node, potato)
+					gui.set_inherit_alpha(emo_node, true)
+					self.sec_emotions[i] = emo_node
+				end
+				local emo_anim = "s_bored"
+				if s.under_attack then
+					emo_anim = is_blue and "s_wow" or "s_angry2"
+				elseif is_blue then
+					local blue_emotions = { "s_happy", "s_bored", "s_happy", "s_bored2" }
+					emo_anim = blue_emotions[((i - 1) % #blue_emotions) + 1]
+				else
+					local red_emotions = { "s_angry", "s_angry2", "s_bored", "s_wow" }
+					emo_anim = red_emotions[((i - 1) % #red_emotions) + 1]
+				end
+				gui.play_flipbook(emo_node, hash(emo_anim))
+				gui.set_color(emo_node, vmath.vector4(1, 1, 1, 1))
 
 				-- Defense stars
 				local def_stars = DEF_STARS[s.defense_level or 1] or "★☆☆"

@@ -8,6 +8,7 @@ local ui_manager = require("lua_modules.ui_manager")
 local player_profile = require("lua_modules.player_profile")
 local i18n = require("lua_modules.i18n")
 local camera_controller = require("lua_modules.camera_controller")
+local classes = require("lua_modules.classes")
 
 local WEAPON_BUTTON_IDS = {
 	"btn_wpn_1", "btn_wpn_2", "btn_wpn_3", "btn_wpn_4", "btn_wpn_5"
@@ -60,16 +61,15 @@ end
 
 local function update_wind_widget(self)
 	local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
-	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		local val_node = gui.get_node("wind_val")
 		local arrow_node = gui.get_node("wind_arrow")
 		local title_node = gui.get_node("wind_title")
 
-		gui.set_text(title_node, is_ru and "ВЕТЕР:" or "WIND:")
+		gui.set_text(title_node, i18n.t("hud_wind"))
 
 		local spd = math.abs(cur_wind_x)
-		gui.set_text(val_node, tostring(spd) .. (is_ru and " м/с" or " m/s"))
+		gui.set_text(val_node, tostring(spd) .. i18n.t("hud_wind_unit"))
 
 		if cur_wind_x > 2 then
 			-- Wind blows to the right: arrow points right (rotation 0)
@@ -105,31 +105,29 @@ local function update_wind_widget(self)
 end
 
 local function update_phase_widget(self)
-	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		local badge_node = gui.get_node("phase_badge")
 		local text_node = gui.get_node("txt_battle_phase")
 
 		local b_type = self.battle_type or "assault"
-		local sec_name = self.sector_name or (is_ru and "Сектор" or "Sector")
+		local sec_name = self.sector_name or i18n.t("hud_sector")
 
 		if b_type == "defense" then
 			gui.set_color(badge_node, vmath.vector4(0.08, 0.16, 0.24, 0.92))
 			gui.set_color(text_node, vmath.vector4(0.20, 0.85, 1.0, 1.0))
-			gui.set_text(text_node, (is_ru and "🛡️ ОБОРОНА: " or "🛡️ DEFENSE: ") .. string.upper(sec_name))
+			gui.set_text(text_node, i18n.t("hud_defense") .. string.upper(sec_name))
 		else
 			gui.set_color(badge_node, vmath.vector4(0.18, 0.10, 0.10, 0.92))
 			gui.set_color(text_node, vmath.vector4(1.0, 0.80, 0.20, 1.0))
-			gui.set_text(text_node, (is_ru and "⚔️ ШТУРМ: " or "⚔️ ASSAULT: ") .. string.upper(sec_name))
+			gui.set_text(text_node, i18n.t("hud_assault") .. string.upper(sec_name))
 		end
 	end)
 end
 
 local function update_squad_widget(self)
-	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		local title_node = gui.get_node("squad_title")
-		gui.set_text(title_node, is_ru and "📟 КПК ОТРЯДА" or "📟 SQUAD PDA")
+		gui.set_text(title_node, i18n.t("hud_squad_pda"))
 		gui.set_color(title_node, vmath.vector4(0.15, 0.78, 0.95, 1.0))
 
 		local blue_spuds = {}
@@ -148,7 +146,7 @@ local function update_squad_widget(self)
 			local p = blue_spuds[i]
 			if p then
 				gui.set_enabled(slot, true)
-				local cls_label = p.class_name or (is_ru and "Боец" or "Spud")
+				local cls_label = (p.class_id and classes.get_class_name(p.class_id, i18n.current_lang)) or p.class_name or i18n.t("hud_unit")
 				if p.unit_level and p.unit_level > 1 then
 					cls_label = cls_label .. " " .. string.rep("★", p.unit_level)
 				end
@@ -538,7 +536,7 @@ local function update_fighter_badges(self, dt)
 		gui.set_enabled(me, false)
 		gui.set_position(mp, vmath.vector3(sx, sy + 34 + bounce_y, 0))
 
-		local name_text = p.name or (is_ru and "ТЫ" or "YOU")
+		local name_text = p.name or i18n.t("hud_you")
 		gui.set_text(gui.get_node("marker_player_text"), name_text)
 		gui.set_scale(gui.get_node("marker_player_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
 		gui.set_position(gui.get_node("marker_player_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
@@ -548,7 +546,7 @@ local function update_fighter_badges(self, dt)
 		gui.set_enabled(mp, false)
 		gui.set_position(me, vmath.vector3(sx, sy + 34 + bounce_y, 0))
 
-		local name_text = p.name or (is_ru and "ВРАГ" or "ENEMY")
+		local name_text = p.name or i18n.t("hud_enemy")
 		gui.set_text(gui.get_node("marker_enemy_text"), name_text)
 		gui.set_scale(gui.get_node("marker_enemy_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
 		gui.set_position(gui.get_node("marker_enemy_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
@@ -843,8 +841,13 @@ function on_message(self, message_id, message, sender)
 		self.tutorial_hand_done = false
 		self.tutorial_hand_timer = 0
 		self.battle_type = message and message.battle_type or "assault"
-		local is_ru = (i18n.current_lang == "ru")
-		self.sector_name = (message and ((is_ru and message.sector_name_ru) or message.sector_name_en or message.sector_name)) or (is_ru and "Сектор" or "Sector")
+		local lang = i18n.current_lang or "en"
+		local territory_map = package.loaded["lua_modules.territory_map"]
+		if message and message.sector_id and territory_map and territory_map.get_sector_name then
+			self.sector_name = territory_map.get_sector_name(message.sector_id, lang)
+		else
+			self.sector_name = (message and ((message["sector_name_" .. lang]) or message.sector_name_en or message.sector_name_ru or message.sector_name)) or i18n.t("hud_sector")
+		end
 		update_hud_localization(self)
 		update_phase_widget(self)
 		update_wind_widget(self)
@@ -909,7 +912,7 @@ function on_message(self, message_id, message, sender)
 			local pts = message.points or 0
 			local pts_str = ""
 			if pts > 0 then
-				pts_str = (i18n.current_lang == "ru") and (" +" .. tostring(pts) .. " очков!") or (" +" .. tostring(pts) .. " pts!")
+				pts_str = " +" .. tostring(pts) .. " " .. i18n.t("points_lbl")
 			end
 			local icon = message.icon or "🏆"
 			local title = message.title or ""

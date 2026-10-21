@@ -8,6 +8,7 @@ local terrain_grid = require("lua_modules.terrain_grid")
 local camera_controller = require("lua_modules.camera_controller")
 local game_state = require("lua_modules.game_state")
 local achievements = require("lua_modules.achievements")
+local i18n = require("lua_modules.i18n")
 
 go.property("vel_x", 0)
 go.property("vel_y", 0)
@@ -30,6 +31,43 @@ function init(self)
 	self.fuse_timer = self.weapon.fuse_time
 	self.bounces = 0
 	self.is_active = true
+
+	-- Hit-Stop and Bullet-Time state
+	self.hit_stop_done = false
+	self.hit_stop_pending = nil
+	self.pending_detonate = nil
+	self.bullet_time_eligible = false
+	self.potential_last_enemy = nil
+	self.bullet_time_active = false
+
+	-- Bullet Time eligibility check:
+	-- Identify whether enemy team has exactly 1 surviving potato and is across the map
+	local shooter_team = nil
+	for _, p in ipairs(game_state.potatoes) do
+		if p.id == self.owner_id then
+			shooter_team = p.team
+			break
+		end
+	end
+	if not shooter_team then
+		shooter_team = game_state.active_team
+	end
+
+	local living_enemies = {}
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive and p.team ~= shooter_team then
+			table.insert(living_enemies, p)
+		end
+	end
+
+	if #living_enemies == 1 then
+		local enemy = living_enemies[1]
+		local total_dx = math.abs(enemy.pos.x - self.origin_x)
+		if total_dx > 250 and (self.weapon.max_damage >= enemy.hp) then
+			self.bullet_time_eligible = true
+			self.potential_last_enemy = enemy
+		end
+	end
 
 	-- Set sprite according to weapon
 	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
@@ -99,13 +137,20 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 	constants.log(">>> PROJECTILE DETONATING AT:", hit_x, hit_y, "weapon:", self.weapon.id, "direct_hit:", direct_hit_potato and direct_hit_potato.id)
 	self.is_active = false
 
+	if self.bullet_time_active then
+		msg.post("/main#main", "end_bullet_time")
+		self.bullet_time_active = false
+	end
+
+	local direct_impact_shake = direct_hit_potato and 14 or 0
+
 	if self.weapon.on_hit == "napalm" or self.weapon.on_hit == "pepper" then
 		local is_pepper = (self.weapon.on_hit == "pepper")
 		-- Initial explosion and crater
 		local crater_r = self.weapon.crater_radius or self.weapon.blast_radius
 		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = crater_r })
 		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
-		camera_controller.shake(self.weapon.blast_radius * 0.25, 0.2)
+		camera_controller.shake(self.weapon.blast_radius * 0.25 + direct_impact_shake, direct_hit_potato and 0.40 or 0.2)
 		
 		-- Apply direct hit or blast damage
 		for _, p in ipairs(game_state.potatoes) do
@@ -140,7 +185,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		-- Jar cracks open: small crater, visual explosion, and release 3 beetles!
 		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = 16 })
 		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = 20 })
-		camera_controller.shake(5, 0.2)
+		camera_controller.shake(5 + direct_impact_shake, direct_hit_potato and 0.35 or 0.2)
 
 		-- Spawn 3 beetle minions scattering in arcs
 		msg.post("/main#main", "spawn_beetles", {
@@ -166,8 +211,8 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 			radius = self.weapon.blast_radius
 		})
 
-		-- Screen shake proportional to weapon blast
-		camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
+		-- Screen shake proportional to weapon blast (boosted on forehead direct hits)
+		camera_controller.shake(self.weapon.blast_radius * 0.35 + direct_impact_shake, direct_hit_potato and 0.45 or 0.35)
 
 		-- Apply damage and impulse to all living potatoes
 		for _, p in ipairs(game_state.potatoes) do
@@ -198,19 +243,86 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 	go.delete()
 end
 
+function final(self)
+	if self.bullet_time_active then
+		msg.post("/main#main", "end_bullet_time")
+		self.bullet_time_active = false
+	end
+end
+
 function update(self, dt)
 	if not self.is_active then
+		if self.hit_stop_pending and self.hit_stop_pending > 0 then
+			self.hit_stop_pending = self.hit_stop_pending - dt
+			if self.hit_stop_pending <= 0 then
+				self.hit_stop_pending = nil
+				local pdata = self.pending_detonate
+				self.pending_detonate = nil
+				detonate(self, pdata.hx, pdata.hy, pdata.potato)
+			end
+		end
 		return
 	end
 
-	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
+	-- Bullet Time: slow-mo when fatal cross-map shot approaches the last surviving enemy
+	if self.bullet_time_eligible and not self.bullet_time_active and self.potential_last_enemy and self.potential_last_enemy.is_alive then
+		local dx = self.potential_last_enemy.pos.x - self.pos.x
+		local dy = self.potential_last_enemy.pos.y - self.pos.y
+		local dist = math.sqrt(dx * dx + dy * dy)
+		local dist_from_origin = math.abs(self.pos.x - self.origin_x)
+		if dist_from_origin > 120 and dist < 160 then
+			local dot = self.vel.x * dx + self.vel.y * dy
+			if dot > 0 then
+				self.bullet_time_active = true
+				msg.post("/main#main", "start_bullet_time", {
+					duration = 2.0,
+					scale = 0.22,
+					zoom = 1.68,
+					focus_x = (self.pos.x + self.potential_last_enemy.pos.x) * 0.5,
+					focus_y = (self.pos.y + self.potential_last_enemy.pos.y) * 0.5
+				})
+				local is_ru = (i18n and i18n.current_lang == "ru")
+				msg.post("/gui_hud#gui", "show_achievement_toast", {
+					icon = "🎬",
+					title = is_ru and "ФАТАЛЬНЫЙ ВЫСТРЕЛ!" or "FATAL STRIKE!",
+					points = 0
+				})
+			end
+		end
+	end
+
+	local time_scale = game_state.time_scale or 1.0
+	local sim_dt = dt * time_scale
+
+	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, sim_dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
 
 	-- Update camera tracking to follow this projectile
 	camera_controller.follow(self.pos.x, self.pos.y)
 
 	if status == "explode" then
-		detonate(self, hx, hy, hit_potato)
+		if hit_potato and not self.hit_stop_done then
+			self.hit_stop_done = true
+			self.is_active = false
+			self.pos.x = hx
+			self.pos.y = hy
+			go.set_position(self.pos)
+
+			msg.post("/main#main", "hit_stop", { duration = 0.05 })
+			if hit_potato.url then
+				msg.post(hit_potato.url, "hit_stop_shock")
+			end
+
+			self.hit_stop_pending = 0.05
+			self.pending_detonate = { hx = hx, hy = hy, potato = hit_potato }
+			return
+		else
+			detonate(self, hx, hy, hit_potato)
+		end
 	elseif status == "water" then
+		if self.bullet_time_active then
+			msg.post("/main#main", "end_bullet_time")
+			self.bullet_time_active = false
+		end
 		self.is_active = false
 		camera_controller.shake(6, 0.25)
 		msg.post("/main#main", "spawn_explosion", {
@@ -235,7 +347,7 @@ function update(self, dt)
 		go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
 
 		-- Animate juicy trailing smoke/spark particles behind projectile
-		self.trail_timer = (self.trail_timer or 0) + dt * 14.0
+		self.trail_timer = (self.trail_timer or 0) + sim_dt * 14.0
 		pcall(function()
 			local t1_a = math.min(0.85, (speed / 120.0)) * (0.6 + 0.4 * math.sin(self.trail_timer))
 			local t2_a = math.min(0.95, (speed / 100.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 2.0))

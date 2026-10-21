@@ -98,10 +98,10 @@ function on_message(self, message_id, message, sender)
 			local title_node = gui.get_node("seamless_title")
 			local is_win = (winner == constants.TEAM_BLUE)
 			if is_win then
-				gui.set_text(title_node, is_ru and "ПОБЕДА!" or "VICTORY!")
+				gui.set_text(title_node, i18n.t("victory"))
 				gui.set_color(title_node, vmath.vector4(0.2, 0.95, 0.45, 1.0))
 			else
-				gui.set_text(title_node, is_ru and "ПОРАЖЕНИЕ" or "DEFEAT")
+				gui.set_text(title_node, i18n.t("defeat"))
 				gui.set_color(title_node, vmath.vector4(0.95, 0.25, 0.25, 1.0))
 			end
 
@@ -112,7 +112,7 @@ function on_message(self, message_id, message, sender)
 			-- 2. Coins count
 			local coins_amt = message.coins_awarded or message.points or 100
 			local coins_node = gui.get_node("seamless_coins_text")
-			gui.set_text(coins_node, string.format("🪙 +%d %s", coins_amt, is_ru and "МОНЕТ" or "COINS"))
+			gui.set_text(coins_node, string.format("🪙 +%d %s", coins_amt, i18n.t("points_lbl"):gsub("[:%s]+", ""):upper()))
 			local coins_bg = gui.get_node("seamless_coins_bg")
 			gui.set_scale(coins_bg, vmath.vector3(0.4, 0.4, 1.0))
 			gui.animate(coins_bg, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBACK, 0.4, 0.1)
@@ -126,8 +126,9 @@ function on_message(self, message_id, message, sender)
 			local star1 = gui.get_node("seamless_hat_star_1")
 			local star2 = gui.get_node("seamless_hat_star_2")
 
-			gui.set_text(hat_badge, is_ru and "★ НОВАЯ ШАПКА РАЗБЛОКИРОВАНА! ★" or "★ NEW HAT UNLOCKED! ★")
-			gui.set_text(hat_name, message.unlocked_hat_name or (is_ru and "КЕПКА БОЙЦА" or "FIGHTER CAP"))
+			gui.set_text(hat_badge, i18n.t("achieve_bonus"))
+			local default_cap = player_profile.SKINS[2]
+			gui.set_text(hat_name, message.unlocked_hat_name or player_profile.get_skin_name(default_cap, i18n.current_lang))
 
 			if message.unlocked_hat_sprite then
 				gui.play_flipbook(hat_sprite, hash(message.unlocked_hat_sprite))
@@ -298,11 +299,11 @@ function on_message(self, message_id, message, sender)
 					gui.set_text(title_node, i18n.t("debrief_campaign_won"))
 					gui.set_text(sub_node, i18n.t("debrief_sub_camp_won"))
 				elseif outcome.battle_type == "assault" then
-					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					local sname = (outcome.sector_id and territory_map.get_sector_name(outcome.sector_id, i18n.current_lang)) or outcome.sector_name_en or outcome.sector_name_ru or ""
 					gui.set_text(title_node, string.format(i18n.t("debrief_sector_liberated"), sname:upper()))
 					gui.set_text(sub_node, i18n.t("debrief_sub_liberated"))
 				else
-					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					local sname = (outcome.sector_id and territory_map.get_sector_name(outcome.sector_id, i18n.current_lang)) or outcome.sector_name_en or outcome.sector_name_ru or ""
 					gui.set_text(title_node, string.format(i18n.t("debrief_attack_repelled"), sname:upper()))
 					gui.set_text(sub_node, i18n.t("debrief_sub_repelled"))
 				end
@@ -317,7 +318,7 @@ function on_message(self, message_id, message, sender)
 					gui.set_text(title_node, i18n.t("debrief_campaign_lost"))
 					gui.set_text(sub_node, i18n.t("debrief_sub_camp_lost"))
 				elseif outcome.battle_type == "defense" then
-					local sname = is_ru and outcome.sector_name_ru or outcome.sector_name_en
+					local sname = (outcome.sector_id and territory_map.get_sector_name(outcome.sector_id, i18n.current_lang)) or outcome.sector_name_en or outcome.sector_name_ru or ""
 					gui.set_text(title_node, string.format(i18n.t("debrief_sector_lost"), sname:upper()))
 					gui.set_text(sub_node, i18n.t("debrief_sub_lost"))
 				else
@@ -341,30 +342,29 @@ function on_message(self, message_id, message, sender)
 			local def_lvl = sec and sec.defense_level or 1
 			local stars = string.format("[%d/3]", def_lvl)
 			local inc = sec and sec.income or 25
-			local sname = is_ru and (outcome.sector_name_ru or "Сектор") or (outcome.sector_name_en or "Sector")
+			local sname = (outcome.sector_id and territory_map.get_sector_name(outcome.sector_id, i18n.current_lang)) or i18n.t("hud_sector")
 			if outcome.is_victory then
-				gui.set_text(stats_detail, is_ru and ("Сектор: " .. sname .. " • Гарнизон противника разбит") or ("Sector: " .. sname .. " • Enemy garrison crushed"))
-				gui.set_text(stats_front, is_ru and ("Укрепления рубежа: " .. stars .. " • Доход базы: +" .. inc .. "🥔/ход") or ("Fortifications: " .. stars .. " • Base income: +" .. inc .. "🥔/turn"))
+				gui.set_text(stats_detail, i18n.t("hud_sector") .. ": " .. sname)
+				gui.set_text(stats_front, stars .. " • +" .. tostring(inc) .. " 🥔")
 			else
-				gui.set_text(stats_detail, is_ru and ("Сектор: " .. sname .. " • Наш отряд понес потери") or ("Sector: " .. sname .. " • Squad sustained casualties"))
-				gui.set_text(stats_front, is_ru and ("Статус рубежа: " .. stars .. " • Под контролем противника") or ("Sector status: " .. stars .. " • Held by enemy"))
+				gui.set_text(stats_detail, i18n.t("hud_sector") .. ": " .. sname)
+				gui.set_text(stats_front, stars)
 			end
 		else
-			gui.set_text(stats_detail, is_ru and "Бой завершен. Результаты занесены в архив." or "Combat finished. Records archived.")
-			gui.set_text(stats_front, is_ru and "Готовность к следующему раунду 100%" or "Ready for next battle 100%")
+			gui.set_text(stats_detail, i18n.t("debrief_combat_report"))
+			gui.set_text(stats_front, "100%")
 		end
 
 		-- 5. Rewards and Achievements
 		if winner == constants.TEAM_BLUE then
-			local total_str = "+" .. tostring(points) .. (is_ru and " ОЧКОВ" or " POINTS")
+			local pts_word = i18n.t("points_lbl"):gsub("[:%s]+", ""):upper()
+			local total_str = "+" .. tostring(points) .. " " .. pts_word
 			local stars_earned = message.stars_earned or (outcome and outcome.stars_earned) or 0
 			if stars_earned > 0 then
-				local star_bonus_lbl = message.flawless_survival and (is_ru and " (+1 без потерь!)" or " (+1 no casualties!)") or ""
-				local star_word = (stars_earned == 1) and (is_ru and "звезда" or "star") or (is_ru and "звезды" or "stars")
-				total_str = total_str .. "  •  +" .. tostring(stars_earned) .. " " .. star_word .. star_bonus_lbl
+				total_str = total_str .. "  •  +" .. tostring(stars_earned) .. " ★"
 			end
 			if ach_bonus > 0 then
-				total_str = total_str .. (is_ru and (" (Бонус +" .. tostring(ach_bonus) .. ")") or (" (Bonus +" .. tostring(ach_bonus) .. ")"))
+				total_str = total_str .. " (+" .. tostring(ach_bonus) .. ")"
 			end
 			gui.set_text(reward_txt, total_str)
 
@@ -390,15 +390,13 @@ function on_message(self, message_id, message, sender)
 			local prog = player_profile.get_next_skin_progress()
 			if prog and prog.skin then
 				gui.set_enabled(skin_bg, true)
-				local skin_name = is_ru and (prog.skin.name_ru or prog.skin.name) or (prog.skin.name_en or prog.skin.name)
+				local skin_name = player_profile.get_skin_name(prog.skin, i18n.current_lang)
 				if prog.can_buy then
-					local ready_msg = is_ru and ("🎉 Доступна шапка «" .. skin_name .. "» (" .. prog.target_price .. " очков)! Нажмите «МАГАЗИН»")
-						or ("🎉 Unlocked hat: '" .. skin_name .. "' (" .. prog.target_price .. " pts)! Click 'SHOP'")
+					local ready_msg = string.format("🎉 %s (%d) • %s", skin_name, prog.target_price, i18n.t("btn_shop"))
 					gui.set_text(skin_txt, ready_msg)
 					gui.set_color(skin_txt, vmath.vector4(0.3, 1.0, 0.5, 1.0))
 				else
-					local prog_msg = is_ru and ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " до шапки «" .. skin_name .. "» (Осталось " .. prog.needed .. " очков)")
-						or ("🪙 " .. prog.current_points .. " / " .. prog.target_price .. " to hat '" .. skin_name .. "' (" .. prog.needed .. " pts to go)")
+					local prog_msg = string.format("🪙 %d / %d → %s", prog.current_points, prog.target_price, skin_name)
 					gui.set_text(skin_txt, prog_msg)
 					gui.set_color(skin_txt, vmath.vector4(1.0, 0.85, 0.25, 1.0))
 				end

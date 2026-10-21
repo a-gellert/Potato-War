@@ -72,7 +72,7 @@ end
 
 -- Set target zoom level (1.0 = normal, >1.0 = zoomed in on projectile)
 function M.set_zoom(z)
-	M.target_zoom = math.max(0.75, math.min(1.45, z or 1.0))
+	M.target_zoom = math.max(0.75, math.min(1.75, z or 1.0))
 end
 
 -- Convert world coordinates to screen (GUI) coordinates

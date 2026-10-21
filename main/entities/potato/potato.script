@@ -2,6 +2,7 @@
 -- Controls potato visuals, health bar, weapon attachment, elemental statuses, and DoT effects
 
 local weapons = require("lua_modules.weapons")
+local sound_manager = require("lua_modules.sound_manager")
 
 go.property("team", 1)
 go.property("potato_id", 1)
@@ -160,6 +161,8 @@ function init(self)
 	self.hp_bar_timer = 0
 	self.alert_timer = 0
 	self.skin_tint = vmath.vector4(1, 1, 1, 1)
+	self.current_char_tint = vmath.vector4(1, 1, 1, 1)
+	self.soot_level = 0
 	self.statuses = {} -- burning, poisoned, glued, concussed
 	self.class_id = "recruit"
 	self.hat_id = "none"
@@ -522,10 +525,52 @@ function on_message(self, message_id, message, sender)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 0.76, BASE_SCALE * 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
 		end
 
+	elseif message_id == hash("hit_stop_shock") then
+		if self.is_alive then
+			self.scale_anim_timer = 0.35
+			set_emotion(self, "wow", 0.7)
+			-- Direct impact forehead hit flash & shock squish
+			go.set("#sprite", "tint", vmath.vector4(2.8, 2.8, 2.8, 1.0))
+			go.set("#sprite", "scale", vmath.vector3(BASE_SCALE * 1.45, BASE_SCALE * 0.65, 1.0))
+		end
+
+	elseif message_id == hash("on_bounce") then
+		if self.is_alive then
+			local spd = message.impact_speed or 100
+			local s_ratio = math.min(1.80, 1.25 + (spd / 200.0))
+			local pancake_w = BASE_SCALE * s_ratio
+			local pancake_h = BASE_SCALE * (1.0 / s_ratio)
+			local rebound_w = BASE_SCALE * (1.0 / math.sqrt(s_ratio))
+			local rebound_h = BASE_SCALE * math.sqrt(s_ratio)
+
+			self.scale_anim_timer = 0.36
+			set_emotion(self, "wow", 0.5)
+
+			-- Elastic squash & stretch sequence: pancake -> rebound -> settle
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(pancake_w, pancake_h, 1.0), go.EASING_OUTQUAD, 0.08, 0, function()
+				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(rebound_w, rebound_h, 1.0), go.EASING_OUTBACK, 0.14, 0, function()
+					go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_INOUTSINE, 0.12)
+				end)
+			end)
+
+			sound_manager.play_plop(math.min(1.0, spd / 110.0))
+		end
+
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
+			local spd = message.impact_speed or 60
+			local s_ratio = math.min(1.45, 1.15 + (spd / 280.0))
+			local pancake_w = BASE_SCALE * s_ratio
+			local pancake_h = BASE_SCALE * (1.0 / s_ratio)
+
 			self.scale_anim_timer = 0.28
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.32, BASE_SCALE * 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(pancake_w, pancake_h, 1.0), go.EASING_OUTQUAD, 0.10, 0, function()
+				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_OUTELASTIC, 0.18)
+			end)
+
+			if spd > 35.0 then
+				sound_manager.play_plop(0.65)
+			end
 		end
 
 	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
@@ -539,18 +584,51 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("apply_damage") then
 		if not self.is_alive then return end
 
-		self.hp = math.max(0, self.hp - (message.damage or 0))
+		local dmg = message.damage or 0
+		self.hp = math.max(0, self.hp - dmg)
 		update_hp_bar(self)
+
+		-- Accumulate black soot / charring based on explosion damage and health lost
+		local is_explosive = message.is_explosion or (dmg >= 18)
+		local soot_gain = is_explosive and (dmg / 55.0) or (dmg / 110.0)
+		self.soot_level = math.min(1.0, (self.soot_level or 0) + soot_gain)
+
+		local hp_ratio = math.max(0, 1.0 - (self.hp / math.max(1, self.max_hp)))
+		local effective_soot = math.max(self.soot_level, hp_ratio * 0.88)
+
+		-- Burnt crispy charcoal discoloration: skin visibly darkens and blackens with soot
+		local base_r = (self.skin_tint and self.skin_tint.x) or 1.0
+		local base_g = (self.skin_tint and self.skin_tint.y) or 1.0
+		local base_b = (self.skin_tint and self.skin_tint.z) or 1.0
+
+		local charred_r = base_r * (1.0 - effective_soot * 0.65)
+		local charred_g = base_g * (1.0 - effective_soot * 0.74)
+		local charred_b = base_b * (1.0 - effective_soot * 0.78)
+		self.current_char_tint = vmath.vector4(charred_r, charred_g, charred_b, 1.0)
 
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
-		self.scale_anim_timer = 0.22
 		set_emotion(self, "hurt", 1.4)
 
-		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
-		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
-			go.set("#sprite", "tint", self.skin_tint)
+		if is_explosive then
+			-- Explosion blast wave squashes potato into pancake and rebounds!
+			local s_ratio = math.min(1.80, 1.35 + (dmg / 70.0))
+			self.scale_anim_timer = 0.38
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE * s_ratio, BASE_SCALE / s_ratio, 1.0), go.EASING_OUTQUAD, 0.10, 0, function()
+				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE * 0.82, BASE_SCALE * 1.28, 1.0), go.EASING_OUTBACK, 0.14, 0, function()
+					go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_INOUTSINE, 0.12)
+				end)
+			end)
+			sound_manager.play_plop(0.95)
+		else
+			self.scale_anim_timer = 0.22
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
+		end
+
+		-- Settle tint back into persistent charred soot
+		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.5, 0.3, 1), go.EASING_OUTQUAD, 0.16, 0, function()
+			go.set("#sprite", "tint", self.current_char_tint)
 		end)
 
 		-- Particle burst: potato crumbs & hit sparks
@@ -558,13 +636,13 @@ function on_message(self, message_id, message, sender)
 			msg.post("#hit_spark1", "enable")
 			msg.post("#hit_spark2", "enable")
 			go.set("#hit_spark1", "tint", vmath.vector4(1.8, 1.5, 0.4, 1.0))
-			go.set("#hit_spark2", "tint", vmath.vector4(1.4, 0.9, 0.4, 1.0))
-			go.set("#hit_spark1", "scale", vmath.vector3(1.2, 1.2, 1.0))
-			go.set("#hit_spark2", "scale", vmath.vector3(1.0, 1.0, 1.0))
+			go.set("#hit_spark2", "tint", vmath.vector4(0.85, 0.55, 0.30, 1.0))
+			go.set("#hit_spark1", "scale", vmath.vector3(0.9, 0.9, 1.0))
+			go.set("#hit_spark2", "scale", vmath.vector3(0.8, 0.8, 1.0))
 			local ox1 = (math.random() - 0.5) * 36
 			local oy1 = math.random(10, 32)
 			local ox2 = (math.random() - 0.5) * 32
-			local oy2 = math.random(8, 28)
+			local oy2 = math.random(6, 24)
 			go.set("#hit_spark1", "position", vmath.vector3(0, 4, 0.2))
 			go.set("#hit_spark2", "position", vmath.vector3(0, 4, 0.2))
 			go.animate("#hit_spark1", "position.x", go.PLAYBACK_ONCE_FORWARD, ox1, go.EASING_OUTEXPO, 0.35)
@@ -593,6 +671,7 @@ function on_message(self, message_id, message, sender)
 			msg.post("#hat_sprite", "disable")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
+			pcall(function() msg.post("#hp_text", "disable") end)
 		end
 
 	elseif message_id == hash("drowned") then
@@ -604,8 +683,27 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hat_sprite", "disable")
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
-		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
-			go.delete()
+		pcall(function() msg.post("#hp_text", "disable") end)
+
+		-- Cartoon whistle & boiling fryer sizzle audio!
+		sound_manager.play_fry_whistle()
+
+		-- Turn into steaming crispy french fries!
+		pcall(function()
+			sprite.play_flipbook("#sprite", hash("french_fries"))
 		end)
+		go.set("#sprite", "scale", vmath.vector3(0.72, 0.72, 1.0))
+		go.set("#sprite", "tint", vmath.vector4(1.25, 1.15, 0.85, 1.0))
+
+		local cur_pos = go.get_position()
+		local jump_peak_y = cur_pos.y + 52
+
+		-- Pop out of boiling fryer oil in a cartoon arc and tumble
+		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, jump_peak_y, go.EASING_OUTQUAD, 0.32, 0, function()
+			go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, cur_pos.y - 70, go.EASING_INQUAD, 0.42, 0, function()
+				go.delete()
+			end)
+		end)
+		go.animate(".", "rotation", go.PLAYBACK_ONCE_FORWARD, vmath.quat_rotation_z(0.38), go.EASING_OUTSINE, 0.74)
 	end
 end

@@ -27,7 +27,7 @@ end
 
 -- Turn & Match rules
 M.TURN_DURATION = 25.0 -- 25 seconds per turn (increased for tactical depth and 5 min playtime)
-M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for Poki playtime)
+M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for smooth web playtime)
 
 -- Physics
 M.GRAVITY = 460.0

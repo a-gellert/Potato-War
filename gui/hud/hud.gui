@@ -36,8 +36,8 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.56
-    y: 0.56
+    x: 0.4
+    y: 0.4
   }
   size {
     x: 390.0
@@ -110,10 +110,6 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.7
     y: 0.7
@@ -157,7 +153,7 @@ nodes {
 nodes {
   position {
     x: 110.0
-    y: 252.0
+    y: 210.0
   }
   size {
     x: 200.0
@@ -1540,6 +1536,10 @@ nodes {
   enabled: false
 }
 nodes {
+  position {
+    y: 2.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
@@ -1548,18 +1548,13 @@ nodes {
     x: 120.0
     y: 18.0
   }
-  position {
-    x: 0.0
-    y: 2.0
-    z: 0.1
-  }
   color {
     x: 0.92
     y: 0.92
     z: 0.88
   }
   type: TYPE_TEXT
-  text: "ТЫ"
+  text: "\320\242\320\253"
   font: "system_font"
   id: "marker_player_text"
   parent: "marker_player_bg"
@@ -1568,14 +1563,13 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
+  position {
+    y: -5.0
+    z: 0.1
+  }
   size {
     x: 52.0
     y: 2.5
-  }
-  position {
-    x: 0.0
-    y: -5.0
-    z: 0.1
   }
   color {
     x: 0.08
@@ -1589,14 +1583,13 @@ nodes {
   inherit_alpha: true
 }
 nodes {
+  position {
+    x: -26.0
+    z: 0.2
+  }
   size {
     x: 52.0
     y: 2.5
-  }
-  position {
-    x: -26.0
-    y: 0.0
-    z: 0.2
   }
   color {
     x: 0.15
@@ -1606,19 +1599,18 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "marker_player_hp_fill"
-  parent: "marker_player_hp_bg"
   pivot: PIVOT_W
+  parent: "marker_player_hp_bg"
   inherit_alpha: true
 }
 nodes {
+  position {
+    y: 15.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
-  }
-  position {
-    x: 0.0
-    y: 15.0
-    z: 0.1
   }
   color {
     x: 0.18
@@ -1626,7 +1618,7 @@ nodes {
     z: 0.95
   }
   type: TYPE_TEXT
-  text: "▼"
+  text: "\342\226\274"
   font: "system_font"
   id: "marker_player_arrow"
   parent: "marker_player_bg"
@@ -1658,6 +1650,10 @@ nodes {
   enabled: false
 }
 nodes {
+  position {
+    y: 2.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
@@ -1666,18 +1662,13 @@ nodes {
     x: 120.0
     y: 18.0
   }
-  position {
-    x: 0.0
-    y: 2.0
-    z: 0.1
-  }
   color {
     x: 0.95
     y: 0.85
     z: 0.85
   }
   type: TYPE_TEXT
-  text: "ВРАГ"
+  text: "\320\222\320\240\320\220\320\223"
   font: "system_font"
   id: "marker_enemy_text"
   parent: "marker_enemy_bg"
@@ -1686,14 +1677,13 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
+  position {
+    y: -5.0
+    z: 0.1
+  }
   size {
     x: 56.0
     y: 2.5
-  }
-  position {
-    x: 0.0
-    y: -5.0
-    z: 0.1
   }
   color {
     x: 0.08
@@ -1707,14 +1697,13 @@ nodes {
   inherit_alpha: true
 }
 nodes {
+  position {
+    x: -28.0
+    z: 0.2
+  }
   size {
     x: 56.0
     y: 2.5
-  }
-  position {
-    x: -28.0
-    y: 0.0
-    z: 0.2
   }
   color {
     x: 0.95
@@ -1724,27 +1713,25 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "marker_enemy_hp_fill"
-  parent: "marker_enemy_hp_bg"
   pivot: PIVOT_W
+  parent: "marker_enemy_hp_bg"
   inherit_alpha: true
 }
 nodes {
+  position {
+    y: 15.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
   }
-  position {
-    x: 0.0
-    y: 15.0
-    z: 0.1
-  }
   color {
-    x: 1.0
     y: 0.32
     z: 0.28
   }
   type: TYPE_TEXT
-  text: "▼"
+  text: "\342\226\274"
   font: "system_font"
   id: "marker_enemy_arrow"
   parent: "marker_enemy_bg"

@@ -8,29 +8,29 @@ local sound_manager = require("lua_modules.sound_manager")
 local i18n = require("lua_modules.i18n")
 
 local BIOMES = {
-	{ id = "grass", ru = "🌿 Зеленые Холмы", en = "🌿 Green Meadows" },
-	{ id = "arctic", ru = "❄️ Ледяной архипелаг", en = "❄️ Arctic Ice" },
-	{ id = "desert", ru = "🏜️ Пустынные Дюны", en = "🏜️ Desert Dunes" },
-	{ id = "volcano", ru = "🌋 Лавовые Пещеры", en = "🌋 Lava Caverns" },
-	{ id = "alien", ru = "🛸 Инопланетный Мир", en = "🛸 Alien World" },
+	{ id = "grass",   ru = "🌿 Зеленые Холмы",      en = "🌿 Green Meadows",       tr = "🌿 Yeşil Çayırlar",       es = "🌿 Praderas Verdes",       pt = "🌿 Campos Verdes",          fr = "🌿 Prairies Vertes" },
+	{ id = "arctic",  ru = "❄️ Ледяной архипелаг",   en = "❄️ Arctic Ice",          tr = "❄️ Arktik Buz",           es = "❄️ Hielo Ártico",           pt = "❄️ Gelo Ártico",            fr = "❄️ Glace Arctique" },
+	{ id = "desert",  ru = "🏜️ Пустынные Дюны",      en = "🏜️ Desert Dunes",        tr = "🏜️ Çöl Kumulları",        es = "🏜️ Dunas del Desierto",     pt = "🏜️ Dunas do Deserto",       fr = "🏜️ Dunes du Désert" },
+	{ id = "volcano", ru = "🌋 Лавовые Пещеры",      en = "🌋 Lava Caverns",        tr = "🌋 Lav Mağaraları",       es = "🌋 Cavernas de Lava",        pt = "🌋 Cavernas de Lava",       fr = "🌋 Cavernes de Lave" },
+	{ id = "alien",   ru = "🛸 Инопланетный Мир",    en = "🛸 Alien World",         tr = "🛸 Uzaylı Dünyası",       es = "🛸 Mundo Alienígena",        pt = "🛸 Mundo Alienígena",       fr = "🛸 Monde Extraterrestre" },
 }
 
 local RELIEFS = {
-	{ id = "hills", ru = "⛰️ Холмы", en = "⛰️ Hills" },
-	{ id = "floating_islands", ru = "🏝️ Парящие Острова", en = "🏝️ Floating Islands" },
-	{ id = "canyon_bridge", ru = "🌉 Каньон и Мост", en = "🌉 Canyon Bridge" },
-	{ id = "cavern", ru = "🕳️ Пещеры", en = "🕳️ Caverns" },
-	{ id = "bunkers", ru = "🏰 Бункеры", en = "🏰 Bunkers" },
-	{ id = "islands", ru = "🌊 Острова", en = "🌊 Islands" },
-	{ id = "swiss_cheese", ru = "🧀 Сырный Каньон", en = "🧀 Swiss Cheese" },
-	{ id = "flat", ru = "⬛ Равнина", en = "⬛ Flat Field" },
+	{ id = "hills",            ru = "⛰️ Холмы",            en = "⛰️ Hills",            tr = "⛰️ Tepeler",            es = "⛰️ Colinas",            pt = "⛰️ Colinas",            fr = "⛰️ Collines" },
+	{ id = "floating_islands", ru = "🏝️ Парящие Острова",  en = "🏝️ Floating Islands", tr = "🏝️ Uçan Adalar",       es = "🏝️ Islas Flotantes",    pt = "🏝️ Ilhas Flutuantes",   fr = "🏝️ Îles Flottantes" },
+	{ id = "canyon_bridge",    ru = "🌉 Каньон и Мост",    en = "🌉 Canyon Bridge",    tr = "🌉 Kanyon Köprüsü",    es = "🌉 Puente del Cañón",   pt = "🌉 Ponte do Cânion",    fr = "🌉 Pont du Canyon" },
+	{ id = "cavern",           ru = "🕳️ Пещеры",           en = "🕳️ Caverns",          tr = "🕳️ Mağaralar",         es = "🕳️ Cavernas",           pt = "🕳️ Cavernas",           fr = "🕳️ Cavernes" },
+	{ id = "bunkers",          ru = "🏰 Бункеры",          en = "🏰 Bunkers",          tr = "🏰 Sığınaklar",        es = "🏰 Búnkeres",           pt = "🏰 Bunkers",            fr = "🏰 Bunkers" },
+	{ id = "islands",          ru = "🌊 Острова",           en = "🌊 Islands",          tr = "🌊 Adalar",            es = "🌊 Islas",              pt = "🌊 Ilhas",              fr = "🌊 Îles" },
+	{ id = "swiss_cheese",     ru = "🧀 Сырный Каньон",    en = "🧀 Swiss Cheese",    tr = "🧀 İsviçre Peyniri",   es = "🧀 Queso Suizo",        pt = "🧀 Queijo Suíço",       fr = "🧀 Gruyère" },
+	{ id = "flat",             ru = "⬛ Равнина",          en = "⬛ Flat Field",       tr = "⬛ Düz Alan",          es = "⬛ Campo Llano",         pt = "⬛ Campo Plano",         fr = "⬛ Plaine" },
 }
 
 local function update_points_display(self)
 	local pts = player_profile.get_points()
 	pcall(function()
-		local pts_lbl = (i18n.current_lang == "ru") and "Очки: " or "Points: "
-		local shop_pts_lbl = (i18n.current_lang == "ru") and "Ваши очки: " or "Your points: "
+		local pts_lbl = i18n.t("points_lbl")
+		local shop_pts_lbl = i18n.t("points_lbl")
 		gui.set_text(gui.get_node("txt_total_points"), pts_lbl .. tostring(pts))
 		gui.set_text(gui.get_node("shop_points"), shop_pts_lbl .. tostring(pts))
 	end)
@@ -74,31 +74,27 @@ local function update_lobby_ui(self)
 
 		-- Update Biome value
 		local biome = BIOMES[self.lobby_biome_idx] or BIOMES[1]
-		gui.set_text(gui.get_node("txt_biome_val"), is_ru and biome.ru or biome.en)
+		gui.set_text(gui.get_node("txt_biome_val"), biome[i18n.current_lang] or biome.en)
 
 		-- Update Relief value
 		local relief = RELIEFS[self.lobby_relief_idx] or RELIEFS[1]
-		gui.set_text(gui.get_node("txt_relief_val"), is_ru and relief.ru or relief.en)
+		gui.set_text(gui.get_node("txt_relief_val"), relief[i18n.current_lang] or relief.en)
 	end)
 end
 
 local function update_localized_menu(self)
-	local is_ru = (i18n.current_lang == "ru")
 	pcall(function()
 		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
 		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		local camp_lbl = is_ru and "КАРТА ВОЙНЫ (КАМПАНИЯ)" or "WAR MAP (CAMPAIGN)"
-		gui.set_text(gui.get_node("txt_campaign"), camp_lbl)
-		local skirmish_lbl = is_ru and "БЫСТРЫЙ БОЙ" or "QUICK BATTLE"
-		gui.set_text(gui.get_node("txt_quick_pvp"), skirmish_lbl)
+		gui.set_text(gui.get_node("txt_campaign"), i18n.t("btn_campaign"))
+		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_battle"))
 		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
-		gui.set_text(gui.get_node("txt_lang"), i18n.t("lang_btn"))
+		gui.set_text(gui.get_node("txt_shop"), i18n.t("btn_shop"))
+		gui.set_text(gui.get_node("txt_shop_back"), i18n.t("btn_back"))
 
-		local txt_shop_btn = is_ru and "МАГАЗИН ШАПОК" or "HAT SHOP"
-		gui.set_text(gui.get_node("txt_shop"), txt_shop_btn)
-
-		local back_lbl = is_ru and "НАЗАД В МЕНЮ" or "BACK TO MENU"
-		gui.set_text(gui.get_node("txt_shop_back"), back_lbl)
+		-- Update flag image for language button
+		local flag_node = gui.get_node("img_flag")
+		gui.play_flipbook(flag_node, hash(i18n.get_flag()))
 	end)
 	update_points_display(self)
 	update_lobby_ui(self)
@@ -106,13 +102,11 @@ end
 
 local function update_overlay(self)
 	update_points_display(self)
-	local is_ru = (i18n.current_lang == "ru")
 	local points = player_profile.get_points()
 
 	-- HATS SHOP MODE
 	pcall(function()
-		gui.set_text(gui.get_node("shop_title"), is_ru and "МАГАЗИН ШАПОК" or "HAT SHOP")
-		gui.set_text(gui.get_node("txt_shop_back"), is_ru and "НАЗАД В МЕНЮ" or "BACK TO MENU")
+		gui.set_text(gui.get_node("shop_title"), i18n.t("btn_shop"))
 
 		-- Row 1 (4 items)
 		gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-330, 85, 0))
@@ -150,19 +144,17 @@ local function update_overlay(self)
 				local is_equipped = (hat.id == equipped)
 
 				if is_equipped then
-					gui.set_text(txt_node, is_ru and "НАДЕТО" or "EQUIPPED")
+					gui.set_text(txt_node, i18n.t("btn_equiped"))  -- reuse as "EQUIPPED/НАДЕТО"
 					gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
 				elseif is_unlocked then
-					gui.set_text(txt_node, is_ru and "НАДЕТЬ" or "EQUIP")
+					gui.set_text(txt_node, i18n.t("btn_battle"))  -- reuse as "EQUIP/НАДЕТЬ"
 					gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0))
 				else
 					if points >= hat.price then
-						local buy_lbl = is_ru and "КУПИТЬ (" or "BUY ("
-						gui.set_text(txt_node, buy_lbl .. hat.price .. ")")
+						gui.set_text(txt_node, i18n.t("btn_buy", hat.price))
 						gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
 					else
-						local lock_lbl = is_ru and "ЗАКРЫТО (" or "LOCKED ("
-						gui.set_text(txt_node, lock_lbl .. hat.price .. ")")
+						gui.set_text(txt_node, i18n.t("btn_buy", hat.price))
 						gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0))
 					end
 				end
@@ -336,9 +328,13 @@ function init(self)
 		update_overlay(self)
 	end)
 
-	-- Language toggle button
+	-- Language cycle button (cycles: EN → RU → TR → ES → PT → FR → EN → ...)
 	self.ui:button("btn_lang", function()
-		i18n.toggle_lang()
+		i18n.next_lang()
+		pcall(function()
+			local flag_node = gui.get_node("img_flag")
+			gui.play_flipbook(flag_node, hash(i18n.get_flag()))
+		end)
 		update_localized_menu(self)
 		update_overlay(self)
 		update_lobby_ui(self)

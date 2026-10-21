@@ -6,6 +6,7 @@ local constants = require("lua_modules.constants")
 local terrain_grid = require("lua_modules.terrain_grid")
 local bg_battle = require("lua_modules.bg_battle")
 local camera_controller = require("lua_modules.camera_controller")
+local game_state = require("lua_modules.game_state")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"

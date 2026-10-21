@@ -23,7 +23,8 @@ const files = [
     'lua_modules/classes.lua',
     'lua_modules/inventory_manager.lua',
     'lua_modules/territory_map.lua',
-    'lua_modules/strategic_campaign.lua'
+    'lua_modules/strategic_campaign.lua',
+    'lua_modules/sound_manager.lua'
 ];
 
 for (const filePath of files) {

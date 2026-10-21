@@ -504,6 +504,35 @@ function M.get_promotions(class_id)
 	return result
 end
 
+local CLASS_TRANSLATIONS = {
+	recruit     = { ru = "Новобранец",   en = "Recruit",      tr = "Acemi",         es = "Recluta",        pt = "Recruta",        fr = "Recrue" },
+	assault     = { ru = "Штурмовик",    en = "Assault",      tr = "Saldırı Eri",   es = "Asalto",         pt = "Assalto",        fr = "Assaut" },
+	assault_2   = { ru = "Штурмовик II", en = "Assault II",   tr = "Saldırı Eri II",es = "Asalto II",      pt = "Assalto II",     fr = "Assaut II" },
+	sniper      = { ru = "Снайпер",      en = "Sniper",       tr = "Keskin Nişancı",es = "Francotirador",  pt = "Franco-Atirador",fr = "Tireur d'Élite" },
+	sapper      = { ru = "Сапер",        en = "Sapper",       tr = "İstihkâmcı",    es = "Zapador",        pt = "Sapeador",       fr = "Sapeur" },
+	sapper_2    = { ru = "Сапер II",     en = "Sapper II",    tr = "İstihkâmcı II", es = "Zapador II",     pt = "Sapeador II",    fr = "Sapeur II" },
+	commando    = { ru = "Командо",      en = "Commando",     tr = "Komando",       es = "Comando",        pt = "Comando",        fr = "Commando" },
+	artillery   = { ru = "Артиллерист",  en = "Artillery",    tr = "Topçu",         es = "Artillero",      pt = "Artilheiro",     fr = "Artilleur" },
+	artillery_2 = { ru = "Артиллерист II",en = "Artillery II",tr = "Topçu II",     es = "Artillero II",   pt = "Artilheiro II",  fr = "Artilleur II" },
+	rocketeer   = { ru = "Ракетчик",     en = "Rocketeer",    tr = "Roketçi",       es = "Cohetero",       pt = "Fogueteiro",     fr = "Roquetier" },
+	medic       = { ru = "Медик",        en = "Medic",        tr = "Sıhhiyeci",     es = "Médico",         pt = "Médico",         fr = "Médecin" },
+	surgeon     = { ru = "Хирург",       en = "Surgeon",      tr = "Cerrah",        es = "Cirujano",       pt = "Cirurgião",      fr = "Chirurgien" },
+	tank        = { ru = "Танк",         en = "Tank",         tr = "Tankçı",        es = "Tanque",         pt = "Tanque",         fr = "Blindé" },
+}
+
+function M.get_class_name(class_id, lang)
+	lang = lang or "en"
+	local entry = CLASS_TRANSLATIONS[class_id]
+	if entry then
+		return entry[lang] or entry.en or class_id
+	end
+	local c = M.CLASSES[class_id]
+	if c then
+		return (lang == "ru" and c.name) or c.name_en or c.name or class_id
+	end
+	return class_id
+end
+
 -- Extensible registration API: allows registering new custom archetypes at runtime
 function M.register(class_def)
 	if not class_def or not class_def.id then

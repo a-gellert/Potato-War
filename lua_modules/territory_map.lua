@@ -733,6 +733,60 @@ function M.load_from_profile()
 	return M.sectors
 end
 
+-- Multilingual sector and region name lookup
+local SECTOR_NAMES = {
+	[1]  = { ru = "Бухта Высадки",        en = "Landing Cove",        tr = "Çıkarma Koyu",          es = "Cala de Desembarco",    pt = "Baía de Desembarque",   fr = "Baie de Débarquement" },
+	[2]  = { ru = "Зеленые Холмы",        en = "Green Hills",         tr = "Yeşil Tepeler",         es = "Colinas Verdes",        pt = "Colinas Verdes",        fr = "Collines Vertes" },
+	[3]  = { ru = "Фермерские Угодья",    en = "Farmlands",           tr = "Tarım Arazileri",       es = "Tierras Agrícolas",     pt = "Terras Agrícolas",      fr = "Terres Agricoles" },
+	[4]  = { ru = "Речная Долина",        en = "River Valley",        tr = "Nehir Vadisi",          es = "Valle del Río",         pt = "Vale do Rio",           fr = "Vallée Fluviale" },
+	[5]  = { ru = "Ветреное Плато",       en = "Windy Plateau",       tr = "Rüzgarlı Plató",        es = "Meseta Ventosa",        pt = "Planalto Ventoso",      fr = "Plateau Venteux" },
+	[6]  = { ru = "Каньон Эхо",           en = "Echo Canyon",         tr = "Yankı Kanyonu",         es = "Cañón del Eco",         pt = "Cânion do Eco",         fr = "Canyon de l'Écho" },
+	[7]  = { ru = "Песчаный Перевал",     en = "Sandy Pass",          tr = "Kumlu Geçit",           es = "Paso Arenoso",          pt = "Passo Arenoso",         fr = "Col Sablonneux" },
+	[8]  = { ru = "Оазис Кактусов",       en = "Cactus Oasis",        tr = "Kaktüs Vahası",         es = "Oasis de Cactus",       pt = "Oásis dos Cactos",      fr = "Oasis des Cactus" },
+	[9]  = { ru = "Древний Мост",         en = "Ancient Bridge",      tr = "Antik Köprü",           es = "Puente Antiguo",        pt = "Ponte Antiga",          fr = "Pont Ancien" },
+	[10] = { ru = "Замерзшее Озеро",      en = "Frozen Lake",         tr = "Donmuş Göl",            es = "Lago Helado",           pt = "Lago Congelado",        fr = "Lac Gelé" },
+	[11] = { ru = "Парящие Льдины",       en = "Floating Floes",      tr = "Yüzen Buzullar",        es = "Témpanos Flotantes",    pt = "Gelos Flutuantes",      fr = "Glaces Flottantes" },
+	[12] = { ru = "Хребет Метелей",       en = "Blizzard Ridge",      tr = "Tipi Sırtı",            es = "Cresta de Ventiscas",   pt = "Cordilheira da Nevasca",fr = "Crête du Blizzard" },
+	[13] = { ru = "Ледяной Бастион",      en = "Ice Bastion",         tr = "Buz Tabyası",           es = "Bastión de Hielo",      pt = "Bastião de Gelo",       fr = "Bastion de Glace" },
+	[14] = { ru = "Обсидиановые Врата",   en = "Obsidian Gates",      tr = "Obsidyen Kapıları",     es = "Puertas de Obsidiana",  pt = "Portões de Obsidiana",  fr = "Portes d'Obsidienne" },
+	[15] = { ru = "Лавовая Река",         en = "Lava River",          tr = "Lav Nehri",             es = "Río de Lava",           pt = "Rio de Lava",           fr = "Rivière de Lave" },
+	[16] = { ru = "Пепельная Пустошь",    en = "Ash Wastes",          tr = "Kül Çoraklığı",         es = "Páramo de Cenizas",     pt = "Ermos de Cinzas",       fr = "Terres de Cendres" },
+	[17] = { ru = "Серный Кратер",        en = "Sulfur Crater",       tr = "Kükürt Krateri",        es = "Cráter de Azufre",      pt = "Cratera de Enxofre",    fr = "Cratère de Soufre" },
+	[18] = { ru = "Цитадель Вулкана",     en = "Volcano Citadel",     tr = "Volkan Kalesi",         es = "Ciudadela del Volcán",  pt = "Cidadela do Vulcão",    fr = "Citadelle du Volcan" },
+}
+
+local REGION_NAMES = {
+	[1] = { ru = "Прибрежные Луга",       en = "Coastal Meadows",     tr = "Kıyı Çayırları",        es = "Praderas Costeras",     pt = "Prados Costeiros",      fr = "Prairies Côtières" },
+	[2] = { ru = "Пустынный Каньон",      en = "Desert Canyon",       tr = "Çöl Kanyonu",           es = "Cañón del Desierto",    pt = "Cânion do Deserto",     fr = "Canyon du Désert" },
+	[3] = { ru = "Ледяной Перевал",       en = "Ice Pass",            tr = "Buz Geçidi",            es = "Paso de Hielo",         pt = "Passo de Gelo",         fr = "Col de Glace" },
+	[4] = { ru = "Вулканические Бастионы",en = "Volcano Bastions",    tr = "Volkanik Tabyalar",     es = "Bastiones Volcánicos",  pt = "Bastiões Vulcânicos",   fr = "Bastions Volcaniques" },
+}
+
+function M.get_sector_name(sector_or_id, lang)
+	lang = lang or "en"
+	local id = type(sector_or_id) == "table" and sector_or_id.id or tonumber(sector_or_id)
+	if id and SECTOR_NAMES[id] then
+		return SECTOR_NAMES[id][lang] or SECTOR_NAMES[id].en or ("Sector " .. tostring(id))
+	end
+	if type(sector_or_id) == "table" then
+		return (lang == "ru" and sector_or_id.name_ru) or sector_or_id.name_en or sector_or_id.name or ("Sector " .. tostring(id or 0))
+	end
+	return "Sector " .. tostring(sector_or_id)
+end
+
+function M.get_region_name(region_id, lang)
+	lang = lang or "en"
+	local entry = REGION_NAMES[region_id]
+	if entry then
+		return entry[lang] or entry.en or ""
+	end
+	local r = M.REGIONS[region_id]
+	if r then
+		return (lang == "ru" and r.name_ru) or r.name_en or ""
+	end
+	return ""
+end
+
 -- Auto initialize
 M.load_from_profile()
 

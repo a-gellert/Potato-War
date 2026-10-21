@@ -83,12 +83,12 @@ nodes {
 }
 nodes {
   position {
-    x: 120.0
+    x: 50.0
     y: 505.0
   }
   size {
-    x: 130.0
-    y: 38.0
+    x: 100.0
+    y: 62.0
   }
   color {
     x: 0.12
@@ -107,25 +107,18 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.85
+  alpha: 0.9
 }
 nodes {
-  scale {
-    x: 0.55
-    y: 0.55
-  }
   size {
-    x: 120.0
-    y: 30.0
+    x: 64.0
+    y: 37.0
   }
-  type: TYPE_TEXT
-  text: "\320\257\320\227\320\253\320\232: RU"
-  font: "system_font"
-  id: "txt_lang"
+  type: TYPE_BOX
+  texture: "game/flagENG"
+  id: "img_flag"
   parent: "btn_lang"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
 }
 nodes {
   position {

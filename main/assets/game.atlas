@@ -157,4 +157,25 @@ images {
 images {
   image: "/main/assets/spore.png"
 }
+images {
+  image: "/main/assets/french_fries.png"
+}
+images {
+  image: "/main/assets/flags/flagENG.png"
+}
+images {
+  image: "/main/assets/flags/flagRUS.png"
+}
+images {
+  image: "/main/assets/flags/flagTUR.png"
+}
+images {
+  image: "/main/assets/flags/flagESP.png"
+}
+images {
+  image: "/main/assets/flags/flagPOR.jpg"
+}
+images {
+  image: "/main/assets/flags/flagFRA.png"
+}
 extrude_borders: 2

@@ -9,70 +9,60 @@ local sound_manager = require("lua_modules.sound_manager")
 local level_config = require("lua_modules.level_config")
 local inventory_manager = require("lua_modules.inventory_manager")
 local classes = require("lua_modules.classes")
+local sdk = require("main.sdk")
 
 local M = {}
 
 -- Campaign level definitions: delegated to level_config module
 M.CAMPAIGN_LEVELS = level_config.LEVELS
 
--- Poki SDK Safety Wrappers & State Tracking
+-- Playgama SDK Lifecycle & Ad Wrappers
 M.is_gameplay_active = false
 M.gameplay_started = false -- backwards-compatibility alias
 
-function M.poki_gameplay_start()
+function M.gameplay_start()
 	if M.is_gameplay_active then
 		return
 	end
 	M.is_gameplay_active = true
 	M.gameplay_started = true
-	constants.log(">>> POKI SDK: gameplayStart")
-	pcall(function()
-		if poki_sdk then poki_sdk.gameplay_start() end
-	end)
+	constants.log(">>> PLAYGAMA SDK: gameplayStart")
+	sdk.gameplay_start("world", M.campaign_level or 1)
 end
 
-function M.poki_gameplay_stop()
+function M.gameplay_stop()
 	if not M.is_gameplay_active then
 		return
 	end
 	M.is_gameplay_active = false
 	M.gameplay_started = false
-	constants.log(">>> POKI SDK: gameplayStop")
-	pcall(function()
-		if poki_sdk then poki_sdk.gameplay_stop() end
-	end)
+	constants.log(">>> PLAYGAMA SDK: gameplayStop")
+	sdk.gameplay_stop("world", M.campaign_level or 1)
 end
 
-function M.poki_commercial_break(callback)
-	constants.log(">>> POKI SDK: commercialBreak")
-	local called = false
-	local function done()
-		if not called then
-			called = true
-			if callback then callback() end
-		end
-	end
-	if poki_sdk and poki_sdk.commercial_break then
-		pcall(function()
-			poki_sdk.commercial_break(done)
-		end)
-	else
-		done()
-	end
+function M.commercial_break(callback, placement)
+	constants.log(">>> PLAYGAMA SDK: commercialBreak")
+	sdk.commercial_break(callback, placement or "interstitial")
 end
 
-function M.poki_rewarded_break(callback)
-	constants.log(">>> POKI SDK: rewardedBreak")
-	if poki_sdk and poki_sdk.rewarded_break then
-		pcall(function()
-			poki_sdk.rewarded_break(function(self, success)
-				if callback then callback(success) end
-			end)
-		end)
-	else
+function M.try_commercial_break(callback, placement)
+	sdk.try_commercial_break(callback, placement or "interstitial")
+end
+
+function M.rewarded_break(callback, placement)
+	constants.log(">>> PLAYGAMA SDK: rewardedBreak")
+	sdk.rewarded_break(function()
 		if callback then callback(true) end
-	end
+	end, function(earned)
+		if callback then callback(earned) end
+	end, placement or "rewarded")
 end
+
+-- Backward compatibility aliases for existing Poki calls
+M.poki_gameplay_start = M.gameplay_start
+M.poki_gameplay_stop = M.gameplay_stop
+M.poki_commercial_break = M.commercial_break
+M.poki_rewarded_break = M.rewarded_break
 
 -- Runtime state
 M.mode = constants.MODE_CAMPAIGN
@@ -83,6 +73,7 @@ M.active_team = constants.TEAM_BLUE
 M.turn_timer = constants.TURN_DURATION
 M.selected_weapon_id = weapons.TYPES.GRENADE
 M.wind_vector = vmath.vector3(0, 0, 0) -- Dynamic wind vector { x, y, 0 }
+M.time_scale = 1.0 -- Dynamic gameplay time scale (used by Bullet Time slow-mo)
 
 M.potatoes = {} -- list of all potato records { id, team, pos, vel, hp, max_hp, is_alive, is_grounded, url, class_id, statuses }
 M.team_turn_index = {
@@ -313,6 +304,7 @@ function M.start_match(mode, campaign_lvl)
 	M.winner_team = nil
 	M.settle_timer = 0
 	M.current_cards = nil
+	M.time_scale = 1.0
 	if (campaign_lvl or 1) == 1 then
 		M.tutorial_first_shot_done = false
 	end
@@ -366,7 +358,7 @@ function M.start_match(mode, campaign_lvl)
 
 	-- Ensure prior session stopped and reset gameplay flag for new match
 	if M.is_gameplay_active then
-		M.poki_gameplay_stop()
+		M.gameplay_stop()
 	end
 	M.is_gameplay_active = false
 	M.gameplay_started = false
@@ -403,6 +395,7 @@ function M.start_battle(lobby_config)
 	M.winner_team = nil
 	M.settle_timer = 0
 	M.current_cards = nil
+	M.time_scale = 1.0
 	M.match_config = lobby_config
 
 	-- Worms full arsenal for team battles!
@@ -424,7 +417,7 @@ function M.start_battle(lobby_config)
 
 	-- Ensure prior session stopped and reset gameplay flag for new battle
 	if M.is_gameplay_active then
-		M.poki_gameplay_stop()
+		M.gameplay_stop()
 	end
 	M.is_gameplay_active = false
 	M.gameplay_started = false
@@ -634,7 +627,7 @@ function M.next_turn()
 			M.winner_team = 0 -- Draw
 		end
 
-		M.poki_gameplay_stop()
+		M.gameplay_stop()
 		if M.on_game_over then
 			M.on_game_over(M.winner_team, points_earned, hp_healed, current_hp, next_hp)
 		end

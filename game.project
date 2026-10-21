@@ -18,10 +18,12 @@ scale_mode = stretch
 wasm_streaming = 1
 show_fullscreen_button = 0
 show_made_with_defold = 0
+htmlfile = /res/web/engine_template.html
 
 [project]
 title = Potato War
-dependencies#0 = https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip
+bundle_resources = /res
+dependencies#0 = https://github.com/Playgama/bridge-defold/archive/refs/tags/v2.3.0.zip
 dependencies#1 = https://github.com/Insality/druid/archive/master.zip
 dependencies#2 = https://github.com/britzl/defold-orthographic/archive/master.zip
 

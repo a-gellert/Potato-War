@@ -9,9 +9,17 @@ M.SKINS = {
 		name = "Без Шапки",
 		name_ru = "Без Шапки",
 		name_en = "Classic Spud",
+		name_tr = "Şapkasız Patates",
+		name_es = "Papa Clásica",
+		name_pt = "Batata Clássica",
+		name_fr = "Patate Classique",
 		desc = "Классический бравый боец без головного убора",
 		desc_ru = "Классический бравый боец без головного убора",
 		desc_en = "Classic brave spud without headwear",
+		desc_tr = "Şapkasız cesur klasik savaşçı",
+		desc_es = "Papa valiente clásica sin sombrero",
+		desc_pt = "Batata corajosa clássica sem chapéu",
+		desc_fr = "Brave patate classique sans couvre-chef",
 		price = 0,
 		hat = "none",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -21,9 +29,17 @@ M.SKINS = {
 		name = "Кепка Бойца",
 		name_ru = "Кепка Бойца",
 		name_en = "Fighter Cap",
+		name_tr = "Savaşçı Şapkası",
+		name_es = "Gorra de Luchador",
+		name_pt = "Boné de Lutador",
+		name_fr = "Casquette de Combattant",
 		desc = "Спортивная синяя бейсболка с козырьком",
 		desc_ru = "Спортивная синяя бейсболка с козырьком",
 		desc_en = "Sporty blue baseball cap with visor",
+		desc_tr = "Siperlikli sportif mavi beyzbol şapkası",
+		desc_es = "Gorra deportiva azul con visera",
+		desc_pt = "Boné esportivo azul com aba",
+		desc_fr = "Casquette de baseball bleue sportive avec visière",
 		price = 100,
 		hat = "hat_cap",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -33,9 +49,17 @@ M.SKINS = {
 		name = "Бандана Ниндзя",
 		name_ru = "Бандана Ниндзя",
 		name_en = "Ninja Bandana",
+		name_tr = "Ninja Bandanası",
+		name_es = "Pañuelo Ninja",
+		name_pt = "Bandana Ninja",
+		name_fr = "Bandana Ninja",
 		desc = "Боевая красная повязка скрытного диверсанта",
 		desc_ru = "Боевая красная повязка скрытного диверсанта",
 		desc_en = "Battle red headband of a stealth commando",
+		desc_tr = "Gizli komandonun kırmızı kafa bandı",
+		desc_es = "Cinta roja de combate de comando sigiloso",
+		desc_pt = "Faixa vermelha de combate de comando furtivo",
+		desc_fr = "Bandeau rouge de combat de commando furtif",
 		price = 250,
 		hat = "hat_bandana",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -45,9 +69,17 @@ M.SKINS = {
 		name = "Берет Десанта",
 		name_ru = "Берет Десанта",
 		name_en = "Elite Beret",
+		name_tr = "Seçkin Bere",
+		name_es = "Boina de Élite",
+		name_pt = "Boina de Elite",
+		name_fr = "Béret d'Élite",
 		desc = "Тактический бордовый берет ветерана",
 		desc_ru = "Тактический бордовый берет ветерана",
 		desc_en = "Tactical maroon beret with golden insignia",
+		desc_tr = "Altın armalı taktik bordo bere",
+		desc_es = "Boina táctica granate con insignia dorada",
+		desc_pt = "Boina tática bordô com insígnia dourada",
+		desc_fr = "Béret bordeaux tactique avec insigne doré",
 		price = 400,
 		hat = "hat_beret",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -57,9 +89,17 @@ M.SKINS = {
 		name = "Цилиндр Джентльмена",
 		name_ru = "Цилиндр Джентльмена",
 		name_en = "Top Hat",
+		name_tr = "Silindir Şapka",
+		name_es = "Sombrero de Copa",
+		name_pt = "Cartola",
+		name_fr = "Haut-de-Forme",
 		desc = "Изысканный черный цилиндр с шелковой лентой",
 		desc_ru = "Изысканный черный цилиндр с шелковой лентой",
 		desc_en = "Refined gentleman top hat with silk ribbon",
+		desc_tr = "İpek kurdeleli şık silindir şapka",
+		desc_es = "Elegante sombrero de copa con cinta de seda",
+		desc_pt = "Cartola refinada com fita de seda",
+		desc_fr = "Haut-de-forme raffiné avec ruban de soie",
 		price = 600,
 		hat = "hat_tophat",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -69,9 +109,17 @@ M.SKINS = {
 		name = "Шлем Викинга",
 		name_ru = "Шлем Викинга",
 		name_en = "Viking Helmet",
+		name_tr = "Viking Miğferi",
+		name_es = "Casco Vikingo",
+		name_pt = "Capacete Viking",
+		name_fr = "Casque Viking",
 		desc = "Стальной боевой шлем с могучими рогами",
 		desc_ru = "Стальной боевой шлем с могучими рогами",
 		desc_en = "Iron battle dome flanked by fierce horns",
+		desc_tr = "Görkemli boynuzlu çelik savaş miğferi",
+		desc_es = "Casco de hierro de combate con cuernos imponentes",
+		desc_pt = "Capacete de ferro de batalha com chifres imponentes",
+		desc_fr = "Casque de combat en fer orné de cornes",
 		price = 900,
 		hat = "hat_viking",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -81,9 +129,17 @@ M.SKINS = {
 		name = "Корона Короля",
 		name_ru = "Корона Короля",
 		name_en = "Royal Crown",
+		name_tr = "Kral Tacı",
+		name_es = "Corona Real",
+		name_pt = "Coroa Real",
+		name_fr = "Couronne Royale",
 		desc = "Золотая корона правителя картофельных полей",
 		desc_ru = "Золотая корона правителя картофельных полей",
 		desc_en = "Golden monarch crown adorned with rubies",
+		desc_tr = "Yakutlarla süslü altın hükümdar tacı",
+		desc_es = "Corona dorada de monarca adornada con rubíes",
+		desc_pt = "Coroa dourada de monarca adornada com rubis",
+		desc_fr = "Couronne royale dorée ornée de rubis",
 		price = 1200,
 		hat = "hat_crown",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
@@ -102,22 +158,16 @@ M.HATS_BY_ID = M.SKINS_BY_ID
 function M.get_skin_name(skin, lang)
 	if not skin then return "" end
 	lang = lang or "en"
-	if lang == "ru" then
-		return skin.name_ru or skin.name or ""
-	else
-		return skin.name_en or skin.name or ""
-	end
+	local key = "name_" .. lang
+	return skin[key] or skin.name_en or skin.name or ""
 end
 M.get_hat_name = M.get_skin_name
 
 function M.get_skin_desc(skin, lang)
 	if not skin then return "" end
 	lang = lang or "en"
-	if lang == "ru" then
-		return skin.desc_ru or skin.desc or ""
-	else
-		return skin.desc_en or skin.desc or ""
-	end
+	local key = "desc_" .. lang
+	return skin[key] or skin.desc_en or skin.desc or ""
 end
 M.get_hat_desc = M.get_skin_desc
 
@@ -159,40 +209,39 @@ local function get_save_path()
 	return nil
 end
 
-function M.load()
+function M.apply_profile_data(loaded)
+	if not loaded or type(loaded) ~= "table" then return end
+	if loaded.language then M.data.language = loaded.language end
+	M.data.points = loaded.points or M.data.points or 0
+	M.data.stars = loaded.stars or M.data.stars or 0
+	if loaded.squad and type(loaded.squad) == "table" and #loaded.squad >= 2 then
+		M.data.squad = loaded.squad
+	end
+	if loaded.unlocked_skins and type(loaded.unlocked_skins) == "table" then
+		M.data.unlocked_skins = loaded.unlocked_skins
+	end
+	if loaded.equipped_skin then
+		M.data.equipped_skin = loaded.equipped_skin
+	end
+	if loaded.campaign_hp then M.data.campaign_hp = loaded.campaign_hp end
+	if loaded.campaign_max_hp then M.data.campaign_max_hp = loaded.campaign_max_hp end
+	if loaded.meta_upgrades and type(loaded.meta_upgrades) == "table" then
+		M.data.meta_upgrades = loaded.meta_upgrades
+	end
+	if loaded.campaign_map ~= nil then M.data.campaign_map = loaded.campaign_map end
+	if loaded.campaign_turn then M.data.campaign_turn = loaded.campaign_turn end
+	if loaded.tutorial_completed ~= nil then M.data.tutorial_completed = (loaded.tutorial_completed == true) end
+	if loaded.onboarding_stage ~= nil then M.data.onboarding_stage = loaded.onboarding_stage end
+	if loaded.campaign_stats and type(loaded.campaign_stats) == "table" then
+		M.data.campaign_stats = loaded.campaign_stats
+	end
+end
+
+function M.load(callback)
 	local path = get_save_path()
 	local loaded = (path and sys and sys.load) and sys.load(path) or nil
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
-		M.data.language = loaded.language
-		M.data.points = loaded.points or 0
-		M.data.stars = loaded.stars or 0
-		M.data.squad = loaded.squad or {
-			{ id = 1, class_id = "recruit" },
-			{ id = 2, class_id = "recruit" },
-		}
-		-- Ensure squad has at least 2 members
-		if #M.data.squad < 2 then
-			M.data.squad = {
-				{ id = 1, class_id = "recruit" },
-				{ id = 2, class_id = "recruit" },
-			}
-		end
-		M.data.unlocked_skins = loaded.unlocked_skins or { ["classic"] = true }
-		M.data.equipped_skin = loaded.equipped_skin or "classic"
-		M.data.campaign_hp = loaded.campaign_hp or 100
-		M.data.campaign_max_hp = loaded.campaign_max_hp or 100
-		M.data.meta_upgrades = loaded.meta_upgrades or { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
-		M.data.campaign_map = loaded.campaign_map
-		M.data.campaign_turn = loaded.campaign_turn or 1
-		M.data.tutorial_completed = (loaded.tutorial_completed == true)
-		M.data.onboarding_stage = loaded.onboarding_stage or (loaded.tutorial_completed and 2 or 0)
-		M.data.campaign_stats = loaded.campaign_stats or {
-			battles_won = 0,
-			battles_lost = 0,
-			sectors_conquered = 0,
-			sectors_lost = 0,
-			counterattacks_repelled = 0,
-		}
+		M.apply_profile_data(loaded)
 	else
 		M.data.language = nil
 		M.data.points = 0
@@ -218,6 +267,55 @@ function M.load()
 			counterattacks_repelled = 0,
 		}
 	end
+
+	-- Async cloud load from Playgama Bridge Storage
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if sdk_ok and sdk and sdk.storage_get then
+		sdk.storage_get({ "player_profile" }, function(err, cloud_data)
+			local cd = nil
+			if type(cloud_data) == "table" then
+				if cloud_data.player_profile ~= nil then
+					cd = cloud_data.player_profile
+				elseif cloud_data[1] ~= nil then
+					cd = cloud_data[1]
+					if type(cd) == "table" and cd.player_profile ~= nil then
+						cd = cd.player_profile
+					end
+				end
+			elseif type(cloud_data) == "string" then
+				cd = cloud_data
+			end
+
+			-- Parse JSON if serialized
+			if type(cd) == "string" and cd ~= "" then
+				local json_ok, decoded = pcall(json.decode, cd)
+				if json_ok and type(decoded) == "table" then
+					cd = decoded
+				else
+					cd = nil
+				end
+			end
+
+			if type(cd) == "table" and cd.unlocked_skins then
+				local cloud_pts = tonumber(cd.points) or 0
+				local local_pts = tonumber(M.data.points) or 0
+				local cloud_stars = tonumber(cd.stars) or 0
+				local local_stars = tonumber(M.data.stars) or 0
+
+				if (cloud_pts + cloud_stars * 10) >= (local_pts + local_stars * 10) or not loaded then
+					M.apply_profile_data(cd)
+					local p = get_save_path()
+					if p and sys and sys.save then sys.save(p, M.data) end
+				else
+					M.save()
+				end
+			end
+			if callback then callback() end
+		end)
+	elseif callback then
+		callback()
+	end
+
 	return M.data
 end
 
@@ -226,6 +324,12 @@ function M.save()
 	if path and sys and sys.save then
 		sys.save(path, M.data)
 	end
+
+	-- Cloud save via Playgama Bridge Storage
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if sdk_ok and sdk and sdk.storage_set then
+		sdk.storage_set({ player_profile = M.data })
+	end
 end
 
 function M.get_language()
@@ -233,7 +337,8 @@ function M.get_language()
 end
 
 function M.set_language(lang)
-	if lang == "ru" or lang == "en" then
+	local supported = { en = true, ru = true, tr = true, es = true, pt = true, fr = true }
+	if supported[lang] then
 		M.data.language = lang
 		M.save()
 	end

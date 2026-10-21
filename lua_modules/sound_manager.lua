@@ -85,4 +85,31 @@ function M.play_fortify()
 	end)
 end
 
+-- Sound effect: Rubber spud bounce & squash "плюх" / "боинг"
+function M.play_plop(gain_mult)
+	pcall(function()
+		local g = (gain_mult or 1.0) * 0.95
+		local spd = 1.6 + (math.random() - 0.5) * 0.3
+		sound.play("/main#sound_heal", { gain = g, speed = spd })
+		timer.delay(0.04, false, function()
+			sound.play("/main#sound_click", { gain = g * 0.7, speed = spd * 1.3 })
+		end)
+	end)
+end
+
+-- Sound effect: Whistle & deep fryer sizzle when falling into the fryer oil
+function M.play_fry_whistle()
+	pcall(function()
+		-- Ascending cartoon whistle tone
+		sound.play("/main#sound_heal", { gain = 0.9, speed = 1.4 })
+		timer.delay(0.12, false, function()
+			sound.play("/main#sound_heal", { gain = 1.0, speed = 2.0 })
+		end)
+		timer.delay(0.24, false, function()
+			sound.play("/main#sound_shot", { gain = 0.8, speed = 2.4 })
+			sound.play("/main#sound_explosion", { gain = 0.7, speed = 2.2 })
+		end)
+	end)
+end
+
 return M

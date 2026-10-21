@@ -10,55 +10,43 @@ M.DEFINITIONS = {
 	one_shot = {
 		id = "one_shot",
 		icon = "🎯",
-		title_ru = "СНАЙПЕР!",
-		title_en = "ONE SHOT!",
-		desc_ru = "Уничтожил врага за один выстрел!",
-		desc_en = "Killed enemy in one shot!",
+		title = { ru = "СНАЙПЕР!", en = "ONE SHOT!", tr = "KESKİN NİŞANCI!", es = "¡UN DISPARO!", pt = "UM TIRO!", fr = "UN COUP !" },
+		desc = { ru = "Уничтожил врага за один выстрел!", en = "Killed enemy in one shot!", tr = "Düşmanı tek atışta vurdu!", es = "¡Eliminó al enemigo de un tiro!", pt = "Eliminou o inimigo com um tiro!", fr = "Ennemi éliminé en un coup !" },
 		points = 50,
 	},
 	water_kill = {
 		id = "water_kill",
 		icon = "🌊",
-		title_ru = "В ВОДУ!",
-		title_en = "WATER KILL!",
-		desc_ru = "Сбросил вражескую картошку в воду!",
-		desc_en = "Sent enemy potato to watery grave!",
+		title = { ru = "В ВОДУ!", en = "WATER KILL!", tr = "SUYA!", es = "¡AL AGUA!", pt = "NA ÁGUA!", fr = "À L'EAU !" },
+		desc = { ru = "Сбросил вражескую картошку в воду!", en = "Sent enemy potato to watery grave!", tr = "Düşman patatesi suya attı!", es = "¡Tiró la papa enemiga al agua!", pt = "Jogou a batata inimiga na água!", fr = "Patate ennemie jetée à l'eau !" },
 		points = 50,
 	},
 	long_shot = {
 		id = "long_shot",
 		icon = "🏹",
-		title_ru = "ДАЛЬНИЙ ПРИЦЕЛ!",
-		title_en = "LONG SHOT!",
-		desc_ru = "Попадание с огромной дистанции!",
-		desc_en = "Direct hit from across the map!",
+		title = { ru = "ДАЛЬНИЙ ПРИЦЕЛ!", en = "LONG SHOT!", tr = "UZAK ATIŞ!", es = "¡TIRO LARGO!", pt = "TIRO LONGO!", fr = "TIR DE LOIN !" },
+		desc = { ru = "Попадание с огромной дистанции!", en = "Direct hit from across the map!", tr = "Çok uzak mesafeden isabet!", es = "¡Impacto desde larga distancia!", pt = "Acerto de longa distância!", fr = "Tir réussi à longue distance !" },
 		points = 40,
 	},
 	flawless = {
 		id = "flawless",
 		icon = "🛡️",
-		title_ru = "БЕЗ УРОНА!",
-		title_en = "FLAWLESS!",
-		desc_ru = "Победа без единой царапины!",
-		desc_en = "Won without taking any damage!",
+		title = { ru = "БЕЗ УРОНА!", en = "FLAWLESS!", tr = "KUSURSUZ!", es = "¡IMPECABLE!", pt = "PERFEITO!", fr = "SANS FAUTE !" },
+		desc = { ru = "Победа без единой царапины!", en = "Won without taking any damage!", tr = "Hiç hasar almadan zafer!", es = "¡Victoria sin sufrir daño!", pt = "Vitória sem sofrer dano!", fr = "Victoire sans subir de dégâts !" },
 		points = 100,
 	},
 	clutch = {
 		id = "clutch",
 		icon = "❤️",
-		title_ru = "НА ГРАНИ!",
-		title_en = "CLUTCH!",
-		desc_ru = "Победа с критическим здоровьем!",
-		desc_en = "Won with critical health remaining!",
+		title = { ru = "НА ГРАНИ!", en = "CLUTCH!", tr = "SON ANDA!", es = "¡AL LÍMITE!", pt = "NO LIMITE!", fr = "JUSTE À TEMPS !" },
+		desc = { ru = "Победа с критическим здоровьем!", en = "Won with critical health remaining!", tr = "Kritik canla kazanılan zafer!", es = "¡Victoria con salud crítica!", pt = "Vitória com vida crítica!", fr = "Victoire avec santé critique !" },
 		points = 100,
 	},
 	double_kill = {
 		id = "double_kill",
 		icon = "💥",
-		title_ru = "ДВОЙНОЙ УДАР!",
-		title_en = "DOUBLE KILL!",
-		desc_ru = "2 врага уничтожены одним выстрелом!",
-		desc_en = "2 enemies killed in a single shot!",
+		title = { ru = "ДВОЙНОЙ УДАР!", en = "DOUBLE KILL!", tr = "ÇİFTE VURUŞ!", es = "¡DOBLE IMPACTO!", pt = "GOLPE DUPLO!", fr = "DOUBLE ÉLIMINATION !" },
+		desc = { ru = "2 врага уничтожены одним выстрелом!", en = "2 enemies killed in a single shot!", tr = "Tek atışta 2 düşman yok edildi!", es = "¡2 enemigos eliminados de un tiro!", pt = "2 inimigos eliminados com um tiro!", fr = "2 ennemis éliminés en un tir !" },
 		points = 120,
 	},
 }
@@ -90,11 +78,14 @@ local function trigger_achievement(achieve_id)
 	if not def then return nil end
 
 	M.match_state.unlocked_ids[achieve_id] = true
+	local lang = i18n.current_lang or "en"
+	local title_str = (def.title and (def.title[lang] or def.title.en)) or def.title_en or achieve_id
+	local desc_str = (def.desc and (def.desc[lang] or def.desc.en)) or def.desc_en or ""
 	local entry = {
 		id = def.id,
 		icon = def.icon,
-		title = (i18n.current_lang == "ru") and def.title_ru or def.title_en,
-		desc = (i18n.current_lang == "ru") and def.desc_ru or def.desc_en,
+		title = title_str,
+		desc = desc_str,
 		points = def.points,
 	}
 	table.insert(M.match_state.unlocked_list, entry)

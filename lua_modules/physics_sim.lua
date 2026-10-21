@@ -90,24 +90,51 @@ function M.update_potato(p, dt, terrain, wind_vector)
 
 		-- Check landing on ground
 		if p.vel.y <= 0 and new_y <= (target_standing_y + 2.0) and p.pos.y >= (ground_y - 4.0) then
-			new_y = target_standing_y
-			p.vel.y = 0
-			p.vel.x = p.vel.x * 0.4
-			p.is_grounded = true
+			local impact_speed = math.abs(p.vel.y)
+			if impact_speed > 70.0 then
+				-- Rubbery Spud: high fall elastic rebound!
+				p.vel.y = impact_speed * 0.48
+				p.vel.x = p.vel.x * 0.75
+				new_y = target_standing_y + 2.0
+				p.is_grounded = false
+				p.pos.x = new_x
+				p.pos.y = new_y
+				return "bounce", impact_speed
+			else
+				new_y = target_standing_y
+				p.vel.y = 0
+				p.vel.x = p.vel.x * 0.4
+				p.is_grounded = true
+				p.pos.x = new_x
+				p.pos.y = new_y
+				return "land", impact_speed
+			end
 		else
 			-- Check side/head/ceiling collision with solid terrain while airborne
 			local hit, nx, ny = terrain.check_circle_collision(new_x, new_y, check_radius)
 			if hit then
 				local dot = p.vel.x * nx + p.vel.y * ny
 				if dot < 0 then
-					p.vel.x = (p.vel.x - dot * nx) * 0.4
-					p.vel.y = (p.vel.y - dot * ny) * 0.4
+					local impact_speed = math.abs(dot)
+					local restitution = 0.52
+					p.vel.x = (p.vel.x - (1.0 + restitution) * dot * nx) * 0.78
+					p.vel.y = (p.vel.y - (1.0 + restitution) * dot * ny) * 0.78
+					new_x = new_x + nx * 2.5
+					new_y = new_y + ny * 2.5
+					if impact_speed > 55.0 then
+						p.pos.x = new_x
+						p.pos.y = new_y
+						return "bounce", impact_speed
+					end
 				end
-				if ny > 0.55 and p.vel.y <= 0 then
+				if ny > 0.55 and p.vel.y <= 0 and math.abs(p.vel.y) <= 70.0 then
 					-- Landed on terrain shelf
 					p.is_grounded = true
 					p.vel.y = 0
 					new_y = target_standing_y
+					p.pos.x = new_x
+					p.pos.y = new_y
+					return "land", math.abs(p.vel.y)
 				elseif ny < -0.45 and p.vel.y > 0 then
 					-- Bonked head against ceiling or bridge underside!
 					p.vel.y = -math.abs(p.vel.y) * 0.5
