@@ -15,8 +15,16 @@ local M = {}
 -- Campaign level definitions: delegated to level_config module
 M.CAMPAIGN_LEVELS = level_config.LEVELS
 
--- Poki SDK Safety Wrappers
+-- Poki SDK Safety Wrappers & State Tracking
+M.is_gameplay_active = false
+M.gameplay_started = false -- backwards-compatibility alias
+
 function M.poki_gameplay_start()
+	if M.is_gameplay_active then
+		return
+	end
+	M.is_gameplay_active = true
+	M.gameplay_started = true
 	constants.log(">>> POKI SDK: gameplayStart")
 	pcall(function()
 		if poki_sdk then poki_sdk.gameplay_start() end
@@ -24,6 +32,11 @@ function M.poki_gameplay_start()
 end
 
 function M.poki_gameplay_stop()
+	if not M.is_gameplay_active then
+		return
+	end
+	M.is_gameplay_active = false
+	M.gameplay_started = false
 	constants.log(">>> POKI SDK: gameplayStop")
 	pcall(function()
 		if poki_sdk then poki_sdk.gameplay_stop() end
@@ -351,10 +364,12 @@ function M.start_match(mode, campaign_lvl)
 		}
 	end
 
-	-- For regular matches, notify Poki gameplay_start. For tutorial, defer until player's first input.
-	if M.mode ~= constants.MODE_TUTORIAL then
-		M.poki_gameplay_start()
+	-- Ensure prior session stopped and reset gameplay flag for new match
+	if M.is_gameplay_active then
+		M.poki_gameplay_stop()
 	end
+	M.is_gameplay_active = false
+	M.gameplay_started = false
 
 	-- Offer bonus card selection in campaign mode only for subsequent levels (level > 1)
 	-- Level 1 starts INSTANTLY with 0 friction into battle!
@@ -407,7 +422,12 @@ function M.start_battle(lobby_config)
 		garlic = 3,
 	}
 
-	M.poki_gameplay_start()
+	-- Ensure prior session stopped and reset gameplay flag for new battle
+	if M.is_gameplay_active then
+		M.poki_gameplay_stop()
+	end
+	M.is_gameplay_active = false
+	M.gameplay_started = false
 	M.set_state(constants.STATE_INTRO)
 end
 
@@ -508,6 +528,14 @@ local function begin_current_turn()
 	end
 
 	M.set_state(constants.STATE_TURN_ACTIVE)
+end
+
+-- Skip intro flyover/countdown and begin turn immediately
+function M.skip_intro()
+	if M.state == constants.STATE_INTRO then
+		M.settle_timer = 0
+		begin_current_turn()
+	end
 end
 
 -- Called when player selects one of the bonus cards at level start

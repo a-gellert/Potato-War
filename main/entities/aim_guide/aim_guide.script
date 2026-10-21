@@ -130,10 +130,7 @@ function on_input(self, action_id, action)
 			end
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
-			if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
-				game_state.gameplay_started = true
-				game_state.poki_gameplay_start()
-			end
+			game_state.poki_gameplay_start()
 
 		elseif self.dragging and not action.released then
 			local raw_dx = action.x - self.drag_start.x

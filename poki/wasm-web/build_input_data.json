@@ -1,10 +1,15 @@
 {
-  "bob_arguments" : {
-    "sha1" : "8620195789abcf164992cc82103a16189d22f675",
-    "version" : "1.13.2",
-    "timestamp" : "2026-10-04 07:50:26"
+  "project_git" : {
+    "sha1" : "ac3fe0453a163f19cc6a9fab4a28706a0c662e9c",
+    "origin" : "https://github.com/a-gellert/Potato-War.git",
+    "branch" : "main"
   },
-  "defold_sdk" : "8620195789abcf164992cc82103a16189d22f675",
+  "bob_arguments" : {
+    "sha1" : "a81dbb0478e8b73931dc2d671563204f6ac0ef82",
+    "version" : "1.14.0",
+    "timestamp" : "2026-10-12 11:39:45"
+  },
+  "defold_sdk" : "a81dbb0478e8b73931dc2d671563204f6ac0ef82",
   "dependencies" : [ {
     "url" : "https://github.com/defold/extension-poki-sdk/archive/refs/heads/main.zip",
     "commit-sha1" : "5ade633bbed5159f8180fbae9f2e542f1241e530",

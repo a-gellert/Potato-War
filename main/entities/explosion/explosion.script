@@ -1,5 +1,5 @@
 -- main/entities/explosion/explosion.script
--- Visual blast flash and drifting smoke particle animations
+-- Visual blast flash, billowing gunpowder smoke, and dynamic clods of earth
 
 local constants = require("lua_modules.constants")
 
@@ -15,71 +15,59 @@ function init(self)
 	go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(target_scale, target_scale, 1.0), go.EASING_OUTBACK, 0.28)
 	go.animate("#sprite", "tint", go.PLAYBACK_ONCE_FORWARD, vmath.vector4(1.3, 0.35, 0.15, 0.0), go.EASING_INQUAD, 0.38, 0.04)
 
-	-- Warm tinted drift smoke puffs
-	go.set("#smoke1", "tint", vmath.vector4(1.15, 0.92, 0.82, 0.9))
-	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1.5, 1.5, 1.0), go.EASING_OUTQUAD, 0.48)
-	go.animate("#smoke1", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48)
+	-- Dense smoky charcoal and gunpowder puffs (lingering & expanding outward)
+	go.set("#smoke1", "tint", vmath.vector4(0.24, 0.22, 0.21, 0.95))
+	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(2.5, 2.5, 1.0), go.EASING_OUTQUAD, 0.55)
+	go.animate("#smoke1", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.08)
 
-	go.set("#smoke2", "tint", vmath.vector4(1.05, 0.85, 0.95, 0.85))
-	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1.6, 1.6, 1.0), go.EASING_OUTQUAD, 0.48)
-	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48)
+	go.set("#smoke2", "tint", vmath.vector4(0.34, 0.31, 0.29, 0.90))
+	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(2.8, 2.8, 1.0), go.EASING_OUTQUAD, 0.58)
+	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.58, 0.08)
 
-	-- Flying dirt & glowing earth debris particles (8 dynamic chunks)
+	-- Flying clods of earth & rich soil debris (комья чернозема и глины)
 	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }
 	local dirt_colors = {
-		vmath.vector4(1.4, 0.95, 0.45, 1.0),
-		vmath.vector4(1.3, 0.65, 0.35, 1.0),
-		vmath.vector4(0.85, 1.35, 0.55, 1.0),
-		vmath.vector4(1.45, 0.75, 0.40, 1.0),
-		vmath.vector4(1.1, 0.85, 0.45, 1.0),
-		vmath.vector4(1.5, 0.55, 0.30, 1.0),
-		vmath.vector4(0.9, 1.15, 0.45, 1.0),
-		vmath.vector4(1.3, 0.80, 0.35, 1.0),
+		vmath.vector4(0.24, 0.18, 0.13, 1.0), -- Dark fertile chernozem
+		vmath.vector4(0.32, 0.23, 0.16, 1.0), -- Rich loam
+		vmath.vector4(0.18, 0.13, 0.09, 1.0), -- Heavy black earth
+		vmath.vector4(0.38, 0.27, 0.19, 1.0), -- Clay chunk
+		vmath.vector4(0.26, 0.19, 0.14, 1.0),
+		vmath.vector4(0.34, 0.24, 0.17, 1.0),
+		vmath.vector4(0.19, 0.14, 0.10, 1.0),
+		vmath.vector4(0.36, 0.25, 0.18, 1.0),
 	}
 	for i, d_id in ipairs(dirt_ids) do
-		local angle = math.rad((i - 1) * 45 + math.random(-18, 18))
-		local dist = self.radius * (1.1 + math.random() * 0.95)
-		local target_x = math.cos(angle) * dist
-		local target_y = math.sin(angle) * dist + math.random(15, 38)
 		pcall(function()
 			go.set(d_id, "tint", dirt_colors[i])
-			go.set(d_id, "scale", vmath.vector3(1.2 + math.random() * 0.6, 1.2 + math.random() * 0.6, 1.0))
-			go.animate(d_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTQUAD, 0.48)
-			go.animate(d_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y - 35, go.EASING_INQUAD, 0.48)
-			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.48)
-			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48, 0.12)
+			go.set(d_id, "scale", vmath.vector3(1.6 + math.random() * 0.8, 1.6 + math.random() * 0.8, 1.0))
+			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.55)
+			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.15)
 		end)
 	end
 
-	-- High-speed neon-gold & fiery sparks (8 radiating sparks)
+	-- High-speed hot burning ember sparks (8 radiating sparks)
 	local spark_ids = { "#spark1", "#spark2", "#spark3", "#spark4", "#spark5", "#spark6", "#spark7", "#spark8" }
 	local spark_colors = {
-		vmath.vector4(1.8, 1.5, 0.4, 1.0),
-		vmath.vector4(1.8, 0.70, 0.2, 1.0),
-		vmath.vector4(1.6, 0.40, 0.85, 1.0),
-		vmath.vector4(0.5, 1.6, 1.4, 1.0),
 		vmath.vector4(1.9, 1.3, 0.3, 1.0),
-		vmath.vector4(1.9, 0.50, 0.2, 1.0),
-		vmath.vector4(1.0, 1.8, 0.5, 1.0),
-		vmath.vector4(0.4, 1.4, 1.8, 1.0),
+		vmath.vector4(2.0, 0.60, 0.15, 1.0),
+		vmath.vector4(1.8, 0.85, 0.25, 1.0),
+		vmath.vector4(1.9, 1.1, 0.35, 1.0),
+		vmath.vector4(2.0, 0.50, 0.18, 1.0),
+		vmath.vector4(1.8, 0.90, 0.28, 1.0),
+		vmath.vector4(1.9, 0.70, 0.20, 1.0),
+		vmath.vector4(2.0, 1.2, 0.40, 1.0),
 	}
 	for i, s_id in ipairs(spark_ids) do
-		local angle = math.rad((i - 1) * 45 + 22.5 + math.random(-15, 15))
-		local dist = self.radius * (1.6 + math.random() * 1.2)
-		local target_x = math.cos(angle) * dist
-		local target_y = math.sin(angle) * dist + math.random(18, 48)
 		pcall(function()
 			go.set(s_id, "tint", spark_colors[i])
-			go.set(s_id, "scale", vmath.vector3(1.6, 1.6, 1.0))
-			go.animate(s_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTEXPO, 0.42)
-			go.animate(s_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y, go.EASING_OUTQUAD, 0.42)
-			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.05, 0.05, 1.0), go.EASING_INQUAD, 0.42)
-			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.42)
+			go.set(s_id, "scale", vmath.vector3(1.8, 1.8, 1.0))
+			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.1, 0.1, 1.0), go.EASING_INQUAD, 0.45)
+			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45)
 		end)
 	end
 
 	-- Delete object after all animations settle
-	timer.delay(0.50, false, function()
+	timer.delay(0.60, false, function()
 		go.delete()
 	end)
 end

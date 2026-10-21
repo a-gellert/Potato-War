@@ -206,9 +206,6 @@ local function start_game_match(self, mode, level, lobby_config)
 	end
 
 	local is_tutorial = (mode == constants.MODE_TUTORIAL) or (game_state.mode == constants.MODE_TUTORIAL)
-	if is_tutorial then
-		game_state.gameplay_started = false
-	end
 
 	local config = game_state.get_current_config()
 	local terrain_preset = config.terrain_type or config.terrain_preset or "hills"
@@ -1286,17 +1283,19 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+	-- Skip flyover on any press
 	if self.intro_flyover and (action.pressed or (action_id == hash("touch") and action.pressed)) then
 		self.intro_flyover = false
 		if game_state.active_potato and game_state.active_potato.is_alive then
 			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
 		end
 		camera_controller.set_zoom(1.0)
+		game_state.skip_intro()
 	end
 
-	if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
+	-- Trigger poki gameplay_start ONLY on player's first active gameplay input
+	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 		if action.pressed or (action_id == hash("touch") and action.pressed) then
-			game_state.gameplay_started = true
 			game_state.poki_gameplay_start()
 		end
 	end
@@ -1379,6 +1378,7 @@ function on_message(self, message_id, message, sender)
 		game_state.select_card(message.card_index)
 
 	elseif message_id == hash("show_menu") then
+		game_state.poki_gameplay_stop()
 		self.victory_celebration = false
 		self.pending_game_over_data = nil
 		clear_match_entities(self)
@@ -1396,6 +1396,7 @@ function on_message(self, message_id, message, sender)
 		game_state.set_state(constants.STATE_MENU)
 
 	elseif message_id == hash("show_campaign_map") then
+		game_state.poki_gameplay_stop()
 		self.victory_celebration = false
 		self.pending_game_over_data = nil
 		clear_match_entities(self)
@@ -1414,24 +1415,21 @@ function on_message(self, message_id, message, sender)
 		game_state.set_state(constants.STATE_MENU)
 
 	elseif message_id == hash("player_move_state") then
-		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
-			game_state.gameplay_started = true
+		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 			game_state.poki_gameplay_start()
 		end
 		self.touch_move_dir = message.dir or 0
 		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
 
 	elseif message_id == hash("player_move") then
-		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
-			game_state.gameplay_started = true
+		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 			game_state.poki_gameplay_start()
 		end
 		self.touch_move_dir = message.dir or 0
 		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
 
 	elseif message_id == hash("player_jump") then
-		if game_state.mode == constants.MODE_TUTORIAL and not game_state.gameplay_started then
-			game_state.gameplay_started = true
+		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
 			game_state.poki_gameplay_start()
 		end
 		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then

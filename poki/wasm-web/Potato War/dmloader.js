@@ -248,7 +248,7 @@ var FileLoader = {
 var EngineLoader = {
     arc_sha1: "",
     wasm_sha1: "",
-    wasm_size: 2928991,
+    wasm_size: 2906215,
     wasmjs_sha1: "",
     wasmjs_size: 290928,
     wasm_pthread_sha1: "",
@@ -997,8 +997,8 @@ var Progress = {
 /* ********************************************************************* */
 
 var Module = {
-    engineVersion: "1.13.2",
-    engineSdkSha1: "8620195789abcf164992cc82103a16189d22f675",
+    engineVersion: "1.14.0",
+    engineSdkSha1: "a81dbb0478e8b73931dc2d671563204f6ac0ef82",
     noInitialRun: true,
 
     _filesToPreload: [],
@@ -1077,20 +1077,40 @@ var Module = {
         return { stack:stack, message:message };
     },
 
-    hasWebGPUSupport: function() {
-        var webgpu_support = false;
+    probeWebGPUSupport: function(callback) {
+        Module._webgpuAdapterAvailable = false;
+        var can_probe_adapter = false;
+
         try {
-            var canvas = document.createElement("canvas");
-            var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof GPUCanvasContext) {
-                webgpu_support = true;
+            if (typeof navigator !== "undefined" && navigator.gpu && typeof navigator.gpu.requestAdapter === "function") {
+                var canvas = document.createElement("canvas");
+                can_probe_adapter = !!canvas.getContext("webgpu");
             }
         } catch (error) {
             console.log("An error occurred while detecting WebGPU support: " + error);
-            webgpu_support = false;
         }
 
-        return webgpu_support;
+        if (!can_probe_adapter) {
+            callback();
+            return;
+        }
+
+        try {
+            navigator.gpu.requestAdapter().then(function(adapter) {
+                Module._webgpuAdapterAvailable = adapter !== null && typeof adapter !== "undefined";
+                callback();
+            }, function(error) {
+                console.log("An error occurred while detecting WebGPU support: " + error);
+                callback();
+            });
+        } catch (error) {
+            console.log("An error occurred while detecting WebGPU support: " + error);
+            callback();
+        }
+    },
+
+    hasWebGPUSupport: function() {
+        return Module._webgpuAdapterAvailable === true;
     },
 
     hasWebGLSupport: function() {
@@ -1126,7 +1146,6 @@ var Module = {
             var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
             Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
         });
-        Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
         Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
@@ -1137,35 +1156,43 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
-            Module.canvas.focus();
+        // Adapter selection in the engine is synchronous, while WebGPU's only
+        // reliable availability check is requestAdapter(). Resolve it before
+        // starting Wasm so WebGPUIsSupported() can use the cached result.
+        Module.probeWebGPUSupport(function() {
+            if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
+                // Do not let archive or persistent-storage callbacks start the
+                // engine until the asynchronous WebGPU probe has completed.
+                Module._isEngineLoaded = true;
+                Module.canvas.focus();
 
-            Module.canvas.addEventListener("webglcontextlost", function(event) {
-                event.preventDefault();
-                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
-            }, false);
-            Module.canvas.addEventListener("webglcontextrestored", function(event) {
-                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
-            }, false);
-            // Add context menu hide-handler if requested
-            if (CUSTOM_PARAMETERS["disable_context_menu"])
-            {
-                Module.canvas.oncontextmenu = function(e) {
-                    e.preventDefault();
+                Module.canvas.addEventListener("webglcontextlost", function(event) {
+                    event.preventDefault();
+                    dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
+                }, false);
+                Module.canvas.addEventListener("webglcontextrestored", function(event) {
+                    dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
+                }, false);
+                // Add context menu hide-handler if requested
+                if (CUSTOM_PARAMETERS["disable_context_menu"])
+                {
+                    Module.canvas.oncontextmenu = function(e) {
+                        e.preventDefault();
+                    };
+                }
+                Module._preloadAndCallMain();
+            } else {
+                // "Unable to start game, WebGL not supported"
+                ProgressUpdater.complete();
+                Module.setStatus = function(text) {
+                    if (text) Module.printErr('[missing WebGL] ' + text);
                 };
-            }
-            Module._preloadAndCallMain();
-        } else {
-            // "Unable to start game, WebGL not supported"
-            ProgressUpdater.complete();
-            Module.setStatus = function(text) {
-                if (text) Module.printErr('[missing WebGL] ' + text);
-            };
 
-            if (typeof CUSTOM_PARAMETERS["unsupported_webgl_callback"] === "function") {
-                CUSTOM_PARAMETERS["unsupported_webgl_callback"]();
+                if (typeof CUSTOM_PARAMETERS["unsupported_webgl_callback"] === "function") {
+                    CUSTOM_PARAMETERS["unsupported_webgl_callback"]();
+                }
             }
-        }
+        });
     },
 
     onArchiveFileLoaded: function(file) {

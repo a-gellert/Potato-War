@@ -319,6 +319,17 @@ function init(self)
 	self.tutorial_hand_done = false
 	self.tutorial_hand_timer = 0
 	self.tap_hint_timer = 0
+	self.badge_timer = 0
+
+	-- Detect touch device vs desktop PC (hide screen AWD buttons on PC with mouse cursor)
+	local sys_info = sys.get_sys_info()
+	local sname = sys_info.system_name
+	self.is_touch_screen = (sname == "Android" or sname == "iPhone OS")
+	if html5 then
+		pcall(function()
+			self.is_touch_screen = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'") == "1"
+		end)
+	end
 
 	-- Hide tutorial elements initially
 	pcall(function()
@@ -339,8 +350,8 @@ function init(self)
 	end
 
 	-- Register continuous movement & jump hold buttons for touch controls
-	local active_btn_color = vmath.vector4(0.18, 0.72, 0.42, 1.0)
-	local normal_btn_color = vmath.vector4(0.22, 0.28, 0.35, 1.0)
+	local active_btn_color = vmath.vector4(0.78, 0.58, 0.22, 1.0) -- Warm tactical brass on hold
+	local normal_btn_color = vmath.vector4(0.20, 0.23, 0.26, 1.0) -- Graphite steel plate
 
 	self.left_hb = self.ui:hold_button("btn_left", {
 		slop = 14,
@@ -439,6 +450,9 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
+	if action_id == hash("touch_multi") then
+		self.is_touch_screen = true
+	end
 	-- Key Q / inventory hotkey
 	if action_id == hash("inventory") and action.pressed then
 		if game_state.mode ~= constants.MODE_CAMPAIGN then
@@ -486,6 +500,58 @@ function on_input(self, action_id, action)
 	end
 
 	return false
+end
+
+local function update_fighter_badges(self, dt)
+	self.badge_timer = (self.badge_timer or 0) + dt
+	local is_ru = (i18n.current_lang == "ru")
+
+	local p = game_state.active_potato
+	local mp = gui.get_node("marker_player_bg")
+	local me = gui.get_node("marker_enemy_bg")
+
+	local is_active_game = (game_state.state == constants.STATE_TURN_ACTIVE or game_state.state == constants.STATE_ACTION)
+
+	if not is_active_game or not p or not p.is_alive then
+		gui.set_enabled(mp, false)
+		gui.set_enabled(me, false)
+		return
+	end
+
+	local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
+	if sx < 20 or sx > 940 or sy < 20 or sy > 520 then
+		gui.set_enabled(mp, false)
+		gui.set_enabled(me, false)
+		return
+	end
+
+	local bounce_y = math.sin(self.badge_timer * 4.5) * 3.0
+	local arrow_pulse = 14 + math.sin(self.badge_timer * 6.0) * 2.5
+	local hp = p.hp or 100
+	local max_hp = p.max_hp or 100
+	local hp_pct = math.max(0.01, math.min(1.0, hp / max_hp))
+
+	if p.team == constants.TEAM_BLUE then
+		-- Active Player Fighter: neat plate + name + micro HP + Cyan pulse triangle
+		gui.set_enabled(mp, true)
+		gui.set_enabled(me, false)
+		gui.set_position(mp, vmath.vector3(sx, sy + 34 + bounce_y, 0))
+
+		local name_text = p.name or (is_ru and "ТЫ" or "YOU")
+		gui.set_text(gui.get_node("marker_player_text"), name_text)
+		gui.set_scale(gui.get_node("marker_player_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
+		gui.set_position(gui.get_node("marker_player_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
+	else
+		-- Active Enemy Fighter: neat plate + name + micro HP + Coral pulse triangle
+		gui.set_enabled(me, true)
+		gui.set_enabled(mp, false)
+		gui.set_position(me, vmath.vector3(sx, sy + 34 + bounce_y, 0))
+
+		local name_text = p.name or (is_ru and "ВРАГ" or "ENEMY")
+		gui.set_text(gui.get_node("marker_enemy_text"), name_text)
+		gui.set_scale(gui.get_node("marker_enemy_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
+		gui.set_position(gui.get_node("marker_enemy_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
+	end
 end
 
 function update(self, dt)
@@ -554,6 +620,7 @@ function update(self, dt)
 		update_wind_widget(self)
 		update_phase_widget(self)
 		update_squad_widget(self)
+		update_fighter_badges(self, dt)
 
 		-- Dynamic contextual tutorial hints (Step 1: Movement, Step 2: Jump, Step 3: Weapon, Step 4: Aim & Shoot)
 		local is_tutorial_mode = (game_state.mode == constants.MODE_TUTORIAL)
@@ -650,39 +717,7 @@ function update(self, dt)
 
 				local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
 
-				-- Render floating "YOU / ТЫ" marker above player
-				pcall(function()
-					local mp = gui.get_node("marker_player_bg")
-					local mp_txt = gui.get_node("marker_player_text")
-					local bounce_y = math.sin(self.tutorial_hand_timer * 4.0) * 4.0
-					if sx >= 20 and sx <= 940 and sy >= 20 and sy <= 520 then
-						gui.set_enabled(mp, true)
-						gui.set_position(mp, vmath.vector3(sx, sy + 38 + bounce_y, 0))
-						gui.set_text(mp_txt, is_ru and "ТЫ ⬇" or "YOU ⬇")
-					else
-						gui.set_enabled(mp, false)
-					end
-				end)
-
-				-- Render floating "ENEMY / ВРАГ" marker above enemy
-				pcall(function()
-					local me = gui.get_node("marker_enemy_bg")
-					local me_txt = gui.get_node("marker_enemy_text")
-					for _, ep in ipairs(game_state.potatoes) do
-						if ep.is_alive and ep.team ~= constants.TEAM_BLUE then
-							local esx, esy = camera_controller.world_to_screen(ep.pos.x, ep.pos.y)
-							local ebounce_y = math.sin(self.tutorial_hand_timer * 4.0 + 1.57) * 4.0
-							if esx >= 20 and esx <= 940 and esy >= 20 and esy <= 520 then
-								gui.set_enabled(me, true)
-								gui.set_position(me, vmath.vector3(esx, esy + 38 + ebounce_y, 0))
-								gui.set_text(me_txt, is_ru and "ВРАГ 🎯" or "ENEMY 🎯")
-							else
-								gui.set_enabled(me, false)
-							end
-							break
-						end
-					end
-				end)
+-- (Floating fighter badges are handled by update_fighter_badges)
 
 				local is_slingshot = (game_state.aim_control_mode == "slingshot")
 				local alpha = 0
@@ -784,7 +819,7 @@ function update(self, dt)
 				gui.set_enabled(wp_node, is_player_turn)
 			end
 
-			gui.set_enabled(tc_node, is_player_turn)
+			gui.set_enabled(tc_node, is_player_turn and self.is_touch_screen)
 			gui.set_enabled(inv_btn, (not is_campaign) and is_player_turn)
 		end)
 

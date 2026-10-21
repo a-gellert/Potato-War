@@ -108,7 +108,7 @@ repeat_interval = 0.2
 gamepads = /builtins/input/default.gamepadsc
 gamepad_deadzone = 0.2
 game_binding = /input/game.input_bindingc
-use_accelerometer = 1
+use_accelerometer = 0
 
 [sprite]
 max_count = 128
@@ -167,6 +167,7 @@ package = com.example.todo
 gcm_sender_id = 
 fcm_application_id = 
 manifest = /builtins/manifests/android/AndroidManifest.xml
+vkquality_database = /builtins/manifests/android/vkqualitydata.vkq
 iap_provider = GooglePlay
 input_method = HiddenInputField
 immersive_mode = 0
@@ -218,9 +219,6 @@ http_cache_enabled = 1
 include_dirs = 
 defold_min_version = 
 
-[script]
-shared_state = 1
-
 [label]
 max_count = 64
 subpixels = 1
@@ -270,4 +268,7 @@ input_key_down = key_down
 input_key_lshift = key_lshift
 input_key_lctrl = key_lctrl
 input_key_lsuper = key_lsuper
+
+[script]
+shared_state = 1
 
