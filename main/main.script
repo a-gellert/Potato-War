@@ -723,8 +723,12 @@ function update(self, dt)
 				weapon_id = pick_wpn
 			})
 			table.insert(self.spawned_crates, { url = crate_url })
+<<<<<<< Updated upstream
 
 			-- Airdrop crate spawned without toast banner (visual falling event replaces text)
+=======
+			sound_manager.play_airdrop_whistle()
+>>>>>>> Stashed changes
 		end
 	end
 

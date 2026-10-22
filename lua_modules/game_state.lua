@@ -500,10 +500,15 @@ local function begin_current_turn()
 	M.turn_timer = constants.TURN_DURATION
 
 	-- Dynamic Wind update for the new turn (0 to 30 m/s)
-	local wind_dir = (math.random() > 0.5) and 1 or -1
-	local wind_x = wind_dir * math.random(0, 30)
-	local wind_y = math.random(-3, 3)
-	M.wind_vector = vmath.vector3(wind_x, wind_y, 0)
+	if M.mode == constants.MODE_TUTORIAL then
+		M.wind = 0
+		M.wind_vector = vmath.vector3(0, 0, 0)
+	else
+		local wind_dir = (math.random() > 0.5) and 1 or -1
+		local wind_x = wind_dir * math.random(0, 30)
+		local wind_y = math.random(-3, 3)
+		M.wind_vector = vmath.vector3(wind_x, wind_y, 0)
+	end
 
 	-- Turn start triggers for active potato: skill cooldown and DoT / debuffs
 	if M.active_potato then
@@ -648,10 +653,13 @@ function M.next_turn()
 	end
 
 	-- Switch active team
-	M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
-	if M.mode == constants.MODE_TUTORIAL and M.active_team == constants.TEAM_BLUE then
+	if M.mode == constants.MODE_TUTORIAL then
+		-- In tutorial, player gets consecutive turns to shoot until the enemy target is eliminated!
+		M.active_team = constants.TEAM_BLUE
 		M.add_ammo("bazooka", 1) -- Replenish bazooka for player in tutorial!
 		M.select_weapon("bazooka")
+	else
+		M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
 	end
 	begin_current_turn()
 end

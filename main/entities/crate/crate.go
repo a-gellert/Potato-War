@@ -78,17 +78,26 @@ embedded_components {
   id: "parachute_sprite"
   type: "sprite"
   data: "tile_set: \"/main/assets/game.atlas\"\n"
-  "default_animation: \"circle\"\n"
+  "default_animation: \"parachute\"\n"
   "material: \"/builtins/materials/sprite.material\"\n"
   "blend_mode: BLEND_MODE_ALPHA\n"
   position {
     x: 0.0
+<<<<<<< Updated upstream
     y: 38.0
     z: 0.14
   }
   scale {
     x: 3.2
     y: 2.0
+=======
+    y: 44.0
+    z: 0.14
+  }
+  scale {
+    x: 1.15
+    y: 1.15
+>>>>>>> Stashed changes
     z: 1.0
   }
 }

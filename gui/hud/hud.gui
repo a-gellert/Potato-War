@@ -33,7 +33,12 @@ nodes {
     z: 4.0
     w: 4.0
   }
+<<<<<<< Updated upstream
   alpha: 0.0
+=======
+  alpha: 0.92
+  enabled: false
+>>>>>>> Stashed changes
 }
 nodes {
   scale {
@@ -56,20 +61,26 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+  enabled: false
 }
 nodes {
   position {
+<<<<<<< Updated upstream
     x: 540.0
     y: 514.0
+=======
+    x: 556.0
+    y: 508.0
+>>>>>>> Stashed changes
   }
   size {
-    x: 160.0
-    y: 40.0
+    x: 74.0
+    y: 30.0
   }
   color {
-    x: 0.1
-    y: 0.13
-    z: 0.17
+    x: 0.08
+    y: 0.11
+    z: 0.16
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -82,7 +93,11 @@ nodes {
     z: 4.0
     w: 4.0
   }
+<<<<<<< Updated upstream
   alpha: 0.0
+=======
+  alpha: 0.75
+>>>>>>> Stashed changes
 }
 nodes {
   position {
@@ -110,15 +125,19 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+  enabled: false
 }
 nodes {
+  position {
+    x: -16.0
+  }
   scale {
-    x: 0.7
-    y: 0.7
+    x: 0.65
+    y: 0.65
   }
   size {
-    x: 28.0
-    y: 28.0
+    x: 20.0
+    y: 20.0
   }
   color {
     x: 0.2
@@ -136,18 +155,22 @@ nodes {
 }
 nodes {
   position {
+<<<<<<< Updated upstream
     x: 14.0
+=======
+    x: 12.0
+>>>>>>> Stashed changes
   }
   scale {
     x: 0.45
     y: 0.45
   }
   size {
-    x: 80.0
-    y: 28.0
+    x: 40.0
+    y: 20.0
   }
   type: TYPE_TEXT
-  text: "18 \320\274/\321\201"
+  text: "18"
   font: "system_font"
   id: "wind_val"
   parent: "wind_panel"
@@ -183,6 +206,7 @@ nodes {
     w: 4.0
   }
   alpha: 0.96
+  enabled: false
 }
 nodes {
   position {
@@ -652,22 +676,23 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 514.0
+    y: 508.0
   }
   size {
-    x: 310.0
-    y: 40.0
+    x: 54.0
+    y: 54.0
   }
   color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
+    x: 0.18
+    y: 0.55
+    z: 0.90
   }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "game/circle"
   id: "banner_bg"
   yanchor: YANCHOR_TOP
   inherit_alpha: true
+<<<<<<< Updated upstream
   slice9 {
     x: 4.0
     y: 4.0
@@ -675,10 +700,13 @@ nodes {
     w: 4.0
   }
   alpha: 0.0
+=======
+  alpha: 0.95
+>>>>>>> Stashed changes
 }
 nodes {
   position {
-    x: -42.0
+    x: 0.0
   }
   scale {
     x: 0.4
@@ -697,22 +725,27 @@ nodes {
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+  enabled: false
 }
 nodes {
   position {
     x: 0.0
+<<<<<<< Updated upstream
+=======
+    y: 0.0
+>>>>>>> Stashed changes
   }
   size {
-    x: 55.0
-    y: 32.0
+    x: 44.0
+    y: 44.0
   }
   color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
+    x: 0.08
+    y: 0.10
+    z: 0.14
   }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "game/circle"
   id: "timer_bg"
   size {
     x: 44.0
@@ -721,27 +754,24 @@ nodes {
   texture: "game/circle"
   parent: "banner_bg"
   inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
+  alpha: 0.75
 }
 nodes {
   scale {
-    x: 0.9
-    y: 0.9
+    x: 0.85
+    y: 0.85
   }
   size {
     x: 40.0
     y: 26.0
   }
   color {
-    x: 0.8
+    x: 1.0
+    y: 1.0
+    z: 1.0
   }
   type: TYPE_TEXT
-  text: "15"
+  text: "25"
   font: "system_font"
   id: "timer_text"
   parent: "timer_bg"
@@ -770,6 +800,7 @@ nodes {
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   alpha: 0.9
+  enabled: false
 }
 nodes {
   position {
@@ -1407,20 +1438,25 @@ nodes {
 }
 nodes {
   position {
-    x: 900.0
-    y: 514.0
+    x: 928.0
+    y: 508.0
   }
   size {
+<<<<<<< Updated upstream
     x: 0.0
     y: 40.0
+=======
+    x: 38.0
+    y: 38.0
+>>>>>>> Stashed changes
   }
   color {
     x: 0.12
     y: 0.15
-    z: 0.18
+    z: 0.20
   }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "game/circle"
   id: "btn_pause"
   position {
     x: 934.0
@@ -1433,25 +1469,24 @@ nodes {
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
   alpha: 0.85
 }
 nodes {
   scale {
-    x: 0.4
-    y: 0.4
+    x: 0.6
+    y: 0.6
   }
   size {
-    x: 100.0
-    y: 30.0
+    x: 30.0
+    y: 24.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
   }
   type: TYPE_TEXT
-  text: "\320\234\320\225\320\235\320\256 [ESC]"
+  text: "II"
   font: "system_font"
   id: "txt_pause"
   text: "II"

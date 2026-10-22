@@ -140,4 +140,21 @@ function M.play_fry_whistle()
 	end)
 end
 
+-- Sound effect: Falling airdrop parachute whistle
+function M.play_airdrop_whistle()
+	pcall(function()
+		-- Descending airdrop falling whistle tone
+		sound.play("/main#sound_heal", { gain = 0.85, speed = 1.9 })
+		timer.delay(0.09, false, function()
+			sound.play("/main#sound_heal", { gain = 0.9, speed = 1.6 })
+		end)
+		timer.delay(0.18, false, function()
+			sound.play("/main#sound_heal", { gain = 0.95, speed = 1.3 })
+		end)
+		timer.delay(0.27, false, function()
+			sound.play("/main#sound_heal", { gain = 0.9, speed = 1.0 })
+		end)
+	end)
+end
+
 return M

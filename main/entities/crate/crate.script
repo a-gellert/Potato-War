@@ -31,6 +31,7 @@ function init(self)
 
 	-- Visual setup
 	if type_str == "medkit" then
+<<<<<<< Updated upstream
 		-- White medical crate with prominent RED CROSS
 		pcall(function()
 			go.set("#box_sprite", "tint", vmath.vector4(0.96, 0.96, 0.94, 1.0))
@@ -39,6 +40,14 @@ function init(self)
 			msg.post("#cross_v", "enable")
 			go.set("#cross_h", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
 			go.set("#cross_v", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
+=======
+		-- White medical supply crate with red cross
+		pcall(function()
+			go.set("#box_sprite", "tint", vmath.vector4(0.96, 0.96, 0.98, 1.0))
+			go.set("#icon_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
+			sprite.play_flipbook("#icon_sprite", hash("medkit_cross"))
+			go.set_scale(vmath.vector3(1.0, 1.0, 1.0), "#icon_sprite")
+>>>>>>> Stashed changes
 		end)
 	else
 		-- Gold weapon crate tint
@@ -55,6 +64,10 @@ function init(self)
 			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
 			go.set_scale(vmath.vector3(0.95, 0.95, 1.0), "#icon_sprite")
 		end)
+	end
+
+	if not self.is_grounded then
+		sound_manager.play_airdrop_whistle()
 	end
 end
 
@@ -79,7 +92,11 @@ local function collect_crate(self, potato)
 			msg.post(potato.url, "apply_heal", { amount = heal_amt })
 		end
 
+<<<<<<< Updated upstream
 		-- Floating green +X over potato (visual event, no text toast banner!)
+=======
+		-- Floating green heal indicator over potato
+>>>>>>> Stashed changes
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = potato.pos.x,
 			y = potato.pos.y,
@@ -92,14 +109,22 @@ local function collect_crate(self, potato)
 		local w_name = tostring(self.weapon_id)
 		local w = weapons.get(w_name)
 		local count = self.amount or 2
-		game_state.add_ammo(w.id, count)
+		game_state.add_ammo(w and w.id or w_name, count)
 
+<<<<<<< Updated upstream
 		-- Ammo pickup floating indicator
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = potato.pos.x,
 			y = potato.pos.y,
 			amount = count,
 			label = "+" .. count .. " " .. (w.name or w.id)
+=======
+		-- Floating weapon pickup indicator over potato
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = potato.pos.x,
+			y = potato.pos.y,
+			label = "+" .. count .. " " .. string.upper(w and (w.name or w.id) or "WEAPON")
+>>>>>>> Stashed changes
 		})
 	end
 
@@ -117,6 +142,7 @@ function update(self, dt)
 	if not self.is_grounded then
 		self.pos.y = self.pos.y - 75.0 * dt
 		self.pos.x = self.pos.x + math.sin(self.sway_time * 2.5) * 16.0 * dt
+		pcall(go.set, "#parachute_sprite", "euler.z", math.sin(self.sway_time * 2.5) * 7.0)
 
 		local gy = terrain_grid.get_smooth_ground_y(self.pos.x, 3.0)
 		if self.pos.y <= gy + 16.0 then

@@ -64,9 +64,12 @@ local function update_wind_widget(self)
 	pcall(function()
 		local val_node = gui.get_node("wind_val")
 		local arrow_node = gui.get_node("wind_arrow")
+<<<<<<< Updated upstream
 		local title_node = gui.get_node("wind_title")
 
 		gui.set_enabled(title_node, false)
+=======
+>>>>>>> Stashed changes
 
 		local spd = math.abs(cur_wind_x)
 		gui.set_text(val_node, tostring(spd))
@@ -75,7 +78,11 @@ local function update_wind_widget(self)
 			-- Wind blows to the right: arrow points right (rotation 0)
 			gui.set_enabled(arrow_node, true)
 			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 0))
+<<<<<<< Updated upstream
 			local scale_factor = 0.5 + 0.3 * (spd / 30.0)
+=======
+			local scale_factor = 0.5 + 0.3 * math.min(1.0, spd / 30.0)
+>>>>>>> Stashed changes
 			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
 			if spd > 20 then
 				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
@@ -88,7 +95,11 @@ local function update_wind_widget(self)
 			-- Wind blows to the left: arrow points left (rotation 180 deg)
 			gui.set_enabled(arrow_node, true)
 			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 180))
+<<<<<<< Updated upstream
 			local scale_factor = 0.5 + 0.3 * (spd / 30.0)
+=======
+			local scale_factor = 0.5 + 0.3 * math.min(1.0, spd / 30.0)
+>>>>>>> Stashed changes
 			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
 			if spd > 20 then
 				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
@@ -519,38 +530,40 @@ function update(self, dt)
 			gui.set_text(gui.get_node("txt_pause"), "II")
 		end)
 
-		-- 1. Update Timer
+		-- 1. Update Compact Round Timer & Active Team Color
 		local seconds_left = math.max(0, math.ceil(game_state.turn_timer))
-		local fraction = math.max(0, math.min(1.0, game_state.turn_timer / constants.TURN_DURATION))
 
-		if seconds_left ~= self.last_seconds or math.abs(fraction - (self.last_fraction or 0)) > 0.01 then
+		if seconds_left ~= self.last_seconds or game_state.active_team ~= self.last_team then
 			self.last_seconds = seconds_left
-			self.last_fraction = fraction
+			self.last_team = game_state.active_team
 
 			pcall(function()
 				local t_txt = gui.get_node("timer_text")
-				local t_fill = gui.get_node("timer_bar_fill")
-				local t_bg = gui.get_node("timer_bg")
+				local t_circle = gui.get_node("banner_bg")
 
 				gui.set_text(t_txt, tostring(seconds_left))
-				gui.set_scale(t_fill, vmath.vector3(fraction, 1.0, 1.0))
+
+				-- Blue team: vibrant tactical blue; Red team: vibrant red
+				local team_col = (game_state.active_team == constants.TEAM_BLUE)
+					and vmath.vector4(0.18, 0.55, 0.95, 0.95)
+					or vmath.vector4(0.95, 0.25, 0.20, 0.95)
 
 				if seconds_left <= 5 then
 					-- Pulsing Alert Red in final 5 seconds
-					gui.set_color(t_bg, vmath.vector4(0.85, 0.22, 0.22, 1.0))
-					gui.set_color(t_fill, vmath.vector4(0.95, 0.28, 0.24, 1.0))
+					if seconds_left % 2 == 1 then
+						gui.set_color(t_circle, vmath.vector4(1.0, 0.18, 0.15, 1.0))
+					else
+						gui.set_color(t_circle, team_col)
+					end
 					gui.set_color(t_txt, vmath.vector4(1.0, 0.95, 0.95, 1.0))
 				else
-					-- Military Dark Steel Plate with Rivets
-					gui.set_color(t_bg, vmath.vector4(0.12, 0.16, 0.22, 1.0))
-					-- Tactical Steel Gold / Amber Progress Bar (no toxic green!)
-					gui.set_color(t_fill, vmath.vector4(0.92, 0.72, 0.22, 1.0))
-					-- Crisp Gold / White Digits
-					gui.set_color(t_txt, vmath.vector4(1.0, 0.88, 0.35, 1.0))
+					gui.set_color(t_circle, team_col)
+					gui.set_color(t_txt, vmath.vector4(1.0, 1.0, 1.0, 1.0))
 				end
 			end)
 		end
 
+<<<<<<< Updated upstream
 		-- 2. Update Turn Banner & Tactical Widgets
 		local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
 		local cur_act_pot = game_state.active_potato and game_state.active_potato.id or nil
@@ -585,6 +598,10 @@ function update(self, dt)
 				end
 				gui.set_text(banner, base_text)
 			end)
+=======
+		if game_state.active_team ~= constants.TEAM_BLUE then
+			hide_tutorial_hint(self)
+>>>>>>> Stashed changes
 		end
 
 		update_wind_widget(self)

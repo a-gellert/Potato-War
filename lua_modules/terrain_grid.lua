@@ -857,17 +857,17 @@ function M.generate(preset_type, campaign_level, is_defense)
 		carve_worm_tunnel(math.floor(w * 0.75), math.floor(h * 0.32), 34, 2.8, 18, 0.4, seed + 202)
 		carve_worm_tunnel(math.floor(w * 0.50), math.floor(h * 0.20), 32, 0.0, 20, 0.3, seed + 303)
 
-	else -- "hills" (Classic Worms Green: Massive rolling peaks, high stone bridge arch, mushroom spire, and caves!)
-		local base_h = math.floor(h * 0.34)
+		local is_lvl_1 = (campaign_level == 1)
+		local base_h = is_lvl_1 and math.floor(h * 0.28) or math.floor(h * 0.34)
 		for gx = 0, w - 1 do
 			local nx = gx / w
 			local wx = warp_coord_1d(nx, seed, 0.08, 3.2)
 
-			local gentle_roll = math.sin(wx * 6.28 * 1.1 + seed * 0.05) * (h * 0.10)
-			local wave = math.cos(wx * 6.28 * 2.2 + seed * 0.1) * (h * 0.06)
-			local h1 = math.exp(-((wx - 0.25) * 5.0) ^ 2) * (h * 0.28) -- Left mountain peak
-			local h2 = math.exp(-((wx - 0.75) * 5.0) ^ 2) * (h * 0.30) -- Right mountain peak
-			local micro_noise = (fractal_noise(nx * 12.0, 3, seed + 15) - 0.5) * (h * 0.04)
+			local gentle_roll = math.sin(wx * 6.28 * 1.1 + seed * 0.05) * (is_lvl_1 and (h * 0.04) or (h * 0.10))
+			local wave = math.cos(wx * 6.28 * 2.2 + seed * 0.1) * (is_lvl_1 and (h * 0.02) or (h * 0.06))
+			local h1 = math.exp(-((wx - 0.25) * 5.0) ^ 2) * (is_lvl_1 and (h * 0.08) or (h * 0.28))
+			local h2 = math.exp(-((wx - 0.75) * 5.0) ^ 2) * (is_lvl_1 and (h * 0.08) or (h * 0.30))
+			local micro_noise = (fractal_noise(nx * 12.0, 3, seed + 15) - 0.5) * (is_lvl_1 and (h * 0.015) or (h * 0.04))
 
 			local height_val = base_h + gentle_roll + wave + h1 + h2 + micro_noise
 			local max_gy = math.floor(math.max(20, math.min(math.floor(h * 0.66), height_val)))
@@ -876,28 +876,30 @@ function M.generate(preset_type, campaign_level, is_defense)
 			end
 		end
 
-		-- High Stone Bridge Arch spanning the central valley (gx = 360 .. 600)
-		add_arch(math.floor(w * 0.50), math.floor(h * 0.34), math.floor(w * 0.14), math.floor(h * 0.10), math.floor(h * 0.05), seed + 77)
+		if not is_lvl_1 then
+			-- High Stone Bridge Arch spanning the central valley (gx = 360 .. 600)
+			add_arch(math.floor(w * 0.50), math.floor(h * 0.34), math.floor(w * 0.14), math.floor(h * 0.10), math.floor(h * 0.05), seed + 77)
 
-		-- Cantilevered cliff diving-board ledge on the left mountain slope
-		local ledge_cx = math.floor(w * 0.34)
-		local ledge_cy = math.floor(h * 0.42)
-		for gx = ledge_cx - 28, ledge_cx + 28 do
-			local nx = (gx - ledge_cx) / 28
-			local env = math.cos(nx * 1.57079)
-			local top_y = math.floor(ledge_cy + env * 10)
-			local bot_y = math.floor(ledge_cy - env * 8)
-			for gy = bot_y, top_y do
-				M.grid[gy * w + gx + 1] = 1
+			-- Cantilevered cliff diving-board ledge on the left mountain slope
+			local ledge_cx = math.floor(w * 0.34)
+			local ledge_cy = math.floor(h * 0.42)
+			for gx = ledge_cx - 28, ledge_cx + 28 do
+				local nx = (gx - ledge_cx) / 28
+				local env = math.cos(nx * 1.57079)
+				local top_y = math.floor(ledge_cy + env * 10)
+				local bot_y = math.floor(ledge_cy - env * 8)
+				for gy = bot_y, top_y do
+					M.grid[gy * w + gx + 1] = 1
+				end
 			end
+
+			-- Mushroom rock spire with wide battle platform on the right
+			add_mushroom_spire(math.floor(w * 0.72), math.floor(h * 0.46), 14, math.floor(h * 0.12), 26, 10, seed + 88)
+
+			-- Procedural worm caves through the mountain bases
+			carve_worm_tunnel(math.floor(w * 0.22), math.floor(h * 0.24), 26, 0.2, 18, 0.35, seed + 111)
+			carve_worm_tunnel(math.floor(w * 0.78), math.floor(h * 0.24), 26, 2.9, 18, 0.35, seed + 222)
 		end
-
-		-- Mushroom rock spire with wide battle platform on the right
-		add_mushroom_spire(math.floor(w * 0.72), math.floor(h * 0.46), 14, math.floor(h * 0.12), 26, 10, seed + 88)
-
-		-- Procedural worm caves through the mountain bases
-		carve_worm_tunnel(math.floor(w * 0.22), math.floor(h * 0.24), 26, 0.2, 18, 0.35, seed + 111)
-		carve_worm_tunnel(math.floor(w * 0.78), math.floor(h * 0.24), 26, 2.9, 18, 0.35, seed + 222)
 	end
 
 	if is_defense then

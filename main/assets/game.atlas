@@ -196,4 +196,10 @@ images {
 images {
   image: "/main/assets/flags/flagFRA.png"
 }
+images {
+  image: "/main/assets/parachute.png"
+}
+images {
+  image: "/main/assets/medkit_cross.png"
+}
 extrude_borders: 2

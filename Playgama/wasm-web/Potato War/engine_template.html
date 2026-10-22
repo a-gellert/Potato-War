@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, minimal-ui, shrink-to-fit=no, viewport-fit=cover">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <!-- The above 5 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+
+        <title>Potato War 1.0</title>
+        <style type="text/css">
+            /* Disable user selection to avoid strange bug in Chrome on Windows:
+            * Selecting a text outside the canvas, then clicking+draging would
+            * drag the selected text but block mouse down/up events to the engine.
+            */
+            body {
+                position: fixed; /* Prevent overscroll */
+                margin: 0;
+                padding: 0;
+                background-color: #1e2226;
+            }
+
+            .canvas-app-container {
+                width: 100%;
+                height: 100%;
+                position: absolute;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                background: #1e2226;
+            }
+
+            .canvas-app-container:-webkit-full-screen {
+                width: auto;
+                height: auto;
+            }
+
+            #canvas {
+                outline: none;
+                border: 0;
+                width: 100%;
+                vertical-align: bottom;
+            }
+
+            #canvas-container {
+                position: relative;
+            }
+
+            canvas:focus, canvas:active {
+                outline: none;
+                border: 0;
+                ie-dummy: expression(this.hideFocus=true);
+                -moz-outline-style: none;
+            }
+
+            body, div {
+                -webkit-tap-highlight-color: rgba(0,0,0,0);
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            }
+
+            .canvas-app-progress {
+                position: absolute;
+                background-color: #394046;
+                height: 6px;
+                margin-top: -6px;
+                width: 100%;
+            }
+
+            .canvas-app-progress-bar {
+                font-size: 12px;
+                height: 6px;
+                color: rgb(255, 255, 255);
+                background-color: #8bc34a;
+                text-align: center;
+                line-height: 20px;
+                transition: transform 1s ease;
+                transform-origin: left;
+                transform: scaleX(1.0);
+            }
+
+            .buttons-background {
+                background-color: #1e2226;
+                width: 100%;
+                height: 42px;
+            }
+
+            .canvas-app-canvas {
+                background-repeat: no-repeat;
+                background-position: center center;
+                background-size: 70%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app-container" class="canvas-app-container">
+            <div id="running-from-file-warning" style="display: none; margin: 3em;">
+                <h1>Running from local file ⚠️</h1>
+                <p>It seems like you have opened this file by double-clicking on it. In order to test your build in a browser <b>you need to load this file from a web server</b>. You can either upload this file and the rest of the files from a Defold HTML5 bundle to a web hosting service OR host them using a local web server on your home network.</p>
+                <p><a href="https://defold.com/manuals/html5/#testing-html5-build" target="_blank">Learn more about running a local web server in the Defold HTML5 manual</a>.</p>
+            </div>
+            <div id="webgl-not-supported" style="display: none; margin: 3em;">
+                <h1>WebGL not supported ⚠️</h1>
+                <p>WebGL is not supported by your browser - visit <a href="https://get.webgl.org/">https://get.webgl.org/</a> to learn more.</p>
+            </div>
+            <div id="canvas-container" class="canvas-app-canvas-container">
+                <canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="960" height="540"></canvas>
+            </div>
+            <div class="buttons-background">
+            </div>
+        </div>
+
+        <script id="engine-loader" type="text/javascript" src="dmloader.js"></script>
+        <script id="cpp-helper" type="text/javascript" src="cpp_helper.js"></script>
+        <script type="text/javascript">
+            // Ensure CStrOrNull and packToJson are immediately available on window for Defold WASM bridge
+            window.CStrOrNull = function(string) {
+                if (string !== undefined && string !== null) {
+                    var str = String(string);
+                    if (typeof stringToNewUTF8 === 'function') return stringToNewUTF8(str);
+                    if (typeof Module !== 'undefined' && typeof Module.stringToNewUTF8 === 'function') return Module.stringToNewUTF8(str);
+                }
+                return 0;
+            };
+            window.packToJson = function(data) {
+                if (data !== undefined && data !== null) {
+                    var jsonStr = JSON.stringify({ data: data });
+                    if (typeof stringToNewUTF8 === 'function') return stringToNewUTF8(jsonStr);
+                    if (typeof Module !== 'undefined' && typeof Module.stringToNewUTF8 === 'function') return Module.stringToNewUTF8(jsonStr);
+                }
+                return 0;
+            };
+        </script>
+        <script id="engine-setup" type="text/javascript">
+            // Startup parameters via CUSTOM_PARAMETERS object
+        </script>
+
+        <script id="playgama-audio-pause-interceptor" type="text/javascript">
+            (function() {
+                window._isAudioEnabled = true;
+                window._isPlatformPaused = false;
+                window._gameVisibilityState = (document.hidden ? "hidden" : "visible");
+                window._isEngineLoopPaused = false;
+                window._allAudioContexts = [];
+
+                function shouldAudioBeMuted() {
+                    return (window._isAudioEnabled === false || window._isPlatformPaused === true || window._gameVisibilityState === "hidden");
+                }
+                window._shouldAudioBeMuted = shouldAudioBeMuted;
+
+                function hookAudioContext(ctx) {
+                    if (!ctx || ctx._isHookedBySdk) return;
+                    ctx._isHookedBySdk = true;
+                    var origResume = ctx.resume;
+                    ctx._originalResume = origResume;
+                    ctx.resume = function() {
+                        if (shouldAudioBeMuted()) {
+                            console.log('%c[PLAYGAMA SDK] 🔇 Blocked AudioContext.resume() while muted/paused', 'color: #ff9800; font-weight: bold;');
+                            return Promise.resolve();
+                        }
+                        return origResume.apply(this, arguments);
+                    };
+                }
+                window._hookAudioContext = hookAudioContext;
+
+                var OrigAudioContext = window.AudioContext || window.webkitAudioContext;
+                if (OrigAudioContext && !OrigAudioContext._isWrappedBySdk) {
+                    function SdkAudioContext(options) {
+                        var ctx = options ? new OrigAudioContext(options) : new OrigAudioContext();
+                        window._allAudioContexts.push(ctx);
+                        hookAudioContext(ctx);
+                        if (shouldAudioBeMuted()) {
+                            try { ctx.suspend().catch(function(){}); } catch(e) {}
+                        }
+                        return ctx;
+                    }
+                    SdkAudioContext.prototype = OrigAudioContext.prototype;
+                    for (var k in OrigAudioContext) {
+                        if (Object.prototype.hasOwnProperty.call(OrigAudioContext, k)) {
+                            SdkAudioContext[k] = OrigAudioContext[k];
+                        }
+                    }
+                    SdkAudioContext._isWrappedBySdk = true;
+                    window.AudioContext = SdkAudioContext;
+                    if (window.webkitAudioContext) window.webkitAudioContext = SdkAudioContext;
+                }
+
+                var _sharedHolder = window._dmJSDeviceShared;
+                function setupSharedHolder(shared) {
+                    if (!shared) return;
+                    var _audioCtx = shared.audioCtx;
+                    if (_audioCtx) {
+                        hookAudioContext(_audioCtx);
+                        if (shouldAudioBeMuted() && _audioCtx.state === 'running') {
+                            try { _audioCtx.suspend().catch(function(){}); } catch(e) {}
+                        }
+                    }
+                    try {
+                        Object.defineProperty(shared, 'audioCtx', {
+                            configurable: true,
+                            enumerable: true,
+                            get: function() { return _audioCtx; },
+                            set: function(newCtx) {
+                                _audioCtx = newCtx;
+                                if (newCtx) {
+                                    hookAudioContext(newCtx);
+                                    if (shouldAudioBeMuted() && newCtx.state === 'running') {
+                                        try { newCtx.suspend().catch(function(){}); } catch(e) {}
+                                    }
+                                }
+                            }
+                        });
+                    } catch(e) {}
+                }
+
+                try {
+                    Object.defineProperty(window, '_dmJSDeviceShared', {
+                        configurable: true,
+                        enumerable: true,
+                        get: function() { return _sharedHolder; },
+                        set: function(val) {
+                            _sharedHolder = val;
+                            setupSharedHolder(val);
+                        }
+                    });
+                } catch(e) {}
+                if (_sharedHolder) setupSharedHolder(_sharedHolder);
+
+                window._syncAudio = function(mute) {
+                    try {
+                        if (window._dmJSDeviceShared && window._dmJSDeviceShared.audioCtx) {
+                            var dCtx = window._dmJSDeviceShared.audioCtx;
+                            hookAudioContext(dCtx);
+                            if (mute && dCtx.state === 'running') {
+                                dCtx.suspend().catch(function(){});
+                            } else if (!mute && dCtx.state === 'suspended' && !shouldAudioBeMuted()) {
+                                var resFn = dCtx._originalResume || dCtx.resume;
+                                resFn.call(dCtx).catch(function(){});
+                            }
+                        }
+
+                        if (window._allAudioContexts && window._allAudioContexts.length) {
+                            for (var i = 0; i < window._allAudioContexts.length; i++) {
+                                var c = window._allAudioContexts[i];
+                                if (c) {
+                                    hookAudioContext(c);
+                                    if (mute && c.state === 'running') {
+                                        c.suspend().catch(function(){});
+                                    } else if (!mute && c.state === 'suspended' && !shouldAudioBeMuted()) {
+                                        var cRes = c._originalResume || c.resume;
+                                        cRes.call(c).catch(function(){});
+                                    }
+                                }
+                            }
+                        }
+
+                        var oalCtx = (window.AL && window.AL.currentContext && window.AL.currentContext.audioCtx) || window.webAudioCtx;
+                        if (oalCtx) {
+                            hookAudioContext(oalCtx);
+                            if (mute && oalCtx.state === 'running') {
+                                oalCtx.suspend().catch(function(){});
+                            } else if (!mute && oalCtx.state === 'suspended' && !shouldAudioBeMuted()) {
+                                var oRes = oalCtx._originalResume || oalCtx.resume;
+                                oRes.call(oalCtx).catch(function(){});
+                            }
+                        }
+
+                        var media = document.querySelectorAll('audio, video');
+                        for (var j = 0; j < media.length; j++) {
+                            if (!media[j].classList.contains('ad-element')) {
+                                media[j].muted = !!mute;
+                            }
+                        }
+                    } catch(e) {
+                        console.warn('[PLAYGAMA SDK] syncAudio error:', e);
+                    }
+                };
+
+                window._pauseEngineLoop = function() {
+                    if (window._isEngineLoopPaused) return;
+                    window._isEngineLoopPaused = true;
+                    try {
+                        var mod = (typeof Module !== 'undefined') ? Module : window.Module;
+                        if (mod) {
+                            if (typeof mod._dmEngineSetUpdateEnabled === 'function') mod._dmEngineSetUpdateEnabled(0);
+                            if (typeof mod._dmEngineSetRenderEnabled === 'function') mod._dmEngineSetRenderEnabled(0);
+                            console.log('%c[PLAYGAMA SDK] ⏸️ Engine main loop paused', 'color: #ff9800; font-weight: bold;');
+                        }
+                    } catch(e) {
+                        console.warn('[PLAYGAMA SDK] pauseEngineLoop error:', e);
+                    }
+                };
+
+                window._resumeEngineLoop = function() {
+                    if (!window._isEngineLoopPaused) return;
+                    window._isEngineLoopPaused = false;
+                    try {
+                        var mod = (typeof Module !== 'undefined') ? Module : window.Module;
+                        if (mod) {
+                            if (typeof mod._dmEngineSetUpdateEnabled === 'function') mod._dmEngineSetUpdateEnabled(1);
+                            if (typeof mod._dmEngineSetRenderEnabled === 'function') mod._dmEngineSetRenderEnabled(1);
+                            console.log('%c[PLAYGAMA SDK] ▶️ Engine main loop resumed', 'color: #4caf50; font-weight: bold;');
+                        }
+                    } catch(e) {
+                        console.warn('[PLAYGAMA SDK] resumeEngineLoop error:', e);
+                    }
+                };
+
+                document.addEventListener('visibilitychange', function() {
+                    if (document.hidden) {
+                        window._gameVisibilityState = 'hidden';
+                        window._syncAudio(true);
+                    } else {
+                        window._gameVisibilityState = 'visible';
+                        window._syncAudio(shouldAudioBeMuted());
+                    }
+                });
+
+                window._bindBridgeEvents = function(b) {
+                    if (!b || b._eventsBoundBySdk) return;
+                    b._eventsBoundBySdk = true;
+
+                    try {
+                        var initAudio = (typeof b.platform.isAudioEnabled === 'function') ? b.platform.isAudioEnabled() : b.platform.isAudioEnabled;
+                        if (typeof initAudio === 'boolean') {
+                            window._isAudioEnabled = initAudio;
+                            if (!initAudio) {
+                                console.log('%c[PLAYGAMA SDK] 🔇 Initial platform audio is disabled', 'color: #f44336; font-weight: bold;');
+                                window._syncAudio(true);
+                            }
+                        }
+                    } catch(e) {}
+
+                    try {
+                        var initPause = (typeof b.platform.isPaused === 'function') ? b.platform.isPaused() : b.platform.isPaused;
+                        if (typeof initPause === 'boolean' && initPause) {
+                            window._isPlatformPaused = true;
+                            console.log('%c[PLAYGAMA SDK] ⏸️ Initial platform is paused', 'color: #ff9800; font-weight: bold;');
+                            window._pauseEngineLoop();
+                            window._syncAudio(true);
+                        }
+                    } catch(e) {}
+
+                    if (b.platform && typeof b.platform.on === 'function') {
+                        b.platform.on('audio_state_changed', function(isEnabled) {
+                            console.log('%c[PLAYGAMA SDK] 🔊 window.bridge audio_state_changed: ' + isEnabled, 'color: #00bcd4; font-weight: bold;');
+                            window._isAudioEnabled = (isEnabled !== false);
+                            window._syncAudio(shouldAudioBeMuted());
+                        });
+
+                        b.platform.on('pause_state_changed', function(isPaused) {
+                            console.log('%c[PLAYGAMA SDK] ⏸️ window.bridge pause_state_changed: ' + isPaused, 'color: #ff9800; font-weight: bold;');
+                            window._isPlatformPaused = (isPaused === true);
+                            if (window._isPlatformPaused) {
+                                window._pauseEngineLoop();
+                                window._syncAudio(true);
+                            } else {
+                                window._resumeEngineLoop();
+                                window._syncAudio(shouldAudioBeMuted());
+                            }
+                        });
+                    }
+
+                    if (b.game && typeof b.game.on === 'function') {
+                        b.game.on('visibility_state_changed', function(state) {
+                            console.log('%c[PLAYGAMA SDK] 👁️ window.bridge visibility_state_changed: ' + state, 'color: #8bc34a; font-weight: bold;');
+                            window._gameVisibilityState = state;
+                            if (state === 'hidden') {
+                                window._syncAudio(true);
+                            } else {
+                                window._syncAudio(shouldAudioBeMuted());
+                            }
+                        });
+                    }
+                };
+            })();
+        </script>
+
+        <script id="engine-start" type="text/javascript" merge="keep">
+            function startEngine() {
+                var runningFromFileWarning = document.getElementById("running-from-file-warning");
+                if (window.location.href.startsWith("file://")) {
+                    runningFromFileWarning.style.display = "block";
+                } else {
+                    EngineLoader.load("canvas", "PotatoWar");
+                    if (runningFromFileWarning && runningFromFileWarning.parentNode) {
+                        runningFromFileWarning.parentNode.removeChild(runningFromFileWarning);
+                    }
+                }
+            }
+
+            function initializeBridge() {
+                if (!window.bridge) {
+                    startEngine();
+                    return;
+                }
+                bridge.engine = 'defold';
+                bridge.gameVersion = '1.0';
+                bridge.initialize()
+                    .then(() => {
+                        if (window._bindBridgeEvents) {
+                            window._bindBridgeEvents(bridge);
+                        }
+
+                        if (typeof Progress !== 'undefined' && Progress && typeof Progress.addListener === 'function') {
+                            if (typeof bridge.setGameLoadingProgress === 'function') {
+                                bridge.setGameLoadingProgress(0);
+                                Progress.addListener((progress) => {
+                                    bridge.setGameLoadingProgress(progress);
+                                });
+                            }
+                        } else if (typeof ProgressUpdater !== 'undefined' && ProgressUpdater && typeof ProgressUpdater.addListener === 'function') {
+                            if (typeof bridge.setGameLoadingProgress === 'function') {
+                                bridge.setGameLoadingProgress(0);
+                                ProgressUpdater.addListener((progress) => {
+                                    bridge.setGameLoadingProgress(progress);
+                                });
+                            }
+                        }            
+
+                        startEngine();
+                    })
+                    .catch(error => {
+                        console.error('Playgama Bridge initialization error:', error);
+                        startEngine();
+                    });
+            }
+
+            // Load Playgama Bridge locally from the bundled package
+            const bridgeScript = document.createElement('script');
+            bridgeScript.src = './playgama-bridge.js';
+            bridgeScript.onload = initializeBridge;
+            bridgeScript.onerror = function() {
+                console.warn('Local playgama-bridge.js not found, starting engine directly');
+                startEngine();
+            };
+            document.head.appendChild(bridgeScript);
+        </script>
+    </body>
+</html>
