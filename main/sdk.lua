@@ -838,12 +838,18 @@ function M.init()
 				end
 			end)
 		end
+		safe_timer_delay(1.0, false, function()
+			M.check_pending_purchases()
+		end)
 		return
 	end
 
 	-- Fallback to Mock on desktop editor without bridge
 	M.active_platform = M.PLATFORM_MOCK
 	log("💻 Running in Editor / Desktop fallback mock")
+	safe_timer_delay(1.0, false, function()
+		M.check_pending_purchases()
+	end)
 end
 
 ----------------------------------------------------------
@@ -996,8 +1002,30 @@ end
 ----------------------------------------------------------
 -- INTERSTITIAL ADS (COMMERCIAL BREAK)
 ----------------------------------------------------------
+M.match_count = 0
+
+--- Trigger interstitial ad every 2 completed matches
+function M.on_match_finished(callback)
+	M.match_count = (M.match_count or 0) + 1
+	log("🎮 Match completed. Matches since last interstitial:", M.match_count)
+	if M.match_count >= 2 then
+		M.match_count = 0
+		log("📺 2 matches reached! Showing interstitial ad...")
+		M.commercial_break(callback, "every_2_matches")
+	else
+		log("⏳ Matches until next interstitial: " .. tostring(2 - M.match_count))
+		if callback then callback() end
+	end
+end
+
 function M.commercial_break(callback, placement)
 	if not M.initialized then M.init() end
+
+	if M.has_no_ads() then
+		log("🚫 No-Ads active — skipping commercial_break")
+		if callback then callback() end
+		return
+	end
 
 	if M.ad_showing then
 		if callback then callback() end
@@ -1814,6 +1842,356 @@ function M.is_adblock_detected(callback)
 		return
 	end
 	if callback then callback(false) end
+end
+
+----------------------------------------------------------
+-- PAYMENTS & IN-APP PURCHASES (PLAYGAMA BRIDGE)
+----------------------------------------------------------
+
+M.DEFAULT_PRODUCTS = {
+	{
+		id = "coins_pack_1000",
+		name_ru = "1,000 Очков",
+		name_en = "1,000 Points",
+		name_tr = "1.000 Puan",
+		name_es = "1.000 Puntos",
+		name_pt = "1.000 Pontos",
+		name_fr = "1 000 Points",
+		desc_ru = "Запас очков на покупку шапок",
+		desc_en = "Points pack for hats and items",
+		desc_tr = "Şapka ve eşya almak için puan paketi",
+		desc_es = "Paquete de puntos para sombreros y objetos",
+		desc_pt = "Pacote de pontos para chapéus e itens",
+		desc_fr = "Pack de points pour chapeaux et objets",
+		price = "0.99 USD",
+		price_value = 0.99,
+		type = "consumable",
+		amount = 1000,
+	},
+	{
+		id = "coins_pack_5000",
+		name_ru = "5,000 Очков",
+		name_en = "5,000 Points",
+		name_tr = "5.000 Puan",
+		name_es = "5.000 Puntos",
+		name_pt = "5.000 Pontos",
+		name_fr = "5 000 Points",
+		desc_ru = "Огромный мешок картофельных очков",
+		desc_en = "Huge bag of potato points",
+		desc_tr = "Büyük patates puanı torbası",
+		desc_es = "Gran saco de puntos de papa",
+		desc_pt = "Grande saco de pontos de batata",
+		desc_fr = "Gros sac de points patate",
+		price = "2.99 USD",
+		price_value = 2.99,
+		type = "consumable",
+		amount = 5000,
+	},
+	{
+		id = "stars_pack_5",
+		name_ru = "5 Звёзд",
+		name_en = "5 Stars",
+		name_tr = "5 Yıldız",
+		name_es = "5 Estrellas",
+		name_pt = "5 Estrelas",
+		name_fr = "5 Étoiles",
+		desc_ru = "Звёзды для прокачки классов казармы",
+		desc_en = "Stars to upgrade squad classes",
+		desc_tr = "Kışla sınıflarını yükseltmek için yıldızlar",
+		desc_es = "Estrellas para mejorar clases del cuartel",
+		desc_pt = "Estrelas para melhorar classes do quartel",
+		desc_fr = "Étoiles pour améliorer les classes de la caserne",
+		price = "1.49 USD",
+		price_value = 1.49,
+		type = "consumable",
+		amount = 5,
+	},
+	{
+		id = "stars_pack_20",
+		name_ru = "20 Звёзд",
+		name_en = "20 Stars",
+		name_tr = "20 Yıldız",
+		name_es = "20 Estrellas",
+		name_pt = "20 Estrelas",
+		name_fr = "20 Étoiles",
+		desc_ru = "Открой все классы и слоты отряда!",
+		desc_en = "Unlock all squad classes and slots!",
+		desc_tr = "Tüm sınıf ve takım yuvalarını aç!",
+		desc_es = "¡Desbloquea todas las clases y ranuras!",
+		desc_pt = "Desbloqueie todas as classes e vagas!",
+		desc_fr = "Débloquez toutes les classes et escouades !",
+		price = "4.99 USD",
+		price_value = 4.99,
+		type = "consumable",
+		amount = 20,
+	},
+	{
+		id = "no_ads",
+		name_ru = "Отключить Рекламу",
+		name_en = "No Ads",
+		name_tr = "Reklamsız",
+		name_es = "Sin Anuncios",
+		name_pt = "Sem Anúncios",
+		name_fr = "Sans Publicité",
+		desc_ru = "Навсегда убирает межраундовую рекламу",
+		desc_en = "Permanently removes all interstitial ads",
+		desc_tr = "Tüm ara reklamları kalıcı olarak kaldırır",
+		desc_es = "Elimina para siempre los anuncios entre rondas",
+		desc_pt = "Remove permanentemente os anúncios entre rodadas",
+		desc_fr = "Supprime définitivement les pubs interstitielles",
+		price = "1.99 USD",
+		price_value = 1.99,
+		type = "permanent",
+		amount = 1,
+	},
+}
+
+function M.is_payments_supported()
+	if not M.initialized then M.init() end
+
+	if bridge and bridge.payments and bridge.payments.is_supported then
+		local ok, supp = pcall(bridge.payments.is_supported)
+		if ok and supp ~= nil then return supp end
+	end
+
+	if html5 and html5.run then
+		local ok_eval, res = pcall(html5.run, [[
+			(function() {
+				var b = window.bridge || window.playgamaBridge;
+				if (b && b.payments) {
+					var s = b.payments.isSupported;
+					return (typeof s === 'function' ? s() : s) ? '1' : '0';
+				}
+				return '0';
+			})()
+		]])
+		if ok_eval and res == "1" then return true end
+	end
+
+	-- In mock platform or desktop editor, enable for testing
+	if M.active_platform == M.PLATFORM_MOCK then
+		return true
+	end
+
+	return false
+end
+
+function M.get_catalog(on_success, on_failure)
+	if not M.initialized then M.init() end
+	log("🛒 Fetching in-app products catalog...")
+
+	-- 1. Bridge Lua
+	if bridge and bridge.payments and bridge.payments.get_catalog then
+		local ok = pcall(function()
+			bridge.payments.get_catalog(function(catalog)
+				log("🛒 Catalog loaded via Lua bridge, items:", catalog and #catalog or 0)
+				if on_success then on_success(catalog or M.DEFAULT_PRODUCTS) end
+			end, function(err)
+				log("⚠️ Bridge get_catalog failed, using default catalog:", tostring(err))
+				if on_success then on_success(M.DEFAULT_PRODUCTS) end
+			end)
+		end)
+		if ok then return end
+	end
+
+	-- 2. HTML5 JS Bridge
+	if html5 and html5.run then
+		local js = [[
+			(function() {
+				try {
+					var b = window.bridge || window.playgamaBridge;
+					if (b && b.payments && typeof b.payments.getCatalog === 'function') {
+						b.payments.getCatalog().then(function(catalog) {
+							window._lastCatalog = JSON.stringify(catalog);
+						}).catch(function(e) { window._lastCatalog = ""; });
+					}
+				} catch(e) {}
+			})();
+		]]
+		pcall(html5.run, js)
+	end
+
+	if on_success then
+		on_success(M.DEFAULT_PRODUCTS)
+	end
+end
+
+function M.get_purchases(on_success, on_failure)
+	if not M.initialized then M.init() end
+	log("🛍️ Fetching player purchases...")
+
+	if bridge and bridge.payments and bridge.payments.get_purchases then
+		local ok = pcall(function()
+			bridge.payments.get_purchases(function(purchases)
+				log("🛍️ Purchases loaded via Lua bridge, count:", purchases and #purchases or 0)
+				if on_success then on_success(purchases) end
+			end, function(err)
+				log("⚠️ get_purchases failure:", tostring(err))
+				if on_failure then on_failure(err) end
+			end)
+		end)
+		if ok then return end
+	end
+
+	if on_success then on_success({}) end
+end
+
+function M.consume_purchase(purchase_id_or_token, on_success, on_failure)
+	if not M.initialized then M.init() end
+	local id = tostring(purchase_id_or_token or "")
+	log("🔄 Consuming purchase:", id)
+
+	if bridge and bridge.payments and bridge.payments.consume_purchase then
+		local ok = pcall(function()
+			bridge.payments.consume_purchase(id, function()
+				log("✅ Purchase consumed via Lua bridge:", id)
+				if on_success then on_success() end
+			end, function(err)
+				log("⚠️ Consume purchase failed via Lua bridge:", tostring(err))
+				if on_failure then on_failure(err) end
+			end)
+		end)
+		if ok then return end
+	end
+
+	if html5 and html5.run then
+		local js = string.format([[
+			(function() {
+				try {
+					var b = window.bridge || window.playgamaBridge;
+					if (b && b.payments && typeof b.payments.consumePurchase === 'function') {
+						b.payments.consumePurchase(%q).then(function() {
+							console.log('[PLAYGAMA SDK] Consumed purchase:', %q);
+						}).catch(function(e){ console.warn('[PLAYGAMA SDK] Consume error:', e); });
+					}
+				} catch(e) {}
+			})();
+		]], id, id)
+		pcall(html5.run, js)
+	end
+
+	if on_success then on_success() end
+end
+
+function M.purchase(id, options, on_success, on_failure)
+	if not M.initialized then M.init() end
+
+	if type(options) == "function" then
+		on_failure = on_success
+		on_success = options
+		options = {}
+	end
+	options = options or {}
+	local product_id = tostring(id or "")
+	log("💳 Initiating purchase for:", product_id)
+
+	local function handle_purchase_granted(item_id, purchase_data)
+		log("🎉 Purchase successful for item:", item_id)
+		-- Automatically grant rewards in player_profile
+		local profile_ok, profile = pcall(require, "lua_modules.player_profile")
+		if profile_ok and profile and profile.apply_purchase then
+			profile.apply_purchase(item_id)
+		end
+
+		-- If consumable, auto-consume per Playgama guidelines
+		if item_id ~= "no_ads" then
+			M.consume_purchase(item_id)
+		else
+			if profile_ok and profile and profile.set_no_ads then
+				profile.set_no_ads(true)
+			end
+		end
+
+		if on_success then
+			on_success(purchase_data or { id = item_id })
+		end
+	end
+
+	-- 1. Defold Lua Bridge
+	if bridge and bridge.payments and bridge.payments.purchase then
+		local ok = pcall(function()
+			bridge.payments.purchase(product_id, options, function(res)
+				handle_purchase_granted(product_id, res)
+			end, function(err)
+				log("❌ Purchase failed or cancelled via Lua bridge:", tostring(err))
+				if on_failure then on_failure(err) end
+			end)
+		end)
+		if ok then return end
+	end
+
+	-- 2. HTML5 Web JS Bridge
+	if html5 and html5.run then
+		local js = string.format([[
+			(function() {
+				window._purchaseStatus = "pending";
+				try {
+					var b = window.bridge || window.playgamaBridge;
+					if (b && b.payments && typeof b.payments.purchase === 'function') {
+						b.payments.purchase({ id: %q }).then(function(res) {
+							window._purchaseStatus = "success";
+							window._lastPurchaseRes = res ? JSON.stringify(res) : "";
+						}).catch(function(err) {
+							window._purchaseStatus = "failed";
+							window._lastPurchaseErr = String(err);
+						});
+						return "1";
+					}
+				} catch(e) {}
+				return "0";
+			})();
+		]], product_id)
+		local ok_eval, res = pcall(html5.run, js)
+		if ok_eval and res == "1" then
+			local poll_timer
+			local elapsed = 0
+			poll_timer = safe_timer_delay(0.2, true, function()
+				elapsed = elapsed + 0.2
+				if not html5 or not html5.run or elapsed > 180 then
+					safe_timer_cancel(poll_timer)
+					if on_failure then on_failure("Purchase timeout") end
+					return
+				end
+				local ok_status, status = pcall(html5.run, "(function() { return window._purchaseStatus || ''; })()")
+				if ok_status and status == "success" then
+					safe_timer_cancel(poll_timer)
+					handle_purchase_granted(product_id, { id = product_id })
+				elseif ok_status and status == "failed" then
+					safe_timer_cancel(poll_timer)
+					if on_failure then on_failure("Purchase failed or cancelled") end
+				end
+			end)
+			return
+		end
+	end
+
+	-- 3. Mock platform fallback (Desktop / Local testing)
+	log("🧪 Mock platform: Auto-approving purchase for testing:", product_id)
+	handle_purchase_granted(product_id, { id = product_id })
+end
+
+function M.check_pending_purchases()
+	if not M.is_payments_supported() then return end
+	M.get_purchases(function(purchases)
+		if type(purchases) == "table" then
+			local profile_ok, profile = pcall(require, "lua_modules.player_profile")
+			for _, item in ipairs(purchases) do
+				local pid = item.id or item.productID or item
+				if pid == "no_ads" then
+					log("💎 Restoring permanent purchase: no_ads")
+					if profile_ok and profile and profile.set_no_ads then
+						profile.set_no_ads(true)
+					end
+				elseif type(pid) == "string" and (pid:match("^coins_") or pid:match("^stars_")) then
+					log("📦 Found unconsumed purchase:", pid)
+					if profile_ok and profile and profile.apply_purchase then
+						profile.apply_purchase(pid)
+					end
+					M.consume_purchase(item.token or pid)
+				end
+			end
+		end
+	end)
 end
 
 return M

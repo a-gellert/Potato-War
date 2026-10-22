@@ -178,24 +178,48 @@ local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
 	else
 		-- DEFAULT: LUSH SOIL & NATURAL MEADOW
 		-- 30-40 px (15-20 cells) juicy turf cap, roots, dark rich chernozem/clay, pebbles, potato tubers
-		if depth == 0 then
-			-- Topmost juicy grass edge with blades and wildflower clusters
-			local flower_val = math.sin(gx * 0.12)
-			if flower_val > 0.88 then
-				r = 248; g = 215; b = 45 -- Golden dandelion patch
-			elseif flower_val < -0.88 then
-				r = 245; g = 245; b = 240 -- Daisy cluster
-			elseif rnd > 0.68 then
-				r = 75; g = 195; b = 45  -- Grass blade tip
+		-- Check for sheer slope / crater cut / cliff face to prevent pixel saw teeth of green
+		local is_cliff_side = (gx > 0 and grid[row + gx] == 0) or (gx < w - 1 and grid[row + gx + 2] == 0)
+
+		if is_cliff_side and depth > 0 then
+			-- Sheer vertical cut / pit slope: exposed rich soil and root fibers, no green pixel saw!
+			local is_root = (math.sin(gx * 0.45 + gy * 0.5) > 0.65)
+			if is_root then
+				r = 92; g = 68; b = 46 -- Woody root strand
 			else
-				r = 58; g = 168; b = 35  -- Lush meadow crest
+				r = 44; g = 34; b = 26 -- Dark fertile soil
+			end
+		elseif depth == 0 then
+			if is_cliff_side then
+				-- Soft edge transition at corner instead of harsh bright green pixel
+				r = 52; g = 105; b = 32
+			else
+				-- Topmost juicy horizontal grass edge with blades and wildflower clusters
+				local flower_val = math.sin(gx * 0.12)
+				if flower_val > 0.88 then
+					r = 248; g = 215; b = 45 -- Golden dandelion patch
+				elseif flower_val < -0.88 then
+					r = 245; g = 245; b = 240 -- Daisy cluster
+				elseif rnd > 0.68 then
+					r = 75; g = 195; b = 45  -- Grass blade tip
+				else
+					r = 58; g = 168; b = 35  -- Lush meadow crest
+				end
 			end
 		elseif depth <= 4 then
-			-- Thick, juicy upper turf layer (rich natural green)
-			r = 48; g = 145; b = 28
+			if is_cliff_side then
+				r = 46; g = 36; b = 27
+			else
+				-- Thick, juicy upper turf layer (rich natural green)
+				r = 48; g = 145; b = 28
+			end
 		elseif depth <= 8 then
-			-- Dense dark emerald moss & turf core
-			r = 38; g = 112; b = 24
+			if is_cliff_side then
+				r = 44; g = 34; b = 26
+			else
+				-- Dense dark emerald moss & turf core
+				r = 38; g = 112; b = 24
+			end
 		elseif depth <= 14 then
 			-- Humus transition with intertwined root fibers
 			local is_root = (math.sin(gx * 0.38 + gy * 0.45) > 0.62)
@@ -409,14 +433,15 @@ local function generate_base_background(self, biome)
 				sb = 68 * t + 85 * (1 - t)
 			elseif ny > 0.35 then
 				local t = (ny - 0.35) / 0.30
-				sr = 88 * t + 218 * (1 - t)
-				sg = 62 * t + 115 * (1 - t)
-				sb = 85 * t + 55 * (1 - t)
+				sr = 88 * t + 135 * (1 - t)
+				sg = 62 * t + 160 * (1 - t)
+				sb = 85 * t + 205 * (1 - t)
 			else
 				local t = ny / 0.35
-				sr = 218 * t + 245 * (1 - t)
-				sg = 115 * t + 175 * (1 - t)
-				sb = 55 * t + 82 * (1 - t)
+				-- Cool, lighter atmospheric horizon mist: soft blue-cyan / lavender haze
+				sr = 135 * t + 165 * (1 - t)
+				sg = 160 * t + 195 * (1 - t)
+				sb = 205 * t + 235 * (1 - t)
 			end
 		end
 
@@ -483,10 +508,10 @@ local function generate_base_background(self, biome)
 
 		for gy = 0, max_gy do
 			local idx = (gy * w + gx) * 4 + 1
-			local haze = 0.55
-			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 95))
-			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 145))
-			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 195))
+			local haze = (biome == "grass") and (0.60 + (1.0 - (gy / math.max(1, max_gy))) * 0.22) or 0.55
+			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 120))
+			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 160))
+			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 210))
 
 			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
 			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
@@ -531,11 +556,11 @@ local function generate_base_background(self, biome)
 
 		for gy = 0, max_gy do
 			local idx = (gy * w + gx) * 4 + 1
-			-- Depth-of-field soft atmospheric perspective haze
-			local haze = (biome == "grass") and 0.68 or 0.82
-			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 52))
-			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 42))
-			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 36))
+			-- Depth-of-field soft atmospheric perspective haze (cooler, lighter mist so dark islands contrast sharply)
+			local haze = (biome == "grass") and 0.74 or 0.82
+			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 105))
+			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 135))
+			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 175))
 
 			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
 			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
@@ -759,6 +784,31 @@ function init(self)
 		})
 	end
 
+	-- Sizzling deep fryer bubbles rising from boiling oil
+	self.fryer_bubbles = {}
+	local init_cy = constants.WORLD_HEIGHT * 0.5
+	for i = 1, 8 do
+		local bx = (math.random() - 0.5) * constants.WORLD_WIDTH * 0.95
+		local by = constants.WATER_LEVEL - init_cy - math.random(5, 45)
+		local b_scale = 0.35 + math.random() * 0.35
+		local b_spd = 28 + math.random() * 40
+		local b_id = "#bubble" .. i
+		pcall(function()
+			go.set(b_id, "tint", vmath.vector4(1.0, 0.95, 0.50, 0.75))
+			go.set(b_id, "scale", vmath.vector3(b_scale, b_scale, 1.0))
+			go.set_position(vmath.vector3(bx, by, 0.42), b_id)
+		end)
+		table.insert(self.fryer_bubbles, {
+			id = b_id,
+			x = bx,
+			y = by,
+			origin_x = bx,
+			speed = b_spd,
+			base_scale = b_scale,
+			wobble = math.random() * 6.28,
+		})
+	end
+
 	-- Initial setup for expanded 1920x960 world
 	local cx = constants.WORLD_WIDTH * 0.5
 	local cy = constants.WORLD_HEIGHT * 0.5
@@ -776,7 +826,8 @@ function init(self)
 		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
 		go.set("#water", "scale.x", 2.5)
 		go.set("#water", "scale.y", 2.5)
-		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
+		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.68, go.EASING_INOUTSINE, 0.32)
+		go.animate("#water", "tint", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(1.0, 0.65, 0.16, 0.98), go.EASING_INOUTSINE, 0.45)
 	end)
 
 	-- Initially disable battle layers for main menu
@@ -845,6 +896,27 @@ function update(self, dt)
 		end
 	end
 
+	-- Sizzling deep fryer bubbles rising through boiling oil
+	if self.fryer_bubbles then
+		local cy = constants.WORLD_HEIGHT * 0.5
+		local surface_y = constants.WATER_LEVEL - cy
+		for _, b in ipairs(self.fryer_bubbles) do
+			b.y = b.y + b.speed * dt
+			b.wobble = b.wobble + dt * 4.5
+			local cur_x = b.origin_x + math.sin(b.wobble) * 6.0
+			if b.y >= surface_y + 4 then
+				b.origin_x = (math.random() - 0.5) * constants.WORLD_WIDTH * 0.95
+				b.x = b.origin_x
+				b.y = surface_y - math.random(20, 50)
+				b.speed = 28 + math.random() * 40
+				b.wobble = math.random() * 6.28
+			end
+			pcall(function()
+				go.set_position(vmath.vector3(cur_x, b.y, 0.42), b.id)
+			end)
+		end
+	end
+
 	-- Update background warfare simulation at smooth 25 FPS rate
 	if self.is_initialized and self.bg_stream and self.bg_base_stream then
 		self.bg_update_timer = (self.bg_update_timer or 0) + dt
@@ -895,6 +967,7 @@ function on_message(self, message_id, message, sender)
 			msg.post("#bg_islands", "enable")
 			for i = 1, 8 do
 				msg.post("#spore" .. i, "enable")
+				msg.post("#bubble" .. i, "enable")
 			end
 		end)
 
@@ -913,7 +986,8 @@ function on_message(self, message_id, message, sender)
 			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
 			go.set("#water", "scale.x", 2.5)
 			go.set("#water", "scale.y", 2.5)
-			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
+			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.68, go.EASING_INOUTSINE, 0.32)
+		go.animate("#water", "tint", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(1.0, 0.65, 0.16, 0.98), go.EASING_INOUTSINE, 0.45)
 		end)
 
 		self.current_preset = preset

@@ -65,6 +65,26 @@ M.SKINS = {
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
+		id = "helmet",
+		name = "Стальной Шлем",
+		name_ru = "Стальной Шлем",
+		name_en = "Steel Helmet",
+		name_tr = "Çelik Kask",
+		name_es = "Casco de Acero",
+		name_pt = "Capacete de Aço",
+		name_fr = "Casque d'Acier",
+		desc = "Надежная армейская каска цвета хаки",
+		desc_ru = "Надежная армейская каска цвета хаки",
+		desc_en = "Reliable khaki military combat helmet",
+		desc_tr = "Güvenilir haki askeri savaş kaskı",
+		desc_es = "Confiable casco militar caqui de combate",
+		desc_pt = "Capacete militar cáqui confiável de combate",
+		desc_fr = "Casque militaire kaki fiable de combat",
+		price = 300,
+		hat = "hat_helmet",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
 		id = "beret",
 		name = "Берет Десанта",
 		name_ru = "Берет Десанта",
@@ -82,6 +102,26 @@ M.SKINS = {
 		desc_fr = "Béret bordeaux tactique avec insigne doré",
 		price = 400,
 		hat = "hat_beret",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
+		id = "pirate",
+		name = "Шляпа Пирата",
+		name_ru = "Шляпа Пирата",
+		name_en = "Pirate Tricorn",
+		name_tr = "Korsan Şapkası",
+		name_es = "Sombrero Pirata",
+		name_pt = "Chapéu de Pirata",
+		name_fr = "Chapeau de Pirate",
+		desc = "Грозная треуголка морского капитана",
+		desc_ru = "Грозная треуголка морского капитана",
+		desc_en = "Fierce sea captain tricorn with golden trim",
+		desc_tr = "Altın süslemeli korkusuz kaptan şapkası",
+		desc_es = "Feroz tricornio de capitán con ribete dorado",
+		desc_pt = "Tricórnio feroz de capitão com borda dourada",
+		desc_fr = "Tricorne féroce de capitaine à galon doré",
+		price = 500,
+		hat = "hat_pirate",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
@@ -105,6 +145,26 @@ M.SKINS = {
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
+		id = "wizard",
+		name = "Шляпа Мага",
+		name_ru = "Шляпа Мага",
+		name_en = "Wizard Hat",
+		name_tr = "Büyücü Şapkası",
+		name_es = "Sombrero de Mago",
+		name_pt = "Chapéu de Mago",
+		name_fr = "Chapeau de Magicien",
+		desc = "Таинственный остроконечный колпак волшебника",
+		desc_ru = "Таинственный остроконечный колпак волшебника",
+		desc_en = "Mystical starry pointed sorcerer cone",
+		desc_tr = "Yıldızlı gizemli sivri büyücü şapkası",
+		desc_es = "Místico sombrero puntiagudo con estrellas",
+		desc_pt = "Chapéu místico pontudo com estrelas",
+		desc_fr = "Chapeau pointu mystique orné d'étoiles",
+		price = 750,
+		hat = "hat_wizard",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
 		id = "viking",
 		name = "Шлем Викинга",
 		name_ru = "Шлем Викинга",
@@ -125,6 +185,26 @@ M.SKINS = {
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 	{
+		id = "sombrero",
+		name = "Сомбреро",
+		name_ru = "Сомбреро",
+		name_en = "Festive Sombrero",
+		name_tr = "Sombrero",
+		name_es = "Sombrero Festivo",
+		name_pt = "Sombrero Festivo",
+		name_fr = "Sombrero Festif",
+		desc = "Широкополое соломенное сомбреро с узорами",
+		desc_ru = "Широкополое соломенное сомбреро с узорами",
+		desc_en = "Wide straw brim with festive Mexican patterns",
+		desc_tr = "Renkli desenli geniş hasır fötr şapka",
+		desc_es = "Ala ancha de paja con patrones festivos",
+		desc_pt = "Aba larga de palha com padrões festivos",
+		desc_fr = "Large bord en paille aux motifs festifs",
+		price = 1000,
+		hat = "hat_sombrero",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
 		id = "king",
 		name = "Корона Короля",
 		name_ru = "Корона Короля",
@@ -142,6 +222,46 @@ M.SKINS = {
 		desc_fr = "Couronne royale dorée ornée de rubis",
 		price = 1200,
 		hat = "hat_crown",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
+		id = "ushanka",
+		name = "Зимняя Ушанка",
+		name_ru = "Зимняя Ушанка",
+		name_en = "Winter Ushanka",
+		name_tr = "Kışlık Kalpak",
+		name_es = "Ushanka de Invierno",
+		name_pt = "Ushanka de Inverno",
+		name_fr = "Ouchanka d'Hiver",
+		desc = "Теплая меховая шапка со звездой для лютых морозов",
+		desc_ru = "Теплая меховая шапка со звездой для лютых морозов",
+		desc_en = "Warm winter fur earflap hat with red star",
+		desc_tr = "Kızıl yıldızlı sıcak kışlık kulaklıklı şapka",
+		desc_es = "Cálido gorro de piel con orejeras y estrella roja",
+		desc_pt = "Gorro quente de pele com orelheiras e estrela vermelha",
+		desc_fr = "Chapka chaude en fourrure avec étoile rouge",
+		price = 1400,
+		hat = "hat_ushanka",
+		tint = { 1.0, 1.0, 1.0, 1.0 },
+	},
+	{
+		id = "chef",
+		name = "Колпак Шефа",
+		name_ru = "Колпак Шефа",
+		name_en = "Chef Toque",
+		name_tr = "Şef Şapkası",
+		name_es = "Gorro de Chef",
+		name_pt = "Chapéu de Chef",
+		name_fr = "Toque de Chef",
+		desc = "Белоснежный колпак мастера картофельных блюд",
+		desc_ru = "Белоснежный колпак мастера картофельных блюд",
+		desc_en = "Crisp white culinary toque of a master spud chef",
+		desc_tr = "Usta patates aşçısının bembeyaz şef şapkası",
+		desc_es = "Toque blanco nítido de chef maestro de papas",
+		desc_pt = "Toque branco impecável de mestre cuca de batatas",
+		desc_fr = "Toque blanche impeccable d'un maître cuisinier",
+		price = 1800,
+		hat = "hat_chef",
 		tint = { 1.0, 1.0, 1.0, 1.0 },
 	},
 }
@@ -193,6 +313,7 @@ M.data = {
 	},
 	campaign_map = nil,
 	campaign_turn = 1,
+	no_ads = false,
 	campaign_stats = {
 		battles_won = 0,
 		battles_lost = 0,
@@ -235,6 +356,9 @@ function M.apply_profile_data(loaded)
 	if loaded.campaign_stats and type(loaded.campaign_stats) == "table" then
 		M.data.campaign_stats = loaded.campaign_stats
 	end
+	if loaded.no_ads ~= nil then
+		M.data.no_ads = (loaded.no_ads == true)
+	end
 end
 
 function M.load(callback)
@@ -266,6 +390,7 @@ function M.load(callback)
 			sectors_lost = 0,
 			counterattacks_repelled = 0,
 		}
+		M.data.no_ads = false
 	end
 
 	-- Async cloud load from Playgama Bridge Storage
@@ -383,6 +508,35 @@ function M.buy_star_with_points()
 		return true, M.data.stars
 	end
 	return false, "Недостаточно очков (требуется 1000 очков)"
+end
+
+function M.has_no_ads()
+	return M.data.no_ads == true
+end
+
+function M.set_no_ads(val)
+	M.data.no_ads = (val == true)
+	M.save()
+end
+
+function M.apply_purchase(product_id)
+	if product_id == "coins_pack_1000" then
+		M.add_points(1000)
+		return true, "+1000 🪙"
+	elseif product_id == "coins_pack_5000" then
+		M.add_points(5000)
+		return true, "+5000 🪙"
+	elseif product_id == "stars_pack_5" then
+		M.add_stars(5)
+		return true, "+5 ⭐"
+	elseif product_id == "stars_pack_20" then
+		M.add_stars(20)
+		return true, "+20 ⭐"
+	elseif product_id == "no_ads" then
+		M.set_no_ads(true)
+		return true, "NO ADS 🚫"
+	end
+	return false
 end
 
 function M.get_squad()

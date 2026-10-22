@@ -38,6 +38,16 @@ local function is_mobile_platform()
 	return false
 end
 
+local function check_match_interstitial(self, callback)
+	if (self.matches_completed or 0) >= 2 then
+		self.matches_completed = 0
+		constants.log(">>> EVERY 2 MATCHES: Triggering interstitial ad")
+		sdk.commercial_break(callback, "every_2_matches")
+	else
+		if callback then callback() end
+	end
+end
+
 local function clear_match_entities(self)
 	for _, p in ipairs(self.spawned_potatoes) do
 		pcall(function()
@@ -119,8 +129,7 @@ local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_w
 		facing = initial_facing
 	})
 
-	local is_ru = (i18n.current_lang == "ru")
-	local c_name = (is_ru and c_def.name) or c_def.name_en or "Recruit"
+	local c_name = classes.get_class_name(c_def.id, i18n.current_lang)
 
 	local record = {
 		id = potato_id,
@@ -443,6 +452,7 @@ function init(self)
 	self.pending_game_over_data = nil
 	self.damage_focus = nil
 	self.seamless_stage = 0
+	self.matches_completed = 0
 	self.intro_flyover = false
 	self.intro_flyover_timer = 0
 	self.intro_flyover_duration = 2.0
@@ -466,6 +476,10 @@ function init(self)
 		self.key_left_held = false
 		self.key_right_held = false
 		achievements.on_turn_start(active_team)
+		pcall(function()
+			msg.post("/gui_hud#gui", "turn_changed", { active_team = active_team, active_potato = active_potato })
+			msg.post("/gui_hud#gui", "update_inventory")
+		end)
 		for _, p in ipairs(game_state.potatoes) do
 			if p.is_alive and p.url then
 				local is_act = (p == active_potato)
@@ -560,11 +574,10 @@ function init(self)
 			player_profile.add_points(100)
 			player_profile.set_onboarding_stage(1)
 
-			local is_ru = (i18n.current_lang == "ru")
 			game_over_data.seamless = true
 			game_over_data.seamless_stage = 1
 			game_over_data.unlocked_hat_id = "cap"
-			game_over_data.unlocked_hat_name = is_ru and "КЕПКА БОЙЦА" or "FIGHTER CAP"
+			game_over_data.unlocked_hat_name = player_profile.get_skin_name(player_profile.SKINS_BY_ID["cap"], i18n.current_lang)
 			game_over_data.unlocked_hat_sprite = "hat_cap"
 			game_over_data.coins_awarded = 100
 			game_over_data.total_coins = player_profile.get_points()
@@ -576,11 +589,10 @@ function init(self)
 			player_profile.set_tutorial_completed(true)
 			player_profile.set_onboarding_stage(2)
 
-			local is_ru = (i18n.current_lang == "ru")
 			game_over_data.seamless = true
 			game_over_data.seamless_stage = 2
 			game_over_data.unlocked_hat_id = "bandana"
-			game_over_data.unlocked_hat_name = is_ru and "БАНДАНА НИНДЗЯ" or "NINJA BANDANA"
+			game_over_data.unlocked_hat_name = player_profile.get_skin_name(player_profile.SKINS_BY_ID["bandana"], i18n.current_lang)
 			game_over_data.unlocked_hat_sprite = "hat_bandana"
 			game_over_data.coins_awarded = 150
 			game_over_data.total_coins = player_profile.get_points()
@@ -590,6 +602,11 @@ function init(self)
 		sdk.round_end(is_win, game_state.campaign_level or 1)
 		if is_win then
 			sdk.happy_time(1.0)
+		end
+
+		if not game_over_data.seamless then
+			self.matches_completed = (self.matches_completed or 0) + 1
+			constants.log(">>> MATCH COMPLETE: matches_completed = " .. tostring(self.matches_completed))
 		end
 
 		if winner_team == constants.TEAM_BLUE then
@@ -707,15 +724,7 @@ function update(self, dt)
 			})
 			table.insert(self.spawned_crates, { url = crate_url })
 
-			local is_ru = (i18n.current_lang == "ru")
-			local toast_title = (crate_type == hash("medkit"))
-				and (is_ru and ("С неба падает аптечка (+" .. amt .. " HP)!") or ("Airdrop: Medkit inbound (+" .. amt .. " HP)!"))
-				or (is_ru and "С неба падает ящик с оружием!" or "Airdrop: Weapon crate inbound!")
-			msg.post("/gui_hud#gui", "show_achievement_toast", {
-				icon = (crate_type == hash("medkit")) and "❤️" or "📦",
-				title = toast_title,
-				points = 0
-			})
+			-- Airdrop crate spawned without toast banner (visual falling event replaces text)
 		end
 	end
 
@@ -790,17 +799,14 @@ function update(self, dt)
 				msg.post(p.url, "on_land", { impact_speed = p.last_impact_speed or 50 })
 			elseif result == "drowned" and p.url then
 				camera_controller.shake(14, 0.40)
-				sound_manager.play_explosion()
+				sound_manager.play_fry_sizzle()
+				p.pos.y = constants.WATER_LEVEL - 5
+				pcall(function() go.set_position(p.pos, p.url) end)
+				camera_controller.follow(p.pos.x, constants.WATER_LEVEL + 25)
 				msg.post("/main#main", "spawn_explosion", {
 					x = p.pos.x,
 					y = constants.WATER_LEVEL + 6,
 					radius = 36
-				})
-				msg.post("/gui_hud#gui", "show_damage", {
-					x = p.pos.x,
-					y = constants.WATER_LEVEL + 26,
-					amount = 999,
-					label = "🍟 КАРТОШКА-ФРИ!"
 				})
 				msg.post(p.url, "drowned")
 				p.url = nil
@@ -1240,10 +1246,16 @@ function update(self, dt)
 
 		if self.victory_timer <= 0 then
 			self.victory_celebration = false
-			msg.post("/gui_game_over", "enable")
-			if self.pending_game_over_data then
-				msg.post("/gui_game_over#gui", "show_result", self.pending_game_over_data)
-				self.pending_game_over_data = nil
+			local pdata = self.pending_game_over_data
+			self.pending_game_over_data = nil
+			if pdata and pdata.seamless and pdata.seamless_stage == 1 then
+				-- Seamless flow: After Battle 1, immediately launch Battle 2 without any window with buttons!
+				msg.post(".", "start_seamless_battle_2")
+			else
+				msg.post("/gui_game_over", "enable")
+				if pdata then
+					msg.post("/gui_game_over#gui", "show_result", pdata)
+				end
 			end
 		end
 	else
@@ -1423,51 +1435,53 @@ function on_message(self, message_id, message, sender)
 		start_game_match(self, constants.MODE_QUICK_BOT, 1, battle_cfg)
 
 	elseif message_id == hash("start_match") then
-		sdk.try_commercial_break(function()
+		check_match_interstitial(self, function()
 			start_game_match(self, message.mode, message.level)
-		end, "match_start")
+		end)
 
 	elseif message_id == hash("select_card") then
 		game_state.select_card(message.card_index)
 
 	elseif message_id == hash("show_menu") then
 		game_state.gameplay_stop()
-		sdk.try_commercial_break(nil, "main_menu")
-		self.victory_celebration = false
-		self.pending_game_over_data = nil
-		clear_match_entities(self)
-		self.touch_move_dir = 0
-		self.touch_move_timer = 0
-		self.key_left_held = false
-		self.key_right_held = false
-		camera_controller.reset(480, 270)
-		msg.post("/aim_guide#aim_guide", "hide_aim")
-		msg.post("/gui_hud", "disable")
-		msg.post("/gui_game_over", "disable")
-		msg.post("/gui_campaign_map", "disable")
-		msg.post("/gui_menu", "enable")
-		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
-		game_state.set_state(constants.STATE_MENU)
+		check_match_interstitial(self, function()
+			self.victory_celebration = false
+			self.pending_game_over_data = nil
+			clear_match_entities(self)
+			self.touch_move_dir = 0
+			self.touch_move_timer = 0
+			self.key_left_held = false
+			self.key_right_held = false
+			camera_controller.reset(480, 270)
+			msg.post("/aim_guide#aim_guide", "hide_aim")
+			msg.post("/gui_hud", "disable")
+			msg.post("/gui_game_over", "disable")
+			msg.post("/gui_campaign_map", "disable")
+			msg.post("/gui_menu", "enable")
+			msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+			game_state.set_state(constants.STATE_MENU)
+		end)
 
 	elseif message_id == hash("show_campaign_map") then
 		game_state.gameplay_stop()
-		sdk.try_commercial_break(nil, "campaign_map")
-		self.victory_celebration = false
-		self.pending_game_over_data = nil
-		clear_match_entities(self)
-		self.touch_move_dir = 0
-		self.touch_move_timer = 0
-		self.key_left_held = false
-		self.key_right_held = false
-		camera_controller.reset(480, 270)
-		msg.post("/aim_guide#aim_guide", "hide_aim")
-		msg.post("/gui_hud", "disable")
-		msg.post("/gui_game_over", "disable")
-		msg.post("/gui_menu", "disable")
-		msg.post("/gui_campaign_map", "enable")
-		msg.post("/gui_campaign_map#gui", "show")
-		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
-		game_state.set_state(constants.STATE_MENU)
+		check_match_interstitial(self, function()
+			self.victory_celebration = false
+			self.pending_game_over_data = nil
+			clear_match_entities(self)
+			self.touch_move_dir = 0
+			self.touch_move_timer = 0
+			self.key_left_held = false
+			self.key_right_held = false
+			camera_controller.reset(480, 270)
+			msg.post("/aim_guide#aim_guide", "hide_aim")
+			msg.post("/gui_hud", "disable")
+			msg.post("/gui_game_over", "disable")
+			msg.post("/gui_menu", "disable")
+			msg.post("/gui_campaign_map", "enable")
+			msg.post("/gui_campaign_map#gui", "show")
+			msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+			game_state.set_state(constants.STATE_MENU)
+		end)
 
 	elseif message_id == hash("player_move_state") then
 		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
@@ -1716,13 +1730,37 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("revive_player") then
 		game_state.rewarded_break(function(success)
-			if not success then return end
+			if not success then
+				msg.post("/gui_game_over", "enable")
+				return
+			end
 
 			local pot = nil
-			for _, p in ipairs(game_state.potatoes) do
-				if p.team == constants.TEAM_BLUE then
-					pot = p
-					break
+			-- 1. Try finding specific requested potato
+			if message and message.potato_id then
+				for _, p in ipairs(game_state.potatoes) do
+					if p.id == message.potato_id and p.team == constants.TEAM_BLUE then
+						pot = p
+						break
+					end
+				end
+			end
+			-- 2. Try finding first dead blue fighter
+			if not pot then
+				for _, p in ipairs(game_state.potatoes) do
+					if p.team == constants.TEAM_BLUE and not p.is_alive then
+						pot = p
+						break
+					end
+				end
+			end
+			-- 3. Fallback to any blue potato
+			if not pot then
+				for _, p in ipairs(game_state.potatoes) do
+					if p.team == constants.TEAM_BLUE then
+						pot = p
+						break
+					end
 				end
 			end
 
@@ -1755,14 +1793,14 @@ function on_message(self, message_id, message, sender)
 				local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
 				pot.pos = vmath.vector3(rx, spawn_y, 0.1)
 				pot.vel = vmath.vector3(0, 0, 0)
-				pot.hp = 50
+				pot.hp = math.max(50, math.floor((pot.max_hp or 100) * 0.5))
 				pot.is_alive = true
 				pot.is_grounded = false
 
 				local new_url = factory.create("#potato_factory", pot.pos, nil, {
 					team = constants.TEAM_BLUE,
 					potato_id = pot.id,
-					hp = 50,
+					hp = pot.hp,
 					max_hp = pot.max_hp or 100,
 					facing = 1
 				})
@@ -1776,32 +1814,40 @@ function on_message(self, message_id, message, sender)
 				end
 
 				if game_state.mode == constants.MODE_CAMPAIGN then
-					player_profile.set_campaign_hp(50)
+					player_profile.set_campaign_hp(pot.hp)
 				end
 
-				game_state.winner_team = nil
-				game_state.active_potato = pot
-				game_state.active_team = constants.TEAM_BLUE
-				game_state.turn_timer = constants.TURN_DURATION
-				game_state.set_state(constants.STATE_TURN_ACTIVE)
+				local was_game_over = (game_state.state == constants.STATE_GAME_OVER)
+				if was_game_over then
+					game_state.winner_team = nil
+					game_state.active_potato = pot
+					game_state.active_team = constants.TEAM_BLUE
+					game_state.turn_timer = constants.TURN_DURATION
+					game_state.set_state(constants.STATE_TURN_ACTIVE)
 
-				if game_state.on_turn_changed then
-					game_state.on_turn_changed(constants.TEAM_BLUE, pot)
+					if game_state.on_turn_changed then
+						game_state.on_turn_changed(constants.TEAM_BLUE, pot)
+					end
+
+					msg.post(new_url, "set_active", { active = true })
+					msg.post("/gui_game_over", "disable")
+					msg.post("/gui_hud", "enable")
+					msg.post("/gui_hud#gui", "match_started")
+				else
+					local is_act = (pot == game_state.active_potato)
+					msg.post(new_url, "set_active", { active = is_act })
+					msg.post("/gui_hud#gui", "turn_changed")
+					msg.post("/gui_hud#gui", "update_inventory")
 				end
-
-				msg.post(new_url, "set_active", { active = true })
 
 				camera_controller.follow(pot.pos.x, pot.pos.y, true)
 				camera_controller.shake(8, 0.3)
 				sound_manager.play_heal()
 
-				msg.post("/gui_game_over", "disable")
-				msg.post("/gui_hud", "enable")
-				msg.post("/gui_hud#gui", "match_started")
 				msg.post("/gui_hud#gui", "show_damage", {
 					x = pot.pos.x,
 					y = pot.pos.y,
-					amount = 50,
+					amount = pot.hp,
 					is_heal = true
 				})
 				game_state.gameplay_start()

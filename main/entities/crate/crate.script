@@ -21,18 +21,31 @@ function init(self)
 	local type_str = (self.crate_type == hash("weapon")) and "weapon" or "medkit"
 	self.type_str = type_str
 
+	-- Descending whistle audio while airdrop is falling from the sky
+	sound_manager.play_whistle_fall()
+
+	-- Parachute canopy setup: big visible dome
+	pcall(function()
+		go.set("#parachute_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 0.98))
+	end)
+
 	-- Visual setup
 	if type_str == "medkit" then
-		-- Green cross / medkit box tint
+		-- White medical crate with prominent RED CROSS
 		pcall(function()
-			go.set("#box_sprite", "tint", vmath.vector4(0.20, 0.88, 0.40, 1.0))
-			go.set("#icon_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
-			sprite.play_flipbook("#icon_sprite", hash("circle"))
-			go.set_scale(vmath.vector3(0.85, 0.85, 1.0), "#icon_sprite")
+			go.set("#box_sprite", "tint", vmath.vector4(0.96, 0.96, 0.94, 1.0))
+			msg.post("#icon_sprite", "disable")
+			msg.post("#cross_h", "enable")
+			msg.post("#cross_v", "enable")
+			go.set("#cross_h", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
+			go.set("#cross_v", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
 		end)
 	else
 		-- Gold weapon crate tint
 		pcall(function()
+			msg.post("#cross_h", "disable")
+			msg.post("#cross_v", "disable")
+			msg.post("#icon_sprite", "enable")
 			go.set("#box_sprite", "tint", vmath.vector4(0.95, 0.72, 0.15, 1.0))
 			local wpn_name = "masher_bazooka"
 			local w = weapons.get(self.weapon_id and tostring(self.weapon_id) or "bazooka")
@@ -48,8 +61,6 @@ end
 local function collect_crate(self, potato)
 	if self.is_collected then return end
 	self.is_collected = true
-
-	local is_ru = (i18n.current_lang == "ru")
 
 	if self.type_str == "medkit" then
 		sound_manager.play_heal()
@@ -68,19 +79,13 @@ local function collect_crate(self, potato)
 			msg.post(potato.url, "apply_heal", { amount = heal_amt })
 		end
 
+		-- Floating green +X over potato (visual event, no text toast banner!)
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = potato.pos.x,
 			y = potato.pos.y,
 			amount = heal_amt,
 			is_heal = true,
 			is_max_hp = was_full
-		})
-
-		local title = is_ru and ("Аптечка +" .. heal_amt .. (was_full and " МАКС HP!" or " HP!")) or ("Medkit +" .. heal_amt .. (was_full and " MAX HP!" or " HP!"))
-		msg.post("/gui_hud#gui", "show_achievement_toast", {
-			icon = "❤️",
-			title = title,
-			points = 0
 		})
 	else
 		sound_manager.play_shot()
@@ -89,11 +94,12 @@ local function collect_crate(self, potato)
 		local count = self.amount or 2
 		game_state.add_ammo(w.id, count)
 
-		local title = is_ru and ("Ящик: +" .. count .. " " .. (w.name or w.id) .. "!") or ("Crate: +" .. count .. " " .. (w.name or w.id) .. "!")
-		msg.post("/gui_hud#gui", "show_achievement_toast", {
-			icon = "📦",
-			title = title,
-			points = 0
+		-- Ammo pickup floating indicator
+		msg.post("/gui_hud#gui", "show_damage", {
+			x = potato.pos.x,
+			y = potato.pos.y,
+			amount = count,
+			label = "+" .. count .. " " .. (w.name or w.id)
 		})
 	end
 

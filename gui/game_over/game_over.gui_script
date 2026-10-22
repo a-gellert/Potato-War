@@ -35,6 +35,7 @@ function init(self)
 
 	self.ui:button("btn_shop", function()
 		msg.post(".", "disable")
+		msg.post("/main#main", "show_menu")
 		msg.post("/gui_menu#gui", "open_shop", { mode = "skins" })
 	end)
 
@@ -126,7 +127,8 @@ function on_message(self, message_id, message, sender)
 			local star1 = gui.get_node("seamless_hat_star_1")
 			local star2 = gui.get_node("seamless_hat_star_2")
 
-			gui.set_text(hat_badge, i18n.t("achieve_bonus"))
+			local hat_badge_text = is_ru and "ВЫБИТА ШАПКА!" or "NEW HAT UNLOCKED!"
+			gui.set_text(hat_badge, hat_badge_text)
 			local default_cap = player_profile.SKINS[2]
 			gui.set_text(hat_name, message.unlocked_hat_name or player_profile.get_skin_name(default_cap, i18n.current_lang))
 
@@ -213,6 +215,9 @@ function on_message(self, message_id, message, sender)
 		-- 1. Frontline Minimap & Layout Setup
 		if is_campaign then
 			gui.set_enabled(minimap_bg, true)
+			pcall(function()
+				gui.set_text(gui.get_node("minimap_header"), i18n.t("frontline_minimap"))
+			end)
 			gui.set_position(reward_bg, vmath.vector3(295, 338, 0))
 			gui.set_position(stats_bg, vmath.vector3(295, 238, 0))
 			gui.set_position(skin_bg, vmath.vector3(295, 166, 0))
@@ -264,7 +269,7 @@ function on_message(self, message_id, message, sender)
 			local blue_cnt = #blue_secs
 			local red_cnt = 18 - blue_cnt
 			local pct = math.floor((blue_cnt / 18) * 100)
-			gui.set_text(gui.get_node("minimap_legend"), string.format(is_ru and "🔵 СИНИЕ: %d    🔴 КРАСНЫЕ: %d" or "🔵 BLUE: %d    🔴 RED: %d", blue_cnt, red_cnt))
+			gui.set_text(gui.get_node("minimap_legend"), string.format(i18n.t("minimap_legend_fmt"), blue_cnt, red_cnt))
 			gui.set_size(gui.get_node("minimap_bar_fill"), vmath.vector3(math.floor(250 * (blue_cnt / 18)), 8, 0))
 			gui.set_text(gui.get_node("minimap_status_lbl"), string.format(i18n.t("frontline_control_fmt"), blue_cnt, pct))
 		else
@@ -376,12 +381,12 @@ function on_message(self, message_id, message, sender)
 				end
 				gui.set_text(achieve_node, badges_str)
 			else
-				gui.set_text(achieve_node, is_ru and "Совет: Сохраните всех бойцов отряда для бонуса +1 звезда!" or "Tip: Keep all squad members alive for +1 star bonus!")
+				gui.set_text(achieve_node, i18n.t("tip_keep_squad"))
 			end
 			gui.set_enabled(reward_bg, true)
 		else
-			gui.set_text(reward_txt, "+0 " .. (is_ru and "ОЧКОВ" or "POINTS"))
-			gui.set_text(achieve_node, is_ru and "Враг оказался сильнее. Перегруппируйтесь!" or "Enemy was stronger. Regroup your forces!")
+			gui.set_text(reward_txt, i18n.t("points_zero_unit"))
+			gui.set_text(achieve_node, i18n.t("debrief_defeat_hint"))
 			gui.set_enabled(reward_bg, true)
 		end
 
@@ -408,9 +413,9 @@ function on_message(self, message_id, message, sender)
 		-- 7. Action Buttons
 		if message.is_tutorial or game_state.mode == constants.MODE_TUTORIAL then
 			gui.set_color(title_node, vmath.vector4(0.2, 0.95, 0.45, 1.0))
-			gui.set_text(title_node, is_ru and "ТЫ ГОТОВ К БОЮ!" or "YOU ARE READY!")
-			gui.set_text(sub_node, is_ru and "Тренировка завершена на отлично. Враг повержен!" or "Training completed with honors. Target eliminated!")
-			gui.set_text(next_txt, is_ru and "НАЧАТЬ КАМПАНИЮ ⚔️" or "START CAMPAIGN ⚔️")
+			gui.set_text(title_node, i18n.t("tutorial_ready_title"))
+			gui.set_text(sub_node, i18n.t("tutorial_ready_sub"))
+			gui.set_text(next_txt, i18n.t("btn_start_campaign"))
 			gui.set_enabled(next_btn, true)
 			gui.set_enabled(next_txt, true)
 			gui.set_position(next_btn, vmath.vector3(480, 95, 0))
@@ -428,7 +433,7 @@ function on_message(self, message_id, message, sender)
 			gui.set_enabled(revive_btn, false)
 			gui.set_enabled(revive_txt, false)
 
-			gui.set_text(rematch_txt, is_ru and "ПОВТОРИТЬ 🔄" or "RETRY 🔄")
+			gui.set_text(rematch_txt, i18n.t("btn_retry_icon"))
 			gui.set_enabled(rematch_btn, true)
 			gui.set_enabled(rematch_txt, true)
 		else

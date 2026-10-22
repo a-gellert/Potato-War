@@ -97,8 +97,36 @@ function M.play_plop(gain_mult)
 	end)
 end
 
+-- Sound effect: Descending whistle tone for airdrop parachute crate
+function M.play_whistle_fall()
+	pcall(function()
+		sound.play("/main#sound_heal", { gain = 0.85, speed = 2.2 })
+		timer.delay(0.12, false, function()
+			sound.play("/main#sound_heal", { gain = 0.85, speed = 1.7 })
+		end)
+		timer.delay(0.24, false, function()
+			sound.play("/main#sound_heal", { gain = 0.80, speed = 1.25 })
+		end)
+	end)
+end
+
+-- Sound effect: Loud sizzling oil in deep fryer
+function M.play_fry_sizzle()
+	pcall(function()
+		sound.play("/main#sound_explosion", { gain = 0.75, speed = 2.4 })
+		sound.play("/main#sound_shot", { gain = 0.85, speed = 2.6 })
+		for i = 1, 4 do
+			timer.delay(i * 0.05, false, function()
+				local spd = 2.0 + math.random() * 0.8
+				sound.play("/main#sound_click", { gain = 0.9, speed = spd })
+			end)
+		end
+	end)
+end
+
 -- Sound effect: Whistle & deep fryer sizzle when falling into the fryer oil
 function M.play_fry_whistle()
+	M.play_fry_sizzle()
 	pcall(function()
 		-- Ascending cartoon whistle tone
 		sound.play("/main#sound_heal", { gain = 0.9, speed = 1.4 })

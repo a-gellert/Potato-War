@@ -1,5 +1,5 @@
 -- main/entities/explosion/explosion.script
--- Visual blast flash, billowing gunpowder smoke, and dynamic clods of earth
+-- Visual blast flash, billowing gunpowder smoke, and 8-12 dynamic scattering clods of earth
 
 local constants = require("lua_modules.constants")
 
@@ -24,8 +24,11 @@ function init(self)
 	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(2.8, 2.8, 1.0), go.EASING_OUTQUAD, 0.58)
 	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.58, 0.08)
 
-	-- Flying clods of earth & rich soil debris (комья чернозема и глины)
-	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }
+	-- 12 Flying clods of earth & rich soil debris scattering radially from crater
+	local dirt_ids = {
+		"#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6",
+		"#dirt7", "#dirt8", "#dirt9", "#dirt10", "#dirt11", "#dirt12"
+	}
 	local dirt_colors = {
 		vmath.vector4(0.24, 0.18, 0.13, 1.0), -- Dark fertile chernozem
 		vmath.vector4(0.32, 0.23, 0.16, 1.0), -- Rich loam
@@ -35,13 +38,27 @@ function init(self)
 		vmath.vector4(0.34, 0.24, 0.17, 1.0),
 		vmath.vector4(0.19, 0.14, 0.10, 1.0),
 		vmath.vector4(0.36, 0.25, 0.18, 1.0),
+		vmath.vector4(0.28, 0.20, 0.15, 1.0),
+		vmath.vector4(0.22, 0.16, 0.11, 1.0),
+		vmath.vector4(0.35, 0.26, 0.18, 1.0),
+		vmath.vector4(0.20, 0.15, 0.10, 1.0),
 	}
+
 	for i, d_id in ipairs(dirt_ids) do
 		pcall(function()
+			local angle = (i / #dirt_ids) * 6.283 + (math.random() - 0.5) * 0.4
+			local dist = 32 + math.random() * math.max(25, self.radius * 1.4)
+			local target_x = math.cos(angle) * dist
+			local target_y = math.sin(angle) * dist + (math.random() * 16 - 8)
+			local fly_time = 0.46 + math.random() * 0.16
+
 			go.set(d_id, "tint", dirt_colors[i])
-			go.set(d_id, "scale", vmath.vector3(1.6 + math.random() * 0.8, 1.6 + math.random() * 0.8, 1.0))
-			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.55)
-			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.15)
+			local init_scale = 1.4 + math.random() * 0.8
+			go.set(d_id, "scale", vmath.vector3(init_scale, init_scale, 1.0))
+			go.animate(d_id, "position.x", go.PLAYBACK_ONCE_FORWARD, target_x, go.EASING_OUTQUAD, fly_time)
+			go.animate(d_id, "position.y", go.PLAYBACK_ONCE_FORWARD, target_y - 20, go.EASING_INQUAD, fly_time)
+			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.15, 0.15, 1.0), go.EASING_INQUAD, fly_time)
+			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, fly_time, 0.12)
 		end)
 	end
 
@@ -59,15 +76,22 @@ function init(self)
 	}
 	for i, s_id in ipairs(spark_ids) do
 		pcall(function()
+			local angle = (i / #spark_ids) * 6.283 + (math.random() - 0.5) * 0.3
+			local s_dist = 25 + math.random() * (self.radius * 1.2)
+			local s_x = math.cos(angle) * s_dist
+			local s_y = math.sin(angle) * s_dist
+
 			go.set(s_id, "tint", spark_colors[i])
 			go.set(s_id, "scale", vmath.vector3(1.8, 1.8, 1.0))
+			go.animate(s_id, "position.x", go.PLAYBACK_ONCE_FORWARD, s_x, go.EASING_OUTQUAD, 0.42)
+			go.animate(s_id, "position.y", go.PLAYBACK_ONCE_FORWARD, s_y, go.EASING_OUTQUAD, 0.42)
 			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.1, 0.1, 1.0), go.EASING_INQUAD, 0.45)
 			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45)
 		end)
 	end
 
 	-- Delete object after all animations settle
-	timer.delay(0.60, false, function()
+	timer.delay(0.65, false, function()
 		go.delete()
 	end)
 end

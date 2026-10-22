@@ -156,6 +156,58 @@ embedded_components {
   }
 }
 embedded_components {
+  id: "dirt9"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"dirt_particle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.48
+  }
+}
+embedded_components {
+  id: "dirt10"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"dirt_particle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.48
+  }
+}
+embedded_components {
+  id: "dirt11"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"dirt_particle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.48
+  }
+}
+embedded_components {
+  id: "dirt12"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"dirt_particle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.48
+  }
+}
+embedded_components {
   id: "spark1"
   type: "sprite"
   data: "tile_set: \"/main/assets/game.atlas\"\n"

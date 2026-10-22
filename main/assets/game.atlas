@@ -134,6 +134,24 @@ images {
   image: "/main/assets/hat_cap.png"
 }
 images {
+  image: "/main/assets/hat_helmet.png"
+}
+images {
+  image: "/main/assets/hat_pirate.png"
+}
+images {
+  image: "/main/assets/hat_wizard.png"
+}
+images {
+  image: "/main/assets/hat_sombrero.png"
+}
+images {
+  image: "/main/assets/hat_ushanka.png"
+}
+images {
+  image: "/main/assets/hat_chef.png"
+}
+images {
   image: "/main/assets/smiles/s_angry.png"
 }
 images {

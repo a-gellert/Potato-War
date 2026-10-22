@@ -24,6 +24,7 @@ nodes {
   type: TYPE_BOX
   texture: "game/box"
   id: "phase_badge"
+  enabled: false
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   slice9 {
@@ -32,7 +33,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.92
+  alpha: 0.0
 }
 nodes {
   scale {
@@ -58,7 +59,7 @@ nodes {
 }
 nodes {
   position {
-    x: 746.0
+    x: 540.0
     y: 514.0
   }
   size {
@@ -81,7 +82,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.92
+  alpha: 0.0
 }
 nodes {
   position {
@@ -104,6 +105,7 @@ nodes {
   text: "\320\222\320\225\320\242\320\225\320\240:"
   font: "system_font"
   id: "wind_title"
+  enabled: false
   parent: "wind_panel"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -126,12 +128,15 @@ nodes {
   type: TYPE_BOX
   texture: "game/arrow"
   id: "wind_arrow"
+  position {
+    x: -14.0
+  }
   parent: "wind_panel"
   inherit_alpha: true
 }
 nodes {
   position {
-    x: 47.0
+    x: 14.0
   }
   scale {
     x: 0.45
@@ -152,7 +157,7 @@ nodes {
 }
 nodes {
   position {
-    x: 110.0
+    x: 0.0
     y: 210.0
   }
   size {
@@ -167,6 +172,7 @@ nodes {
   type: TYPE_BOX
   texture: "game/box"
   id: "squad_panel"
+  enabled: false
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_BOTTOM
   inherit_alpha: true
@@ -668,7 +674,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.88
+  alpha: 0.0
 }
 nodes {
   position {
@@ -686,6 +692,7 @@ nodes {
   text: "\320\245\320\276\320\264: \320\232\320\260\321\200\321\202\320\276\321\210\320\272\320\260 (\320\241\320\270\320\275\320\270\320\265)"
   font: "system_font"
   id: "banner_text"
+  enabled: false
   parent: "banner_bg"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -693,7 +700,7 @@ nodes {
 }
 nodes {
   position {
-    x: 110.0
+    x: 0.0
   }
   size {
     x: 55.0
@@ -707,6 +714,11 @@ nodes {
   type: TYPE_BOX
   texture: "game/box"
   id: "timer_bg"
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  texture: "game/circle"
   parent: "banner_bg"
   inherit_alpha: true
   slice9 {
@@ -754,6 +766,7 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "timer_bar_bg"
+  enabled: false
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   alpha: 0.9
@@ -803,7 +816,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.88
+  alpha: 0.0
 }
 nodes {
   position {
@@ -1398,7 +1411,7 @@ nodes {
     y: 514.0
   }
   size {
-    x: 110.0
+    x: 0.0
     y: 40.0
   }
   color {
@@ -1409,6 +1422,14 @@ nodes {
   type: TYPE_BOX
   texture: "game/box"
   id: "btn_pause"
+  position {
+    x: 934.0
+    y: 514.0
+  }
+  size {
+    x: 36.0
+    y: 36.0
+  }
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   inherit_alpha: true
@@ -1433,6 +1454,7 @@ nodes {
   text: "\320\234\320\225\320\235\320\256 [ESC]"
   font: "system_font"
   id: "txt_pause"
+  text: "II"
   parent: "btn_pause"
   inherit_alpha: true
   outline_alpha: 0.0
@@ -1796,7 +1818,7 @@ nodes {
     y: 125.0
   }
   size {
-    x: 110.0
+    x: 0.0
     y: 42.0
   }
   color {
@@ -1859,7 +1881,7 @@ nodes {
   texture: "game/white_pixel"
   id: "inventory_overlay"
   inherit_alpha: true
-  alpha: 0.88
+  alpha: 0.0
   enabled: false
 }
 nodes {

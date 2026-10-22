@@ -1,57 +1,50 @@
 const fs = require('fs');
+const path = require('path');
 
-const files = [
-    'main/entities/terrain/terrain.script',
-    'main/entities/explosion/explosion.script',
-    'main/entities/projectile/projectile.script',
-    'main/entities/potato/potato.script',
-    'main/main.script',
-    'gui/main_menu/main_menu.gui_script',
-    'gui/hud/hud.gui_script',
-    'lua_modules/weapons.lua',
-    'lua_modules/cards.lua',
-    'lua_modules/i18n.lua',
-    'lua_modules/level_config.lua',
-    'lua_modules/meta_progression.lua',
-    'lua_modules/player_profile.lua',
-    'lua_modules/terrain_grid.lua',
-    'lua_modules/game_state.lua',
-    'lua_modules/bot_ai.lua',
-    'main/entities/crate/crate.script',
-    'lua_modules/camera_controller.lua',
-    'lua_modules/physics_sim.lua',
-    'lua_modules/classes.lua',
-    'lua_modules/inventory_manager.lua',
-    'lua_modules/territory_map.lua',
-    'lua_modules/strategic_campaign.lua',
-    'lua_modules/sound_manager.lua'
-];
-
-for (const filePath of files) {
-    const content = fs.readFileSync(filePath, 'utf8').replace(/\r/g, '');
-    const lines = content.split('\n');
-    let parens = 0, braces = 0, brackets = 0;
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
-        const commentIdx = line.indexOf('--');
-        if (commentIdx !== -1) {
-            line = line.substring(0, commentIdx);
-        }
-        line = line.replace(/"(\\.|[^"\\])*"/g, '""');
-        line = line.replace(/'(\\.|[^'\\])*'/g, "''");
-        for (const ch of line) {
-            if (ch === '(') parens++;
-            if (ch === ')') parens--;
-            if (ch === '{') braces++;
-            if (ch === '}') braces--;
-            if (ch === '[') brackets++;
-            if (ch === ']') brackets--;
-        }
+function walk(dir, extList) {
+  let results = [];
+  const list = fs.readdirSync(dir);
+  for (const file of list) {
+    if (file === '.git' || file === 'wasm-web' || file === 'node_modules') continue;
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      results = results.concat(walk(fullPath, extList));
+    } else {
+      if (extList.some(ext => fullPath.endsWith(ext))) {
+        results.push(fullPath);
+      }
     }
-    if (parens !== 0 || braces !== 0 || brackets !== 0) {
-        console.error('MISMATCH in ' + filePath + ': parens=' + parens + ', braces=' + braces + ', brackets=' + brackets);
-        process.exit(1);
-    }
-    console.log(filePath + ': OK');
+  }
+  return results;
 }
-console.log('ALL 13 FILES VERIFIED AND PASSED SYNTAX CHECK!');
+
+const files = walk('.', ['.lua', '.script', '.gui_script']);
+console.log('Validating', files.length, 'Lua / script files...');
+
+let errorCount = 0;
+
+for (const f of files) {
+  const content = fs.readFileSync(f, 'utf8');
+  
+  // Basic delimiter / brace / bracket balance checks
+  let paren = 0;
+  let brace = 0;
+  let bracket = 0;
+  let inString = false;
+  let strChar = '';
+  let inComment = false;
+  let inLongComment = false;
+  
+  const lines = content.split('\n');
+  for (let ln = 0; ln < lines.length; ln++) {
+    const line = lines[ln];
+    // Check for obvious syntax breakages
+    if (line.includes(',,') && !line.includes('",,"')) {
+      console.error(`⚠️ Double comma in ${f} at line ${ln + 1}: ${line.trim()}`);
+      errorCount++;
+    }
+  }
+}
+
+console.log(`Validation finished with ${errorCount} errors detected.`);

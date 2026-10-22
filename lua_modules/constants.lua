@@ -31,7 +31,7 @@ M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for smooth web playti
 
 -- Physics
 M.GRAVITY = 460.0
-M.POTATO_RADIUS = 12.0
+M.POTATO_RADIUS = 15.0
 M.POTATO_WALK_SPEED = 75.0
 M.POTATO_JUMP_IMPULSE = 295.0
 M.MAX_FALL_SPEED = 600.0

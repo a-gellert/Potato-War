@@ -226,3 +226,140 @@ embedded_components {
     y: 1.5
   }
 }
+
+embedded_components {
+  id: "bubble1"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble2"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble3"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble4"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble5"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble6"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble7"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}
+embedded_components {
+  id: "bubble8"
+  type: "sprite"
+  data: "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  position {
+    z: 0.42
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+}

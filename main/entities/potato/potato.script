@@ -204,7 +204,7 @@ function init(self)
 	self.scale_anim_timer = 0
 end
 
-local BASE_SCALE = 0.25
+local BASE_SCALE = 0.3125
 
 function update(self, dt)
 	if self.scale_anim_timer and self.scale_anim_timer > 0 then
@@ -692,11 +692,14 @@ function on_message(self, message_id, message, sender)
 		pcall(function()
 			sprite.play_flipbook("#sprite", hash("french_fries"))
 		end)
-		go.set("#sprite", "scale", vmath.vector3(0.72, 0.72, 1.0))
+		go.set("#sprite", "scale", vmath.vector3(0.95, 0.95, 1.0))
 		go.set("#sprite", "tint", vmath.vector4(1.25, 1.15, 0.85, 1.0))
 
 		local cur_pos = go.get_position()
-		local jump_peak_y = cur_pos.y + 52
+		local oil_surface_y = constants.WATER_LEVEL or 28
+		cur_pos.y = oil_surface_y - 6
+		go.set_position(cur_pos)
+		local jump_peak_y = oil_surface_y + 54
 
 		-- Pop out of boiling fryer oil in a cartoon arc and tumble
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, jump_peak_y, go.EASING_OUTQUAD, 0.32, 0, function()

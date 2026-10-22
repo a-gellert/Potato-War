@@ -49,12 +49,21 @@ function M.try_commercial_break(callback, placement)
 	sdk.try_commercial_break(callback, placement or "interstitial")
 end
 
+function M.on_match_finished(callback)
+	sdk.on_match_finished(callback)
+end
+
 function M.rewarded_break(callback, placement)
 	constants.log(">>> PLAYGAMA SDK: rewardedBreak")
+	local called = false
+	local rewarded = false
 	sdk.rewarded_break(function()
-		if callback then callback(true) end
+		rewarded = true
 	end, function(earned)
-		if callback then callback(earned) end
+		if not called then
+			called = true
+			if callback then callback(rewarded or (earned == true)) end
+		end
 	end, placement or "rewarded")
 end
 
@@ -510,6 +519,10 @@ local function begin_current_turn()
 	if M.on_turn_changed then
 		M.on_turn_changed(M.active_team, M.active_potato)
 	end
+
+	pcall(function()
+		msg.post("/gui_hud#gui", "turn_changed", { team = M.active_team, potato_id = M.active_potato and M.active_potato.id })
+	end)
 
 	-- Ensure selected weapon is valid and has ammo
 	if M.active_team == constants.TEAM_BLUE then

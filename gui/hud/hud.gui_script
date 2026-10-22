@@ -66,29 +66,29 @@ local function update_wind_widget(self)
 		local arrow_node = gui.get_node("wind_arrow")
 		local title_node = gui.get_node("wind_title")
 
-		gui.set_text(title_node, i18n.t("hud_wind"))
+		gui.set_enabled(title_node, false)
 
 		local spd = math.abs(cur_wind_x)
-		gui.set_text(val_node, tostring(spd) .. i18n.t("hud_wind_unit"))
+		gui.set_text(val_node, tostring(spd))
 
 		if cur_wind_x > 2 then
 			-- Wind blows to the right: arrow points right (rotation 0)
 			gui.set_enabled(arrow_node, true)
 			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 0))
-			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
+			local scale_factor = 0.5 + 0.3 * (spd / 30.0)
 			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
 			if spd > 20 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0)) -- Intense orange/red
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
 			elseif spd > 10 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Moderate gold
+				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
 			else
-				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0)) -- Calm cyan
+				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
 			end
 		elseif cur_wind_x < -2 then
 			-- Wind blows to the left: arrow points left (rotation 180 deg)
 			gui.set_enabled(arrow_node, true)
 			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 180))
-			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
+			local scale_factor = 0.5 + 0.3 * (spd / 30.0)
 			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
 			if spd > 20 then
 				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
@@ -98,7 +98,7 @@ local function update_wind_widget(self)
 				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
 			end
 		else
-			-- Calm / No wind (0-2 m/s): hide arrow or keep tiny neutral dot
+			-- Calm / No wind (0-2 m/s): hide arrow
 			gui.set_enabled(arrow_node, false)
 		end
 	end)
@@ -106,81 +106,13 @@ end
 
 local function update_phase_widget(self)
 	pcall(function()
-		local badge_node = gui.get_node("phase_badge")
-		local text_node = gui.get_node("txt_battle_phase")
-
-		local b_type = self.battle_type or "assault"
-		local sec_name = self.sector_name or i18n.t("hud_sector")
-
-		if b_type == "defense" then
-			gui.set_color(badge_node, vmath.vector4(0.08, 0.16, 0.24, 0.92))
-			gui.set_color(text_node, vmath.vector4(0.20, 0.85, 1.0, 1.0))
-			gui.set_text(text_node, i18n.t("hud_defense") .. string.upper(sec_name))
-		else
-			gui.set_color(badge_node, vmath.vector4(0.18, 0.10, 0.10, 0.92))
-			gui.set_color(text_node, vmath.vector4(1.0, 0.80, 0.20, 1.0))
-			gui.set_text(text_node, i18n.t("hud_assault") .. string.upper(sec_name))
-		end
+		gui.set_enabled(gui.get_node("phase_badge"), false)
 	end)
 end
 
 local function update_squad_widget(self)
 	pcall(function()
-		local title_node = gui.get_node("squad_title")
-		gui.set_text(title_node, i18n.t("hud_squad_pda"))
-		gui.set_color(title_node, vmath.vector4(0.15, 0.78, 0.95, 1.0))
-
-		local blue_spuds = {}
-		for _, p in ipairs(game_state.potatoes or {}) do
-			if p.team == constants.TEAM_BLUE then
-				table.insert(blue_spuds, p)
-			end
-		end
-
-		for i = 1, 4 do
-			local slot = gui.get_node("spud_slot_" .. i)
-			local name_node = gui.get_node("spud_name_" .. i)
-			local hp_bar = gui.get_node("spud_hp_bar_" .. i)
-			local hp_txt = gui.get_node("spud_hp_txt_" .. i)
-
-			local p = blue_spuds[i]
-			if p then
-				gui.set_enabled(slot, true)
-				local cls_label = (p.class_id and classes.get_class_name(p.class_id, i18n.current_lang)) or p.class_name or i18n.t("hud_unit")
-				if p.unit_level and p.unit_level > 1 then
-					cls_label = cls_label .. " " .. string.rep("★", p.unit_level)
-				end
-				gui.set_text(name_node, tostring(i) .. ". " .. cls_label)
-
-				local is_active = (p == game_state.active_potato and p.is_alive)
-				if is_active then
-					gui.set_color(slot, vmath.vector4(0.25, 0.22, 0.08, 0.95))
-					gui.set_color(name_node, vmath.vector4(1.0, 0.88, 0.25, 1.0))
-				else
-					gui.set_color(slot, vmath.vector4(0.12, 0.15, 0.20, 0.85))
-					gui.set_color(name_node, vmath.vector4(0.9, 0.9, 0.9, 1.0))
-				end
-
-				if p.is_alive and p.hp > 0 then
-					gui.set_text(hp_txt, tostring(p.hp))
-					local frac = math.max(0, math.min(1.0, p.hp / math.max(1, p.max_hp or 100)))
-					gui.set_size(hp_bar, vmath.vector3(60.0 * frac, 8.0, 0))
-					if frac > 0.5 then
-						gui.set_color(hp_bar, vmath.vector4(0.15, 0.78, 0.95, 1.0)) -- Tactical Cyan
-					elseif frac > 0.25 then
-						gui.set_color(hp_bar, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Amber
-					else
-						gui.set_color(hp_bar, vmath.vector4(0.95, 0.35, 0.45, 1.0)) -- Coral
-					end
-				else
-					gui.set_text(hp_txt, "💀")
-					gui.set_size(hp_bar, vmath.vector3(0, 8.0, 0))
-					gui.set_color(name_node, vmath.vector4(0.45, 0.45, 0.45, 0.6))
-				end
-			else
-				gui.set_enabled(slot, false)
-			end
-		end
+		gui.set_enabled(gui.get_node("squad_panel"), false)
 	end)
 end
 
@@ -189,7 +121,7 @@ local function update_hud_localization(self)
 		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
 		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
 		gui.set_text(gui.get_node("txt_right"), i18n.t("touch_right"))
-		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+		gui.set_text(gui.get_node("txt_pause"), "II")
 		gui.set_text(gui.get_node("txt_inventory"), i18n.t("btn_inventory"))
 		gui.set_text(gui.get_node("inventory_title"), i18n.t("inventory_title"))
 		gui.set_text(gui.get_node("inventory_sub"), i18n.t("inventory_sub"))
@@ -309,6 +241,14 @@ function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(2)
 	self.ui = ui_manager.create(self)
+
+	pcall(function()
+		gui.set_enabled(gui.get_node("squad_panel"), false)
+		gui.set_enabled(gui.get_node("phase_badge"), false)
+		gui.set_enabled(gui.get_node("banner_text"), false)
+		gui.set_enabled(gui.get_node("timer_bar_bg"), false)
+		gui.set_color(gui.get_node("banner_bg"), vmath.vector4(0, 0, 0, 0))
+	end)
 
 	self.last_seconds = -1
 	self.last_fraction = -1
@@ -431,6 +371,24 @@ function init(self)
 				select_inventory_weapon(self, w.id)
 			end, { slop = 10 })
 		end
+	end
+
+	-- Register squad slots for quick revives if fallen
+	for i = 1, 4 do
+		local slot_idx = i
+		self.ui:button("spud_slot_" .. slot_idx, function()
+			local blue_spuds = {}
+			for _, p in ipairs(game_state.potatoes or {}) do
+				if p.team == constants.TEAM_BLUE then
+					table.insert(blue_spuds, p)
+				end
+			end
+			local target_pot = blue_spuds[slot_idx]
+			if target_pot and not target_pot.is_alive then
+				msg.post("/aim_guide#aim_guide", "hide_aim")
+				msg.post("/main#main", "revive_player", { potato_id = target_pot.id })
+			end
+		end, { slop = 10 })
 	end
 
 	-- Update static labels with localization
@@ -558,7 +516,7 @@ function update(self, dt)
 
 	if game_state.state ~= constants.STATE_MENU and game_state.state ~= constants.STATE_GAME_OVER then
 		pcall(function()
-			gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+			gui.set_text(gui.get_node("txt_pause"), "II")
 		end)
 
 		-- 1. Update Timer
@@ -595,9 +553,16 @@ function update(self, dt)
 
 		-- 2. Update Turn Banner & Tactical Widgets
 		local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
-		if game_state.active_team ~= self.last_team or self.last_wind_x ~= cur_wind_x then
+		local cur_act_pot = game_state.active_potato and game_state.active_potato.id or nil
+		if game_state.active_team ~= self.last_team or self.last_wind_x ~= cur_wind_x or cur_act_pot ~= self.last_act_pot then
+			local turn_switched = (game_state.active_team ~= self.last_team) or (cur_act_pot ~= self.last_act_pot)
 			self.last_team = game_state.active_team
 			self.last_wind_x = cur_wind_x
+			self.last_act_pot = cur_act_pot
+
+			if turn_switched then
+				update_inventory_ui(self)
+			end
 
 			pcall(function()
 				local banner = gui.get_node("banner_text")
@@ -606,7 +571,7 @@ function update(self, dt)
 				local base_text = ""
 				if game_state.active_team == constants.TEAM_BLUE then
 					base_text = i18n.t("turn_blue")
-					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
+					gui.set_color(bg, vmath.vector4(0, 0, 0, 0))
 				else
 					if game_state.mode == constants.MODE_PVP_BOTS then
 						base_text = i18n.t("turn_red_pvp_bot")
@@ -615,7 +580,7 @@ function update(self, dt)
 					else
 						base_text = i18n.t("turn_red_bot")
 					end
-					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
+					gui.set_color(bg, vmath.vector4(0, 0, 0, 0))
 					hide_tutorial_hint(self)
 				end
 				gui.set_text(banner, base_text)
@@ -656,38 +621,25 @@ function update(self, dt)
 					if is_tutorial_mode then
 						if cur_x < 380 then
 							-- Step 1: Movement
-							local msg_t = is_ru and "👣 ШАГ 1: Движение — используй [A/D] или стрелки на экране" or "👣 STEP 1: Movement — use [A/D] or on-screen arrows"
-							gui.set_text(hint_text, msg_t)
+							gui.set_text(hint_text, i18n.t("tut_step_1"))
 							gui.set_color(hint_text, vmath.vector4(0.3, 0.95, 0.5, 1.0))
 						elseif cur_x < 506 then
 							-- Step 2: Jump
-							local msg_t = is_ru and "🦘 ШАГ 2: Прыжок — нажми [Пробел / W]" or "🦘 STEP 2: Jump — press [Space / W]"
-							gui.set_text(hint_text, msg_t)
+							gui.set_text(hint_text, i18n.t("tut_step_2"))
 							gui.set_color(hint_text, vmath.vector4(0.95, 0.85, 0.2, 1.0))
 						elseif not has_bazooka and cur_x < 650 then
 							-- Step 3: Weapon crate
-							local msg_t = is_ru and "📦 ШАГ 3: Подбери ящик с Базукой!" or "📦 STEP 3: Collect the Bazooka crate!"
-							gui.set_text(hint_text, msg_t)
+							gui.set_text(hint_text, i18n.t("tut_step_3"))
 							gui.set_color(hint_text, vmath.vector4(1.0, 0.7, 0.2, 1.0))
 						else
 							-- Step 4: Aim & Shoot
 							local is_slingshot = (game_state.aim_control_mode == "slingshot")
 							if self.tap_hint_timer and self.tap_hint_timer > 0 then
-								local tap_msg
-								if is_slingshot then
-									tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД как рогатку для силы выстрела!" or "💡 PULL BACK like a slingshot to set power!"
-								else
-									tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону мишени для силы выстрела!" or "💡 HOLD & DRAG towards target to set power!"
-								end
+								local tap_msg = is_slingshot and i18n.t("tut_pull_back_slingshot") or i18n.t("tut_drag_target_power")
 								gui.set_text(hint_text, tap_msg)
 								gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
 							else
-								local shoot_msg
-								if is_slingshot then
-									shoot_msg = is_ru and "🎯 ШАГ 4: Оттяни картошку назад и отпусти для выстрела!" or "🎯 STEP 4: Pull back and release like a slingshot to shoot!"
-								else
-									shoot_msg = is_ru and "🎯 ШАГ 4: Наведи прицел и зажми ЛКМ для выстрела в мишень!" or "🎯 STEP 4: Aim and hold mouse to shoot the target!"
-								end
+								local shoot_msg = is_slingshot and i18n.t("tut_step_4_slingshot") or i18n.t("tut_step_4_mouse")
 								gui.set_text(hint_text, shoot_msg)
 								gui.set_color(hint_text, vmath.vector4(0.2, 0.85, 1.0, 1.0))
 							end
@@ -695,18 +647,12 @@ function update(self, dt)
 					else
 						local is_slingshot = (game_state.aim_control_mode == "slingshot")
 						if self.tap_hint_timer and self.tap_hint_timer > 0 then
-							local tap_msg
-							if is_slingshot then
-								tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД от врага и отпусти для выстрела!" or "💡 PULL BACK away from enemy and release to shoot!"
-							else
-								tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
-							end
+							local tap_msg = is_slingshot and i18n.t("tut_pull_back_enemy") or i18n.t("tut_drag_enemy")
 							gui.set_text(hint_text, tap_msg)
 							gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
 						else
 							if is_slingshot then
-								local sling_msg = is_ru and "🎯 Оттяни назад и отпусти для выстрела!" or "🎯 Pull back and release like a slingshot to shoot!"
-								gui.set_text(hint_text, sling_msg)
+								gui.set_text(hint_text, i18n.t("tut_step_4_slingshot"))
 							else
 								gui.set_text(hint_text, i18n.t("tutorial_hint"))
 							end
@@ -856,6 +802,9 @@ function on_message(self, message_id, message, sender)
 		update_inventory_ui(self)
 	elseif message_id == hash("toggle_inventory") then
 		toggle_inventory(self)
+	elseif message_id == hash("turn_changed") or message_id == hash("update_inventory") then
+		update_inventory_ui(self)
+		update_squad_widget(self)
 	elseif message_id == hash("hide_tutorial") or message_id == hash("tutorial_shot_fired") then
 		hide_tutorial_hint(self)
 	elseif message_id == hash("tutorial_tap_hint") then

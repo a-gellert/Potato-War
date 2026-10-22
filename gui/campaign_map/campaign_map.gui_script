@@ -149,7 +149,7 @@ local function update_inspector(self)
 		elseif s.under_attack and is_blue then
 			gui.set_enabled(btn_atk, true)
 			gui.set_color(btn_atk, vmath.vector4(0.85, 0.25, 0.20, 1.0)) -- Defense Red
-			gui.set_text(txt_atk, is_ru and "🛡️ ОТБИТЬ АТАКУ!" or "🛡️ REPEL ASSAULT!")
+			gui.set_text(txt_atk, i18n.t("camp_btn_repel"))
 		else
 			gui.set_enabled(btn_atk, false)
 			gui.set_color(btn_atk, vmath.vector4(0.25, 0.28, 0.32, 1.0))
@@ -176,7 +176,7 @@ local function update_inspector(self)
 		else
 			gui.set_enabled(btn_fort, false)
 			gui.set_color(btn_fort, vmath.vector4(0.22, 0.25, 0.28, 1.0))
-			gui.set_text(txt_fort, is_ru and "ВРАЖЕСКАЯ БАЗА" or "ENEMY BASE")
+			gui.set_text(txt_fort, i18n.t("camp_enemy_base"))
 		end
 	end)
 end
@@ -362,6 +362,13 @@ function M_update_visuals(self)
 		gui.set_text(gui.get_node("txt_top_barracks"), i18n.t("barracks_btn"))
 		gui.set_text(gui.get_node("txt_top_menu"), i18n.t("camp_btn_back"))
 		gui.set_text(gui.get_node("txt_bot_hint"), i18n.t("camp_hint_bottom"))
+
+		-- Regional zone labels
+		local cur_lang = i18n.current_lang or "en"
+		gui.set_text(gui.get_node("lbl_reg_1"), string.upper(territory_map.get_region_name(1, cur_lang)))
+		gui.set_text(gui.get_node("lbl_reg_2"), string.upper(territory_map.get_region_name(2, cur_lang)))
+		gui.set_text(gui.get_node("lbl_reg_3"), string.upper(territory_map.get_region_name(3, cur_lang)))
+		gui.set_text(gui.get_node("lbl_reg_4"), string.upper(territory_map.get_region_name(4, cur_lang)))
 	end)
 
 	-- Update Barracks UI if open
@@ -452,7 +459,8 @@ function M_update_visuals(self)
 				gui.set_text(stars, def_stars)
 
 				-- Label text
-				gui.set_text(lbl, is_ru and s.name_ru or s.name_en)
+				local cur_lang = i18n.current_lang or "en"
+				gui.set_text(lbl, territory_map.get_sector_name(i, cur_lang))
 
 				-- Under attack badge
 				gui.set_enabled(alert, s.under_attack == true)
@@ -618,15 +626,17 @@ function init(self)
 		update_barracks_ui(self)
 	end)
 
-	-- Barracks: Buy 1 Star for 1000 Points
+	-- Barracks: Buy 1 Star for 1000 Points (or open IAP store if not enough points)
 	self.ui:button("btn_barracks_buy_star", function()
 		local ok, err_or_stars = player_profile.buy_star_with_points()
 		if ok then
 			sound_manager.play_heal()
+			update_barracks_ui(self)
 		else
 			sound_manager.play_click()
+			msg.post("/main#main", "show_menu")
+			msg.post("/gui_menu#gui", "open_shop", { mode = "iap" })
 		end
-		update_barracks_ui(self)
 	end)
 
 	-- Barracks: Unlock Potato #3 and #4
