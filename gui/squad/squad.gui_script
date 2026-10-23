@@ -1,0 +1,308 @@
+-- gui/squad/squad.gui_script
+-- Squad screen: the fighters that storm the war map sectors, their ranks (XP from battles), health
+-- and weapons; promotions to specialisations cost stars and need a rank; stars hire new fighters.
+-- Opened on top of the menu or the war map with "show" { from = <url to notify on close> }.
+
+local kit = require("lua_modules.ui_kit")
+local ui_manager = require("lua_modules.ui_manager")
+local i18n = require("lua_modules.i18n")
+local classes = require("lua_modules.classes")
+local weapons = require("lua_modules.weapons")
+local progression = require("lua_modules.progression")
+local player_profile = require("lua_modules.player_profile")
+local sound_manager = require("lua_modules.sound_manager")
+
+local refresh, close, promote -- defined below, used by button callbacks
+
+local MAX_SQUAD = 4
+local SLOT_X = { -330, -170, -10, 150 }
+local SLOT_Y = 100
+local OPTION_X0, OPTION_STEP, OPTION_Y = -360, 140, -92
+local MAX_OPTIONS = 5
+
+local function rank_name(rank)
+	return i18n.pick(progression.RANK_NAMES[rank] or progression.RANK_NAMES[1])
+end
+
+local function member_hp(member)
+	local c = classes.get(member.class_id)
+	return math.floor(c.stats.max_hp * progression.rank_hp_mult(progression.member_rank(member)) + 0.5)
+end
+
+local function build_slot(self, parent, i)
+	local s = {}
+	s.btn = kit.button(self.ui, parent, "squad_slot_" .. i, SLOT_X[i], SLOT_Y, 150, 176, { style = "dark", on_click = function()
+		if player_profile.get_squad()[i] then
+			self.selected = i
+			self.option = nil
+			sound_manager.play("pop")
+			refresh(self)
+		end
+	end })
+	local n = s.btn.node
+	s.member = kit.group(n, 0, 0)
+	kit.box(s.member, "glow", 0, 26, 120, 90, vmath.vector4(1, 1, 1, 0.1))
+	s.body = kit.icon(s.member, "recruit", 0, 28, 92, { texture = "game" })
+	s.rank = kit.icon(s.member, "rank_1", -52, 62, 40)
+	s.name = kit.text(s.member, "", 0, -30, 15, { font = "label", max_w = 136 })
+	s.xp = kit.bar(s.member, 0, -51, 124, 12, kit.C.xp)
+	s.xp_text = kit.text(s.member, "", 0, -51, 10, { font = "label" })
+	kit.icon(s.member, "ic_heart", -30, -72, 20)
+	s.hp = kit.text(s.member, "", -16, -72, 15, { font = "label", align = "left" })
+	s.badge = kit.badge(n, 66, 80)
+
+	s.locked = kit.group(n, 0, 0)
+	kit.icon(s.locked, "ic_lock", 0, 34, 54)
+	s.locked_text = kit.text(s.locked, "", 0, -10, 15, { font = "label", color = kit.C.muted, max_w = 136 })
+	s.hire = kit.button(self.ui, s.locked, "squad_hire_" .. i, 0, -54, 124, 44, { style = "gold", icon = "ic_star", icon_size = 24, label = "", px = 17, on_click = function()
+		local ok = player_profile.unlock_next_potato()
+		if ok then
+			sound_manager.play("unlock")
+			self.selected = #player_profile.get_squad()
+			refresh(self)
+		else
+			sound_manager.play("tick")
+			self.status_override = i18n.t("ui_need_stars")
+			refresh(self)
+		end
+	end })
+	s.select = kit.box(n, "card_select", 0, 0, 158, 184)
+	return s
+end
+
+local function build_option(self, parent, i)
+	local o = {}
+	o.btn = kit.button(self.ui, parent, "squad_opt_" .. i, OPTION_X0 + (i - 1) * OPTION_STEP, OPTION_Y, 130, 118, { style = "dark", on_click = function()
+		self.option = i
+		sound_manager.play("pop")
+		refresh(self)
+	end })
+	o.body = kit.icon(o.btn.node, "recruit", 0, 22, 60, { texture = "game" })
+	o.name = kit.text(o.btn.node, "", 0, -22, 14, { font = "label", max_w = 120 })
+	kit.icon(o.btn.node, "ic_star", -16, -43, 22)
+	o.cost = kit.text(o.btn.node, "", -2, -43, 16, { font = "label", align = "left", color = kit.C.gold })
+	o.lock = kit.icon(o.btn.node, "ic_lock", 46, 42, 24)
+	o.select = kit.box(o.btn.node, "card_select", 0, 0, 138, 126)
+	return o
+end
+
+local function build(self)
+	local win = kit.window(self.ui, nil, "squad", 900, 480, "", function()
+		close(self)
+	end)
+	self.win = win
+	local p = win.panel
+	win.stars = kit.counter(p, "ic_star", 340, 170, 120, "0")
+	self.slots = {}
+	for i = 1, MAX_SQUAD do
+		self.slots[i] = build_slot(self, p, i)
+	end
+
+	local info = kit.inset(p, 335, SLOT_Y, 190, 176)
+	self.info = { node = info }
+	self.info.rank_icon = kit.icon(info, "rank_1", -64, 56, 44)
+	self.info.rank = kit.text(info, "", 10, 62, 16, { font = "label", color = kit.C.gold, max_w = 118 })
+	self.info.xp = kit.text(info, "", 10, 42, 13, { font = "label", color = kit.C.muted, max_w = 118 })
+	self.info.hp = kit.text(info, "", 0, 12, 15, { font = "label", max_w = 170 })
+	self.info.weapons_label = kit.text(info, "", 0, -18, 13, { font = "label", color = kit.C.muted })
+	self.info.weapons = {}
+	for k = 1, 5 do
+		self.info.weapons[k] = kit.icon(info, "w_grenade", -72 + (k - 1) * 36, -50, 32, { texture = "game" })
+	end
+
+	win.spec_label = kit.text(p, "", -425, -6, 18, { font = "label", align = "left", color = kit.C.gold, max_w = 400 })
+	self.options = {}
+	for i = 1, MAX_OPTIONS do
+		self.options[i] = build_option(self, p, i)
+	end
+	win.status = kit.text(p, "", -150, -196, 15, { font = "label", width = 520, color = kit.C.muted })
+	win.promote = kit.button(self.ui, p, "squad_promote", 300, -196, 250, 56, { style = "gold", icon = "ic_up", icon_size = 32, label = "", px = 20, on_click = function()
+		promote(self)
+	end })
+	gui.set_enabled(win.root, false)
+end
+
+-- Promotion options of the selected fighter with their availability
+local function options_of(self)
+	local member = player_profile.get_squad()[self.selected]
+	if not member then
+		return {}
+	end
+	local rank = progression.member_rank(member)
+	local list = {}
+	for _, c in ipairs(classes.get_promotions(member.class_id)) do
+		local need_rank = progression.promotion_rank(c.tier)
+		table.insert(list, {
+			class = c,
+			cost = c.star_cost or 0,
+			need_rank = need_rank,
+			rank_ok = rank >= need_rank,
+		})
+	end
+	table.sort(list, function(a, b) return a.class.id < b.class.id end)
+	return list
+end
+
+function promote(self)
+	local opt = options_of(self)[self.option or 0]
+	if not opt then
+		return
+	end
+	if not opt.rank_ok then
+		sound_manager.play("tick")
+		return
+	end
+	local ok = player_profile.promote_potato(self.selected, opt.class.id, opt.cost)
+	if ok then
+		sound_manager.play("unlock")
+		self.option = nil
+		kit.pop_in(self.slots[self.selected].btn.node)
+	else
+		sound_manager.play("tick")
+		self.status_override = i18n.t("ui_need_stars")
+	end
+	refresh(self)
+end
+
+function refresh(self)
+	local win = self.win
+	local squad = player_profile.get_squad()
+	local stars = player_profile.get_stars()
+	if not squad[self.selected] then
+		self.selected = 1
+	end
+	kit.set_text(win.title, i18n.t("ui_squad"), 600, 26, "title")
+	kit.set_text(win.stars.text, kit.num(stars), 70, 19, "label")
+	local hire_cost = player_profile.get_next_potato_unlock_cost()
+
+	for i, s in ipairs(self.slots) do
+		local member = squad[i]
+		gui.set_enabled(s.member, member ~= nil)
+		gui.set_enabled(s.locked, member == nil)
+		gui.set_enabled(s.select, member ~= nil and i == self.selected)
+		gui.set_enabled(s.badge, false)
+		if member then
+			local c = classes.get(member.class_id)
+			local rank, into, need = progression.rank_of(member.xp or 0)
+			kit.set_icon(s.body, classes.sprite_of(member.class_id), 92, 92, "game")
+			gui.play_flipbook(s.rank, "rank_" .. rank)
+			kit.set_text(s.name, i18n.field(c, "name"), 136, 15, "label")
+			s.xp.set(need and (into / need) or 1)
+			gui.set_text(s.xp_text, need and (into .. "/" .. need) or i18n.t("ui_max"))
+			gui.set_text(s.hp, tostring(member_hp(member)))
+			for _, c2 in ipairs(classes.get_promotions(member.class_id)) do
+				if stars >= (c2.star_cost or 0) and rank >= progression.promotion_rank(c2.tier) then
+					gui.set_enabled(s.badge, true)
+				end
+			end
+		else
+			-- Only the first empty slot can be bought; the rest stay closed
+			local is_next = (i == #squad + 1) and hire_cost ~= nil
+			kit.set_text(s.locked_text, i18n.t("ui_new_fighter"), 136, 15, "label")
+			gui.set_enabled(s.hire.node, is_next)
+			if is_next then
+				s.hire.set_label(tostring(hire_cost))
+				s.hire.set_enabled(stars >= hire_cost)
+				-- keep the button clickable to explain the missing stars
+				s.hire.enabled = true
+			end
+		end
+	end
+
+	-- Info about the selected fighter
+	local member = squad[self.selected]
+	local c = classes.get(member.class_id)
+	local rank, into, need = progression.rank_of(member.xp or 0)
+	gui.play_flipbook(self.info.rank_icon, "rank_" .. rank)
+	kit.set_text(self.info.rank, rank_name(rank), 118, 16, "label")
+	kit.set_text(self.info.xp, need and (i18n.t("ui_xp") .. ": " .. into .. " / " .. need) or i18n.t("ui_top_rank"), 118, 13, "label")
+	kit.set_text(self.info.hp, i18n.t("ui_hp") .. ": " .. member_hp(member), 170, 15, "label")
+	kit.set_text(self.info.weapons_label, i18n.t("ui_weapons"), 170, 13, "label")
+	local list = {}
+	for _, w in ipairs(weapons.PLAYER_LIST) do
+		if c.base_arsenal and c.base_arsenal[w.id] then
+			table.insert(list, w)
+		end
+	end
+	for k, node in ipairs(self.info.weapons) do
+		local w = list[k]
+		gui.set_enabled(node, w ~= nil)
+		if w then
+			kit.set_icon(node, w.icon, 32, 30, "game")
+		end
+	end
+
+	-- Specialisations
+	local opts = options_of(self)
+	kit.set_text(win.spec_label, i18n.t("ui_specialisations"), 400, 18, "label")
+	for i, o in ipairs(self.options) do
+		local opt = opts[i]
+		gui.set_enabled(o.btn.node, opt ~= nil)
+		if opt then
+			kit.set_icon(o.body, classes.sprite_of(opt.class.id), 60, 60, "game")
+			kit.set_text(o.name, i18n.field(opt.class, "name"), 120, 14, "label")
+			gui.set_text(o.cost, tostring(opt.cost))
+			gui.set_color(o.cost, stars >= opt.cost and kit.C.gold or kit.C.red)
+			gui.set_enabled(o.lock, not opt.rank_ok)
+			gui.set_color(o.body, opt.rank_ok and vmath.vector4(1, 1, 1, 1) or vmath.vector4(0.45, 0.45, 0.5, 1))
+			gui.set_enabled(o.select, self.option == i)
+		end
+	end
+
+	local chosen = opts[self.option or 0]
+	local status
+	if #opts == 0 then
+		status = i18n.t("ui_final_class")
+	elseif not chosen then
+		status = i18n.t("ui_squad_hint")
+	elseif not chosen.rank_ok then
+		status = string.format(i18n.t("ui_need_rank_fmt"), rank_name(chosen.need_rank))
+	else
+		status = i18n.field(chosen.class, "desc")
+	end
+	gui.set_text(win.status, self.status_override or status)
+	gui.set_color(win.status, self.status_override and kit.C.red or (chosen and not chosen.rank_ok and kit.C.red or kit.C.muted))
+	self.status_override = nil
+	gui.set_enabled(win.promote.node, chosen ~= nil)
+	if chosen then
+		win.promote.set_label(i18n.t("ui_promote") .. "  " .. chosen.cost)
+		win.promote.set_enabled(chosen.rank_ok and stars >= chosen.cost)
+		win.promote.enabled = true -- a tap on a disabled-looking button explains why
+	end
+end
+
+function close(self)
+	gui.set_enabled(self.win.root, false)
+	msg.post(".", "disable")
+	if self.notify then
+		msg.post(self.notify, "overlay_closed")
+	end
+end
+
+function init(self)
+	gui.set_render_order(8)
+	self.ui = ui_manager.create(self)
+	self.selected = 1
+	build(self)
+	msg.post(".", "disable")
+end
+
+function on_input(self, action_id, action)
+	self.ui:on_input(action_id, action)
+	return true -- modal
+end
+
+function update(self, dt)
+	self.ui:update(dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show") then
+		self.notify = message.from
+		self.option = nil
+		msg.post(".", "acquire_input_focus")
+		gui.set_enabled(self.win.root, true)
+		refresh(self)
+		kit.pop_in(self.win.panel)
+	end
+end

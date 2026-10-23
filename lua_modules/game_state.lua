@@ -49,13 +49,18 @@ function M.poki_commercial_break(callback)
 	local function done()
 		if not called then
 			called = true
+			sound_manager.set_ad_mute(false)
 			if callback then callback() end
 		end
 	end
 	if poki_sdk and poki_sdk.commercial_break then
-		pcall(function()
+		sound_manager.set_ad_mute(true)
+		local ok = pcall(function()
 			poki_sdk.commercial_break(done)
 		end)
+		if not ok then
+			done()
+		end
 	else
 		done()
 	end
@@ -64,11 +69,17 @@ end
 function M.poki_rewarded_break(callback)
 	constants.log(">>> POKI SDK: rewardedBreak")
 	if poki_sdk and poki_sdk.rewarded_break then
-		pcall(function()
+		sound_manager.set_ad_mute(true)
+		local ok = pcall(function()
 			poki_sdk.rewarded_break(function(self, success)
+				sound_manager.set_ad_mute(false)
 				if callback then callback(success) end
 			end)
 		end)
+		if not ok then
+			sound_manager.set_ad_mute(false)
+			if callback then callback(false) end
+		end
 	else
 		if callback then callback(true) end
 	end
@@ -521,6 +532,7 @@ local function begin_current_turn()
 	if M.on_turn_changed then
 		M.on_turn_changed(M.active_team, M.active_potato)
 	end
+	sound_manager.play(M.is_bot_turn() and "turn_enemy" or "turn_player")
 
 	-- Ensure selected weapon is valid and has ammo
 	if M.active_team == constants.TEAM_BLUE then
@@ -625,10 +637,8 @@ function M.next_turn()
 				-- Points reward: 100 base + 50 * level + HP bonus
 				points_earned = 100 + (M.campaign_level * 50) + math.floor(current_hp * 0.5)
 				player_profile.add_points(points_earned)
-			else
-				points_earned = 50
-				player_profile.add_points(points_earned)
 			end
+			-- Other modes pay their coins through progression.finish_battle (match_results)
 		elseif red_alive > 0 then
 			M.winner_team = constants.TEAM_RED
 			if M.mode == constants.MODE_CAMPAIGN then
@@ -674,7 +684,15 @@ function M.update(dt, active_projectiles_count)
 	elseif M.state == constants.STATE_TURN_ACTIVE then
 		local is_tutorial_turn = (M.mode == constants.MODE_TUTORIAL) or (M.mode == constants.MODE_CAMPAIGN and (M.campaign_level or 1) == 1 and not M.tutorial_first_shot_done and M.active_team == constants.TEAM_BLUE)
 		if not is_tutorial_turn then
+			local before = math.ceil(M.turn_timer)
 			M.turn_timer = M.turn_timer - dt
+			local after = math.ceil(M.turn_timer)
+			-- Last seconds of the turn tick audibly
+			if after < before and after >= 1 and after <= 5 then
+				sound_manager.play("tick", { speed = 1 + (5 - after) * 0.06 })
+			elseif after < before and after == 0 then
+				sound_manager.play("alarm")
+			end
 		else
 			M.turn_timer = constants.TURN_DURATION
 		end

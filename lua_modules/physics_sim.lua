@@ -378,15 +378,30 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 		end
 	end
 
-	-- Dynamic Wind force application
-	local wind_sens = proj.weapon.wind_sensitivity or 1.0
-	local wx, wy = get_wind_components(wind_vector or proj.wind_vector)
-	proj.vel.x = proj.vel.x + wx * wind_sens * dt
-	proj.vel.y = proj.vel.y + wy * wind_sens * dt
+	proj.age = (proj.age or 0) + dt
+	local homing = proj.weapon.homing
+	if homing and proj.target and proj.target.is_alive and proj.age >= homing.delay then
+		-- Homing missile: turns towards its target at a limited rate, ignoring wind and gravity
+		local want = math.atan2(proj.target.pos.y - proj.pos.y, proj.target.pos.x - proj.pos.x)
+		local cur = math.atan2(proj.vel.y, proj.vel.x)
+		local diff = (want - cur + math.pi) % (2 * math.pi) - math.pi
+		local turn = math.max(-homing.turn * dt, math.min(homing.turn * dt, diff))
+		local speed = math.sqrt(proj.vel.x * proj.vel.x + proj.vel.y * proj.vel.y)
+		speed = speed + (homing.speed - speed) * math.min(1, 2 * dt)
+		cur = cur + turn
+		proj.vel.x = math.cos(cur) * speed
+		proj.vel.y = math.sin(cur) * speed
+	else
+		-- Dynamic Wind force application
+		local wind_sens = proj.weapon.wind_sensitivity or 1.0
+		local wx, wy = get_wind_components(wind_vector or proj.wind_vector)
+		proj.vel.x = proj.vel.x + wx * wind_sens * dt
+		proj.vel.y = proj.vel.y + wy * wind_sens * dt
 
-	-- Gravity
-	local grav = constants.GRAVITY * (proj.weapon.gravity_mult or 1.0)
-	proj.vel.y = proj.vel.y - grav * dt
+		-- Gravity
+		local grav = constants.GRAVITY * (proj.weapon.gravity_mult or 1.0)
+		proj.vel.y = proj.vel.y - grav * dt
+	end
 
 	-- Step path
 	local x0 = proj.pos.x

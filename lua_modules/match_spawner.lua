@@ -11,10 +11,12 @@ local i18n = require("lua_modules.i18n")
 local classes = require("lua_modules.classes")
 local inventory_manager = require("lua_modules.inventory_manager")
 local tutorial = require("lua_modules.tutorial")
+local progression = require("lua_modules.progression")
+local weapons = require("lua_modules.weapons")
 
 local M = {}
 
-local ENEMY_HAT_POOL = { "hat_viking", "hat_beret", "hat_bandana", "hat_tophat", "hat_crown" }
+local ENEMY_HAT_POOL = { "hat_helmet", "hat_beret", "hat_viking", "hat_bandana", "hat_cowboy", "hat_tophat", "hat_pirate", "hat_chef", "hat_crown" }
 
 function M.is_mobile_platform()
 	local s_info = sys.get_sys_info()
@@ -114,7 +116,18 @@ function M.spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy, c
 	-- Resolve class archetype and initialize its inventory
 	class_id = class_id or "recruit"
 	local c_def = classes.get(class_id)
-	inventory_manager.register_potato(potato_id, c_def.id, ammo_overrides)
+	local inv = inventory_manager.register_potato(potato_id, c_def.id, ammo_overrides)
+
+	-- Upgraded weapons carry extra shots (levels 3 and 5)
+	local battle = game_state.battle
+	if battle and not battle.pvp then
+		for w_id, slot in pairs(inv.weapons) do
+			if slot.ammo > 0 then
+				local level = progression.battle_weapon_level(w_id, team, battle)
+				slot.ammo = slot.ammo + progression.level_bonus(level).extra_ammo
+			end
+		end
+	end
 
 	local initial_facing = (team == constants.TEAM_BLUE) and 1 or -1
 	local potato_hp = initial_hp or c_def.stats.base_hp or 100
@@ -150,7 +163,8 @@ function M.spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy, c
 		facing = initial_facing,
 		is_alive = true,
 		is_grounded = false,
-		url = url
+		url = url,
+		stats = { damage = 0, kills = 0 }, -- for battle XP (progression.finish_battle)
 	}
 
 	msg.post(url, "set_facing", { facing = initial_facing })
@@ -238,8 +252,14 @@ function M.spawn_battle(self, ctx)
 	local is_campaign = ctx.is_campaign
 	local active_level = ctx.active_level
 
+	-- Sector battles of the war map field the player's own squad (classes and ranks)
+	local uses_squad = (lobby_config and lobby_config.use_squad) or false
+
 	-- Determine squad counts for both teams
-	local player_squad = is_campaign and player_profile.get_squad() or nil
+	local player_squad = (is_campaign or uses_squad) and player_profile.get_squad() or nil
+	if uses_squad then
+		lobby_config.blue_count = #player_squad
+	end
 	local blue_count = (lobby_config and (lobby_config.blue_count or lobby_config.potato_count))
 		or (config and (config.player_count or config.blue_count))
 		or (player_squad and #player_squad) or 1
@@ -257,24 +277,39 @@ function M.spawn_battle(self, ctx)
 
 	for i = 1, blue_count do
 		local x = spawn_slots[i] or (220 + i * 160)
-		local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
-			or (config and config.blue_classes and config.blue_classes[i])
-			or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
-			or classes.get_random_specialized_class()
-		local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
-		local cur_hp = is_campaign and player_hp or nil
-		local cur_max = is_campaign and player_max_hp or nil
-		M.spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
+		if uses_squad then
+			local member = player_squad[i]
+			local c_def = classes.get(member.class_id)
+			local rank = progression.member_rank(member)
+			local hp = math.floor(c_def.stats.max_hp * progression.rank_hp_mult(rank) + 0.5)
+			local record = M.spawn_potato(self, x, constants.TEAM_BLUE, i, hp, hp, from_wy, c_def.id, rank)
+			record.squad_slot = i
+			record.rank = rank
+		else
+			local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
+				or (config and config.blue_classes and config.blue_classes[i])
+				or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
+				or classes.get_random_specialized_class()
+			local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
+			local cur_hp = is_campaign and player_hp or nil
+			local cur_max = is_campaign and player_max_hp or nil
+			M.spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
+		end
 	end
 
 	for i = 1, red_count do
 		local x = spawn_slots[blue_count + i] or (1600 - i * 160)
 		local enemy_class = (lobby_config and lobby_config.red_classes and lobby_config.red_classes[i])
+			or (lobby_config and lobby_config.enemy_classes and lobby_config.enemy_classes[i])
 			or (config and config.red_classes and config.red_classes[i])
 			or (is_campaign and ((config.enemy_classes and config.enemy_classes[i]) or level_config.get_enemy_class(active_level, i)))
 			or classes.get_random_specialized_class()
 		local enemy_lvl = is_campaign and ((config.enemy_levels and config.enemy_levels[i]) or level_config.get_enemy_level(active_level, i)) or math.random(1, 2)
-		local enemy_hp = is_campaign and level_config.get_enemy_hp(active_level, i) or nil
+		local sector_hp = lobby_config and lobby_config.enemy_hp
+		local enemy_hp = (type(sector_hp) == "table" and sector_hp[i])
+			or (type(sector_hp) == "number" and sector_hp)
+			or (is_campaign and level_config.get_enemy_hp(active_level, i))
+			or nil
 		M.spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl)
 	end
 

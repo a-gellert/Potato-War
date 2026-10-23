@@ -135,11 +135,10 @@ function init(self)
 	register_buttons(self)
 	update_localization(self)
 
+	-- Ammo changes come from other scripts (firing, crates) where gui.* is unavailable:
+	-- only mark the bar dirty and redraw it from this script's update
 	game_state.on_ammo_changed = function()
-		hud_weapons.update_selection(self, game_state.selected_weapon_id)
-		if self.is_inventory_open then
-			hud_weapons.update_inventory(self)
-		end
+		self.ammo_dirty = true
 	end
 	hud_weapons.update_selection(self, game_state.selected_weapon_id)
 end
@@ -196,6 +195,14 @@ end
 
 function update(self, dt)
 	self.ui:update(dt)
+
+	if self.ammo_dirty then
+		self.ammo_dirty = false
+		hud_weapons.update_selection(self, game_state.selected_weapon_id)
+		if self.is_inventory_open then
+			hud_weapons.update_inventory(self)
+		end
+	end
 
 	if game_state.state == constants.STATE_MENU or game_state.state == constants.STATE_GAME_OVER then
 		return

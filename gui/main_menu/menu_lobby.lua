@@ -1,8 +1,9 @@
 -- gui/main_menu/menu_lobby.lua
--- Quick-battle lobby overlay: potato count, opponent, hats, biome, relief, start.
+-- Quick-battle lobby: fighters per team, opponent, team hats, location and terrain, start.
 
-local player_profile = require("lua_modules.player_profile")
+local kit = require("lua_modules.ui_kit")
 local i18n = require("lua_modules.i18n")
+local player_profile = require("lua_modules.player_profile")
 local menu_data = require("gui.main_menu.menu_data")
 
 local BIOMES = menu_data.BIOMES
@@ -10,111 +11,119 @@ local RELIEFS = menu_data.RELIEFS
 
 local M = {}
 
-function M.init_state(self)
-	self.lobby_count = 3
-	self.lobby_opponent = "bot"
-	self.lobby_skin_blue_idx = 1
-	self.lobby_skin_red_idx = 1
-	self.lobby_biome_idx = 1
-	self.lobby_relief_idx = 1
-end
-
-function M.update(self)
-	pcall(function()
-		gui.set_text(gui.get_node("lobby_title"), i18n.t("lobby_title"))
-		gui.set_text(gui.get_node("lobby_subtitle"), i18n.t("lobby_subtitle"))
-		gui.set_text(gui.get_node("lbl_count"), i18n.t("lbl_potatoes_count"))
-		gui.set_text(gui.get_node("lbl_opponent"), i18n.t("lbl_mode"))
-		gui.set_text(gui.get_node("lbl_skin_blue"), i18n.t("lbl_skin_blue"))
-		gui.set_text(gui.get_node("lbl_skin_red"), i18n.t("lbl_skin_red"))
-		gui.set_text(gui.get_node("lbl_biome"), i18n.t("lbl_location"))
-		gui.set_text(gui.get_node("lbl_relief"), i18n.t("lbl_relief"))
-		gui.set_text(gui.get_node("txt_lobby_start"), i18n.t("btn_start_battle"))
-		gui.set_text(gui.get_node("txt_lobby_back"), i18n.t("btn_back"))
-
-		gui.set_text(gui.get_node("txt_opp_bot"), i18n.t("mode_bot_opt"))
-		gui.set_text(gui.get_node("txt_opp_human"), i18n.t("mode_human_opt"))
-
-		-- Count buttons 1..4 and opponent buttons: highlight the selected one
-		local active_col = vmath.vector4(0.18, 0.5, 0.82, 1.0)
-		local inactive_col = vmath.vector4(0.2, 0.25, 0.32, 1.0)
-		for i = 1, 4 do
-			gui.set_color(gui.get_node("btn_cnt_" .. i), (self.lobby_count == i) and active_col or inactive_col)
-		end
-		gui.set_color(gui.get_node("btn_opp_bot"), (self.lobby_opponent == "bot") and active_col or inactive_col)
-		gui.set_color(gui.get_node("btn_opp_human"), (self.lobby_opponent == "human") and active_col or inactive_col)
-
-		-- Selected hats
-		local skins = player_profile.SKINS
-		local s_blue = skins[self.lobby_skin_blue_idx] or skins[1]
-		local s_red = skins[self.lobby_skin_red_idx] or skins[1]
-		gui.set_text(gui.get_node("txt_skin_blue_val"), player_profile.get_skin_name(s_blue, i18n.current_lang))
-		gui.set_text(gui.get_node("txt_skin_red_val"), player_profile.get_skin_name(s_red, i18n.current_lang))
-
-		-- Biome & relief
-		local biome = BIOMES[self.lobby_biome_idx] or BIOMES[1]
-		gui.set_text(gui.get_node("txt_biome_val"), i18n.pick(biome))
-		local relief = RELIEFS[self.lobby_relief_idx] or RELIEFS[1]
-		gui.set_text(gui.get_node("txt_relief_val"), i18n.pick(relief))
-	end)
-end
+local ROW_Y = { 132, 82, 32, -18, -68, -118 }
+local LABEL_X = -280
+local VALUE_X = 110
 
 -- Wraps a 1-based index forward/backward over a list of `total` items.
 local function cycle(idx, total, step)
 	return ((idx - 1 + step) % total) + 1
 end
 
--- Registers a prev/next button pair that cycles self[field] over `total` items.
-local function register_selector(self, prefix, field, total)
-	self.ui:button(prefix .. "_prev", function()
-		self[field] = cycle(self[field], total, -1)
-		M.update(self)
-	end)
-	self.ui:button(prefix .. "_next", function()
-		self[field] = cycle(self[field], total, 1)
-		M.update(self)
-	end)
+local function row_label(parent, y)
+	return kit.text(parent, "", LABEL_X, y, 19, { font = "label", align = "left", max_w = 200, color = kit.C.muted })
 end
 
--- on_back is supplied by the screen controller (it owns the background menu).
-function M.register(self, on_back)
-	for i = 1, 4 do
-		self.ui:button("btn_cnt_" .. i, function()
-			self.lobby_count = i
-			M.update(self)
-		end)
+-- [<] value [>] selector cycling self.lobby[field] over `total` options
+local function selector(self, parent, id, y, field, total)
+	local box = kit.inset(parent, VALUE_X, y, 250, 42)
+	local value = kit.text(box, "", 0, 0, 17, { font = "label", max_w = 170 })
+	kit.icon_button(self.ui, parent, id .. "_prev", VALUE_X - 150, y, 42, "ic_left", function()
+		self.lobby[field] = cycle(self.lobby[field], total(), -1)
+		M.refresh(self)
+	end, "round")
+	kit.icon_button(self.ui, parent, id .. "_next", VALUE_X + 150, y, 42, "ic_right", function()
+		self.lobby[field] = cycle(self.lobby[field], total(), 1)
+		M.refresh(self)
+	end, "round")
+	return value
+end
+
+function M.build(self, on_close, on_start)
+	self.lobby = { count = 2, opponent = "bot", blue_hat = 1, red_hat = 1, biome = 1, relief = 1 }
+	local win = kit.window(self.ui, nil, "lobby", 660, 470, "", on_close)
+	self.lobby_ui = win
+	local p = win.panel
+	win.labels = {}
+	for i = 1, 6 do
+		win.labels[i] = row_label(p, ROW_Y[i])
 	end
 
-	self.ui:button("btn_opp_bot", function()
-		self.lobby_opponent = "bot"
-		M.update(self)
-	end)
-	self.ui:button("btn_opp_human", function()
-		self.lobby_opponent = "human"
-		M.update(self)
-	end)
+	win.count_btns = {}
+	for i = 1, 4 do
+		win.count_btns[i] = kit.button(self.ui, p, "lobby_cnt_" .. i, VALUE_X - 108 + (i - 1) * 72, ROW_Y[1], 62, 44, { style = "dark", label = tostring(i), px = 22, on_click = function()
+			self.lobby.count = i
+			M.refresh(self)
+		end })
+	end
+	win.opp_bot = kit.button(self.ui, p, "lobby_bot", VALUE_X - 64, ROW_Y[2], 122, 44, { style = "dark", label = "", px = 18, on_click = function()
+		self.lobby.opponent = "bot"
+		M.refresh(self)
+	end })
+	win.opp_human = kit.button(self.ui, p, "lobby_human", VALUE_X + 64, ROW_Y[2], 122, 44, { style = "dark", label = "", px = 18, on_click = function()
+		self.lobby.opponent = "human"
+		M.refresh(self)
+	end })
+	local hats = function() return #player_profile.SKINS end
+	win.blue_hat = selector(self, p, "lobby_blue_hat", ROW_Y[3], "blue_hat", hats)
+	win.red_hat = selector(self, p, "lobby_red_hat", ROW_Y[4], "red_hat", hats)
+	win.biome = selector(self, p, "lobby_biome", ROW_Y[5], "biome", function() return #BIOMES end)
+	win.relief = selector(self, p, "lobby_relief", ROW_Y[6], "relief", function() return #RELIEFS end)
 
-	local total_skins = #player_profile.SKINS
-	register_selector(self, "btn_skin_blue", "lobby_skin_blue_idx", total_skins)
-	register_selector(self, "btn_skin_red", "lobby_skin_red_idx", total_skins)
-	register_selector(self, "btn_biome", "lobby_biome_idx", #BIOMES)
-	register_selector(self, "btn_relief", "lobby_relief_idx", #RELIEFS)
-
-	self.ui:button("btn_lobby_start", function()
-		msg.post(".", "disable")
-		local s_blue = player_profile.SKINS[self.lobby_skin_blue_idx] or player_profile.SKINS[1]
-		local s_red = player_profile.SKINS[self.lobby_skin_red_idx] or player_profile.SKINS[1]
-		msg.post("/main#main", "start_battle", {
-			potato_count = self.lobby_count,
-			opponent_type = self.lobby_opponent,
-			skin_blue = s_blue.id,
-			skin_red = s_red.id,
-			biome = BIOMES[self.lobby_biome_idx].id,
-			terrain_type = RELIEFS[self.lobby_relief_idx].id,
+	win.hint = kit.text(p, "", 0, -162, 14, { font = "label", color = kit.C.gold, width = 580 })
+	win.start = kit.button(self.ui, p, "lobby_start", 0, -205, 260, 62, { style = "gold", icon = "ic_battle", icon_size = 36, label = "", px = 24, on_click = function()
+		local l = self.lobby
+		local blue = player_profile.SKINS[l.blue_hat] or player_profile.SKINS[1]
+		local red = player_profile.SKINS[l.red_hat] or player_profile.SKINS[1]
+		on_start({
+			potato_count = l.count,
+			opponent_type = l.opponent,
+			skin_blue = blue.id,
+			skin_red = red.id,
+			biome = BIOMES[l.biome].id,
+			terrain_type = RELIEFS[l.relief].id,
 		})
-	end)
+	end })
+	gui.set_enabled(win.root, false)
+end
 
-	self.ui:button("btn_lobby_back", on_back)
+function M.refresh(self)
+	local win, l = self.lobby_ui, self.lobby
+	kit.set_text(win.title, i18n.t("ui_lobby_title"), 460, 26, "title")
+	local keys = { "ui_lobby_count", "ui_lobby_opponent", "ui_lobby_blue_hat", "ui_lobby_red_hat", "ui_lobby_biome", "ui_lobby_relief" }
+	for i, key in ipairs(keys) do
+		kit.set_text(win.labels[i], i18n.t(key), 200, 19, "label")
+	end
+	for i, b in ipairs(win.count_btns) do
+		b.set_style(l.count == i and "blue" or "dark")
+	end
+	win.opp_bot.set_style(l.opponent == "bot" and "blue" or "dark")
+	win.opp_human.set_style(l.opponent == "human" and "blue" or "dark")
+	win.opp_bot.set_label(i18n.t("ui_lobby_bot"))
+	win.opp_human.set_label(i18n.t("ui_lobby_friend"))
+
+	local skins = player_profile.SKINS
+	kit.set_text(win.blue_hat, player_profile.get_skin_name(skins[l.blue_hat] or skins[1], i18n.current_lang), 170, 17, "label")
+	kit.set_text(win.red_hat, player_profile.get_skin_name(skins[l.red_hat] or skins[1], i18n.current_lang), 170, 17, "label")
+	kit.set_text(win.biome, i18n.pick(BIOMES[l.biome]), 170, 17, "label")
+	kit.set_text(win.relief, i18n.pick(RELIEFS[l.relief]), 170, 17, "label")
+	gui.set_text(win.hint, l.opponent == "bot" and i18n.t("ui_lobby_hint") or "")
+	win.start.set_label(i18n.t("ui_lobby_start"))
+end
+
+function M.show(self, visible)
+	gui.set_enabled(self.lobby_ui.root, visible)
+	if visible then
+		-- Start with the player's own hat on the blue team
+		local equipped = player_profile.get_equipped_skin()
+		for i, s in ipairs(player_profile.SKINS) do
+			if s.id == equipped.id then
+				self.lobby.blue_hat = i
+			end
+		end
+		M.refresh(self)
+		kit.pop_in(self.lobby_ui.panel)
+	end
 end
 
 return M

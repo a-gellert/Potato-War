@@ -120,7 +120,7 @@ local function update_victory(self, dt)
 		self.victory_celebration = false
 		msg.post("/gui_game_over", "enable")
 		if self.pending_game_over_data then
-			msg.post("/gui_game_over#gui", "show_result", self.pending_game_over_data)
+			msg.post("/gui_game_over#gui", "show_result") -- payload in match_results.last
 			self.pending_game_over_data = nil
 		end
 	end

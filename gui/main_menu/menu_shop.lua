@@ -1,94 +1,135 @@
 -- gui/main_menu/menu_shop.lua
--- Hat shop overlay: points display, card layout/state, equip & buy handling.
+-- Hat shop: pages of rarity cards; tap a card to equip an owned hat or buy a new one.
 
-local player_profile = require("lua_modules.player_profile")
+local kit = require("lua_modules.ui_kit")
 local i18n = require("lua_modules.i18n")
+local player_profile = require("lua_modules.player_profile")
+local sound_manager = require("lua_modules.sound_manager")
 
 local M = {}
 
-local CARD_POSITIONS = {
-	-- Row 1 (4 items)
-	vmath.vector3(-330, 85, 0), vmath.vector3(-110, 85, 0), vmath.vector3(110, 85, 0), vmath.vector3(330, 85, 0),
-	-- Row 2 (3 items)
-	vmath.vector3(-220, -75, 0), vmath.vector3(0, -75, 0), vmath.vector3(220, -75, 0),
-}
+local PER_PAGE = 8
+local CARD_W, CARD_H = 172, 168
+local COLS = { -285, -95, 95, 285 }
+local ROWS = { 78, -102 }
 
-function M.update_points(self)
-	local pts = player_profile.get_points()
-	pcall(function()
-		gui.set_text(gui.get_node("txt_total_points"), i18n.t("points_lbl") .. tostring(pts))
-		gui.set_text(gui.get_node("shop_points"), i18n.t("shop_points_lbl") .. tostring(pts))
-	end)
+local function page_count()
+	return math.ceil(#player_profile.SKINS / PER_PAGE)
 end
 
-local function update_card(i, hat, equipped, points)
-	local btn_node = gui.get_node("btn_skin_" .. i)
-	local txt_node = gui.get_node("txt_skin_" .. i)
-	gui.set_text(gui.get_node("skin_name_" .. i), player_profile.get_skin_name(hat, i18n.current_lang))
-	gui.set_text(gui.get_node("skin_desc_" .. i), player_profile.get_skin_desc(hat, i18n.current_lang))
+local function message(self, text, color)
+	local note = self.shop.note
+	gui.set_text(note, text)
+	gui.set_color(note, color or kit.C.red)
+	gui.cancel_animations(note, "color.w")
+	gui.animate(note, "color.w", 0, gui.EASING_INQUAD, 0.6, 1.6)
+end
 
-	if hat.id == equipped then
-		gui.set_text(txt_node, i18n.t("shop_equipped"))
-		gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-	elseif player_profile.is_skin_unlocked(hat.id) then
-		gui.set_text(txt_node, i18n.t("shop_equip"))
-		gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0))
-	elseif points >= hat.price then
-		gui.set_text(txt_node, i18n.t("btn_buy", hat.price))
-		gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
+local function on_card(self, slot)
+	local hat = player_profile.SKINS[(self.shop.page - 1) * PER_PAGE + slot]
+	if not hat then
+		return
+	end
+	if player_profile.is_skin_unlocked(hat.id) then
+		player_profile.equip_skin(hat.id)
+		sound_manager.play("pop")
+	elseif player_profile.get_points() >= hat.price then
+		player_profile.buy_skin(hat.id)
+		sound_manager.play("coins")
+		sound_manager.play("unlock")
+		kit.pop_in(self.shop.cards[slot].btn.node)
 	else
-		gui.set_text(txt_node, i18n.t("shop_locked_fmt", hat.price))
-		gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0))
+		sound_manager.play("tick")
+		message(self, i18n.t("ui_need_coins"))
+		return
+	end
+	M.refresh(self)
+	if self.on_changed then
+		self.on_changed()
 	end
 end
 
-function M.update(self)
-	M.update_points(self)
+local function build_card(self, parent, slot, x, y)
+	local card = {}
+	card.btn = kit.button(self.ui, parent, "shop_card_" .. slot, x, y, CARD_W, CARD_H, { style = "dark", on_click = function()
+		on_card(self, slot)
+	end })
+	card.frame = card.btn.node
+	kit.box(card.frame, "glow", 0, 24, 140, 110, vmath.vector4(1, 1, 1, 0.12))
+	card.hat = kit.icon(card.frame, "hat_cap", 0, 26, 104, { texture = "game" })
+	card.name = kit.text(card.frame, "", 0, -30, 15, { font = "label", max_w = CARD_W - 20 })
+	card.coin = kit.icon(card.frame, "ic_coin", -30, -67, 24)
+	card.price = kit.text(card.frame, "", 6, -67, 18, { font = "label", align = "left", max_w = 90 })
+	card.status = kit.text(card.frame, "", 0, -67, 16, { font = "label", max_w = CARD_W - 24 })
+	card.check = kit.icon(card.frame, "ic_check", 64, 62, 30)
+	return card
+end
+
+function M.build(self, on_close)
+	local win = kit.window(self.ui, nil, "shop", 880, 480, "", on_close)
+	self.shop = win
+	win.page = 1
+	local p = win.panel
+	win.coins = kit.counter(p, "ic_coin", 330, 168, 140, "0")
+	win.cards = {}
+	for slot = 1, PER_PAGE do
+		local col = (slot - 1) % 4 + 1
+		local row = math.floor((slot - 1) / 4) + 1
+		win.cards[slot] = build_card(self, p, slot, COLS[col], ROWS[row])
+	end
+	win.prev = kit.icon_button(self.ui, p, "shop_prev", -432, -12, 54, "ic_left", function()
+		win.page = (win.page - 2) % page_count() + 1
+		M.refresh(self)
+	end, "round_gold")
+	win.next = kit.icon_button(self.ui, p, "shop_next", 432, -12, 54, "ic_right", function()
+		win.page = win.page % page_count() + 1
+		M.refresh(self)
+	end, "round_gold")
+	win.page_text = kit.text(p, "", 0, -212, 18, { font = "label", color = kit.C.muted })
+	win.note = kit.text(p, "", 0, 168, 18, { font = "label", color = kit.C.red })
+	gui.set_color(win.note, vmath.vector4(1, 0.36, 0.3, 0))
+	gui.set_enabled(win.root, false)
+end
+
+function M.refresh(self)
+	local win = self.shop
+	kit.set_text(win.title, i18n.t("ui_hats"), 600, 26, "title")
+	kit.set_text(win.coins.text, kit.num(player_profile.get_points()), 96, 19, "label")
+	local equipped = player_profile.get_equipped_skin().id
 	local points = player_profile.get_points()
-
-	pcall(function()
-		gui.set_text(gui.get_node("shop_title"), i18n.t("menu_shop"))
-		gui.set_text(gui.get_node("txt_shop_back"), i18n.t("menu_back"))
-		gui.set_position(gui.get_node("btn_shop_back"), vmath.vector3(0, -215, 0))
-
-		for i = 1, 7 do
-			gui.set_position(gui.get_node("skin_bg_" .. i), CARD_POSITIONS[i])
-			gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
-			gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
-		end
-
-		local hats = player_profile.SKINS
-		local equipped = player_profile.data.equipped_skin or "classic"
-		for i = 1, 7 do
-			if hats[i] then
-				update_card(i, hats[i], equipped, points)
+	for slot, card in ipairs(win.cards) do
+		local hat = player_profile.SKINS[(win.page - 1) * PER_PAGE + slot]
+		gui.set_enabled(card.frame, hat ~= nil)
+		if hat then
+			kit.set_image(card.frame, "card_" .. (hat.rarity or "common"))
+			if hat.hat == "none" then
+				kit.set_icon(card.hat, "recruit", 96, 104, "game")
+			else
+				kit.set_icon(card.hat, hat.hat, 120, 100, "game")
+			end
+			kit.set_text(card.name, player_profile.get_skin_name(hat, i18n.current_lang), CARD_W - 20, 15, "label")
+			local owned = player_profile.is_skin_unlocked(hat.id)
+			gui.set_enabled(card.check, hat.id == equipped)
+			gui.set_enabled(card.coin, not owned)
+			gui.set_enabled(card.price, not owned)
+			gui.set_enabled(card.status, owned)
+			if owned then
+				kit.set_text(card.status, i18n.t(hat.id == equipped and "ui_equipped" or "ui_equip"), CARD_W - 24, 16, "label")
+				gui.set_color(card.status, hat.id == equipped and kit.C.green or kit.C.white)
+			else
+				gui.set_text(card.price, kit.num(hat.price))
+				gui.set_color(card.price, points >= hat.price and kit.C.gold or kit.C.disabled)
 			end
 		end
-	end)
-end
-
-local function on_card_click(self, idx)
-	local skin = player_profile.SKINS[idx]
-	if not skin then return end
-
-	if player_profile.is_skin_unlocked(skin.id) then
-		player_profile.equip_skin(skin.id)
-	elseif not player_profile.buy_skin(skin.id) then
-		-- Not enough points: squash-and-bounce the card button
-		local btn = gui.get_node("btn_skin_" .. idx)
-		pcall(function()
-			gui.cancel_animations(btn, "scale")
-			gui.set_scale(btn, vmath.vector3(1.10, 0.88, 1.0))
-			gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.25)
-		end)
 	end
-	M.update(self)
+	gui.set_text(win.page_text, win.page .. " / " .. page_count())
 end
 
-function M.register(self)
-	for i = 1, 7 do
-		self.ui:button("btn_skin_" .. i, function() on_card_click(self, i) end)
-		self.ui:button("skin_bg_" .. i, function() on_card_click(self, i) end)
+function M.show(self, visible)
+	gui.set_enabled(self.shop.root, visible)
+	if visible then
+		M.refresh(self)
+		kit.pop_in(self.shop.panel)
 	end
 end
 

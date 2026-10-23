@@ -1144,6 +1144,18 @@ local dictionary = {
 	},
 }
 
+-- Texts of the midcore interface live side by side per key in lua_modules/strings.lua
+for key, map in pairs(require("lua_modules.strings")) do
+	for lang, text in pairs(map) do
+		if dictionary[lang] then
+			dictionary[lang][key] = text
+		end
+	end
+end
+
+-- Native language names for the language selector
+M.LANG_NAMES = { en = "English", ru = "Русский", pt = "Português", fr = "Français", es = "Español", tr = "Türkçe" }
+
 -- Detect language from saved preference, Poki SDK, or default to English
 function M.detect_language()
 	-- 1. Check if user previously saved a manual language preference
@@ -1166,7 +1178,7 @@ function M.detect_language()
 	-- Official Poki SDK exposes PokiSDK.getLanguage() returning ISO 639-1 code (e.g. 'en', 'ru')
 	if html5 then
 		pcall(function()
-			local js_lang = html5.eval([[(function() {
+			local js_lang = html5.run([[(function() {
 				try {
 					if (typeof PokiSDK !== 'undefined') {
 						if (typeof PokiSDK.getLanguage === 'function') {

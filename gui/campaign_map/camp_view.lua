@@ -1,203 +1,175 @@
 -- gui/campaign_map/camp_view.lua
--- Map rendering: top bar, connection lines, sector nodes, alert banner, per-frame pulses.
+-- War map drawing: top bar, the island board, roads between sectors and the sector badges
+-- (owner colour, defence pips, enemy avatar, attack / alarm pulses).
 
+local kit = require("lua_modules.ui_kit")
+local i18n = require("lua_modules.i18n")
 local territory_map = require("lua_modules.territory_map")
 local strategic_campaign = require("lua_modules.strategic_campaign")
-local sound_manager = require("lua_modules.sound_manager")
-local i18n = require("lua_modules.i18n")
-local camp_data = require("gui.campaign_map.camp_data")
-local camp_inspector = require("gui.campaign_map.camp_inspector")
-local camp_barracks = require("gui.campaign_map.camp_barracks")
+local level_config = require("lua_modules.level_config")
+local classes = require("lua_modules.classes")
+local player_profile = require("lua_modules.player_profile")
 
 local M = {}
 
--- Builds one box node per sector connection under "lines_container".
-function M.build_lines(self)
-	self.lines = {}
-	local edges = territory_map.get_connections()
-	local container = gui.get_node("lines_container")
+local BLUE = vmath.vector4(0.45, 0.72, 1.0, 1)
+local RED = vmath.vector4(1.0, 0.48, 0.42, 1)
+local ROAD_OURS = vmath.vector4(0.25, 0.55, 0.95, 0.65)
+local ROAD_ENEMY = vmath.vector4(0.55, 0.2, 0.22, 0.55)
+local ROAD_FRONT = vmath.vector4(1.0, 0.76, 0.2, 0.95)
+local REGION_COLORS = {
+	vmath.vector4(0.55, 0.9, 0.5, 0.7),
+	vmath.vector4(1.0, 0.78, 0.45, 0.7),
+	vmath.vector4(0.6, 0.85, 1.0, 0.7),
+	vmath.vector4(1.0, 0.5, 0.4, 0.7),
+}
 
-	for _, e in ipairs(edges) do
-		local a = e.sector_a
-		local b = e.sector_b
+local function build_top_bar(self, root, handlers)
+	kit.box(root, "dim", 480, 514, 980, 54, vmath.vector4(1, 1, 1, 0.65))
+	kit.box(root, "white", 480, 486, 980, 2, vmath.vector4(0.95, 0.72, 0.2, 0.55))
+	local v = self.view
+	v.title = kit.text(root, "", 18, 514, 24, { font = "title", align = "left", color = kit.C.gold, max_w = 230 })
+	v.sector_count = kit.counter(root, "ic_flag", 330, 514, 120, "0/18")
+	v.turn = kit.text(root, "", 420, 514, 16, { font = "label", align = "left", color = kit.C.muted, max_w = 110 })
+	v.coins = kit.counter(root, "ic_coin", 612, 514, 130, "0")
+	kit.icon_button(self.ui, root, "map_squad", 740, 514, 46, "ic_squad", handlers.squad)
+	kit.icon_button(self.ui, root, "map_arsenal", 794, 514, 46, "ic_arsenal", handlers.arsenal)
+	kit.icon_button(self.ui, root, "map_menu", 930, 514, 46, "ic_home", handlers.menu)
+	v.squad_badge = kit.badge(root, 758, 532)
+	v.arsenal_badge = kit.badge(root, 812, 532)
+end
+
+-- One road per sector connection
+local function build_roads(self, board)
+	self.view.roads = {}
+	for _, e in ipairs(territory_map.get_connections()) do
+		local a, b = e.sector_a, e.sector_b
 		if a and b then
-			local mx = (a.x + b.x) * 0.5
-			local my = (a.y + b.y) * 0.5
-			local dx = b.x - a.x
-			local dy = b.y - a.y
+			local dx, dy = b.x - a.x, b.y - a.y
 			local len = math.sqrt(dx * dx + dy * dy)
-			local angle_rad = math.atan2(dy, dx)
-
-			local line_node = gui.new_box_node(vmath.vector3(mx, my, 0), vmath.vector3(len, 2.5, 0))
-			gui.set_parent(line_node, container)
-			gui.set_rotation(line_node, vmath.quat_rotation_z(angle_rad))
-			gui.set_color(line_node, vmath.vector4(0.3, 0.38, 0.48, 0.5))
-
-			table.insert(self.lines, {
-				node = line_node,
-				from = a.id,
-				to = b.id,
-				len = len,
-				is_frontline = e.is_frontline,
-			})
+			local road = kit.box(board, "white", (a.x + b.x) * 0.5, (a.y + b.y) * 0.5, len, 3)
+			gui.set_rotation(road, vmath.quat_rotation_z(math.atan2(dy, dx)))
+			table.insert(self.view.roads, { node = road, from = a.id, to = b.id, len = len })
 		end
 	end
 end
 
-local function update_top_bar(stats, supplies, turn)
-	pcall(function()
-		gui.set_text(gui.get_node("txt_top_title"), i18n.t("camp_title"))
-		gui.set_text(gui.get_node("txt_top_sectors"), string.format(i18n.t("camp_sectors_fmt"), stats.blue_count, stats.total_count, stats.progress_pct))
-		gui.set_text(gui.get_node("txt_top_supplies"), string.format(i18n.t("camp_supplies_fmt"), supplies))
-		gui.set_text(gui.get_node("txt_top_turn"), string.format(i18n.t("camp_turn_fmt"), turn))
-		gui.set_text(gui.get_node("txt_top_barracks"), i18n.t("camp_btn_barracks"))
-		gui.set_text(gui.get_node("txt_top_menu"), i18n.t("camp_btn_back"))
-		gui.set_text(gui.get_node("txt_bot_hint"), i18n.t("camp_hint_bottom"))
-	end)
-end
+-- Region names sit in the board corners, clear of the sector badges
+local REGION_LABELS = { { 112, 30 }, { 360, 30 }, { 300, 470 }, { 570, 470 } }
 
-local function update_lines(self, secs)
-	for _, l in ipairs(self.lines or {}) do
-		local sa = secs[l.from]
-		local sb = secs[l.to]
-		if sa and sb then
-			local is_frontline = (sa.owner ~= sb.owner)
-			l.is_frontline = is_frontline
-			if is_frontline then
-				-- Frontline: gold / orange pulsating line
-				gui.set_color(l.node, vmath.vector4(0.96, 0.72, 0.16, 0.95))
-				gui.set_size(l.node, vmath.vector3(l.len, 4.5, 0))
-			elseif sa.owner == "blue" then
-				-- Friendly route: calm blue
-				gui.set_color(l.node, vmath.vector4(0.18, 0.45, 0.75, 0.55))
-				gui.set_size(l.node, vmath.vector3(l.len, 2.5, 0))
-			else
-				-- Enemy route: dark burgundy
-				gui.set_color(l.node, vmath.vector4(0.48, 0.18, 0.22, 0.45))
-				gui.set_size(l.node, vmath.vector3(l.len, 2.0, 0))
-			end
-		end
+local function build_region_labels(self, board)
+	self.view.regions = {}
+	for id, pos in ipairs(REGION_LABELS) do
+		self.view.regions[id] = kit.text(board, "", pos[1], pos[2], 15, { font = "title", color = REGION_COLORS[id] or kit.C.muted, max_w = 220 })
 	end
 end
 
-local function update_sector_node(self, i, s)
-	local is_blue = (s.owner == "blue")
-	local is_selected = (self.selected_sector_id == i)
-	local can_atk = territory_map.can_attack(i)
-
-	pcall(function()
-		local btn = gui.get_node("sec_btn_" .. i)
-		local glow = gui.get_node("sec_glow_" .. i)
-		local potato = gui.get_node("sec_potato_" .. i)
-		local stars = gui.get_node("sec_stars_" .. i)
-		local alert = gui.get_node("sec_alert_" .. i)
-		local lbl = gui.get_node("sec_lbl_" .. i)
-
-		-- Faction color & potato avatar
-		gui.play_flipbook(potato, hash("recruit"))
-		if is_blue then
-			gui.set_color(btn, vmath.vector4(0.16, 0.44, 0.82, 1.0))
-			gui.set_color(potato, vmath.vector4(0.85, 0.95, 1.0, 1.0))
-		else
-			gui.set_color(btn, vmath.vector4(0.74, 0.18, 0.20, 1.0))
-			gui.set_color(potato, vmath.vector4(1.0, 0.85, 0.85, 1.0))
-		end
-
-		gui.set_text(stars, camp_data.DEF_STARS[s.defense_level or 1] or "★☆☆")
-		gui.set_text(lbl, i18n.field(s, "name"))
-		gui.set_enabled(alert, s.under_attack == true)
-
-		-- Glow ring
-		if is_selected then
-			gui.set_enabled(glow, true)
-			gui.set_color(glow, vmath.vector4(0.98, 0.88, 0.25, 0.90))
-			gui.set_size(glow, vmath.vector3(64, 64, 0))
-		elseif s.under_attack then
-			gui.set_enabled(glow, true)
-			gui.set_color(glow, vmath.vector4(0.95, 0.20, 0.20, 0.85))
-			gui.set_size(glow, vmath.vector3(62, 62, 0))
-		elseif can_atk then
-			-- Available target indicator: subtle golden ring
-			gui.set_enabled(glow, true)
-			gui.set_color(glow, vmath.vector4(0.95, 0.75, 0.20, 0.50))
-			gui.set_size(glow, vmath.vector3(58, 58, 0))
-		else
-			gui.set_enabled(glow, false)
-		end
-	end)
+local function build_sector(self, board, s)
+	local n = { id = s.id }
+	n.root = kit.group(board, s.x, s.y)
+	n.glow = kit.box(n.root, "glow", 0, 0, 96, 96, vmath.vector4(1, 0.8, 0.2, 0))
+	n.btn = kit.button(self.ui, n.root, "sec_" .. s.id, 0, 0, 52, 52, { style = "round", slop = 10, on_click = function()
+		self.on_select(s.id)
+	end })
+	n.flag = kit.icon(n.btn.node, "ic_flag", 0, 2, 30)
+	n.enemy = kit.icon(n.btn.node, "recruit", 0, 2, 36, { texture = "game" })
+	n.number = kit.text(n.root, "", -24, 22, 13, { font = "label" })
+	n.pips = {}
+	for k = 1, 3 do
+		n.pips[k] = kit.icon(n.root, "ic_star", (k - 2) * 13, -30, 14)
+	end
+	n.alarm = kit.icon(n.root, "ic_damage", 22, 22, 26)
+	n.name = kit.text(n.root, "", 0, -44, 12, { font = "label", color = kit.C.white, max_w = 110 })
+	return n
 end
 
-local function update_alert_banner(attacked_sector)
-	pcall(function()
-		local banner = gui.get_node("alert_banner")
-		if attacked_sector then
-			gui.set_enabled(banner, true)
-			gui.set_text(gui.get_node("txt_alert_banner"), string.format(i18n.t("camp_alert_siren"), attacked_sector.id))
-		else
-			gui.set_enabled(banner, false)
-		end
-	end)
+function M.build(self, handlers)
+	self.view = {}
+	local root = kit.group(nil, 0, 0, 960, 540)
+	self.view.root = root
+	kit.box(root, "dim", 480, 270, 980, 560, vmath.vector4(0.55, 0.75, 1.0, 1))
+	kit.box(root, "vignette", 480, 270, 980, 560)
+	local board = kit.inset(root, 345, 240, 676, 476)
+	gui.set_color(board, vmath.vector4(0.7, 0.85, 1.0, 0.9))
+	self.view.board = kit.group(root, 0, 0)
+	build_roads(self, self.view.board)
+	build_region_labels(self, self.view.board)
+	self.view.sectors = {}
+	for id, s in pairs(territory_map.get_sectors()) do
+		self.view.sectors[id] = build_sector(self, self.view.board, s)
+	end
+	build_top_bar(self, root, handlers)
 end
 
-function M.update_visuals(self)
+-- Sector the enemy fields (first enemy class) for the avatar on the badge
+local function enemy_class(s)
+	local cfg = level_config.get(s.id)
+	return (cfg.enemy_classes and cfg.enemy_classes[1]) or "recruit"
+end
+
+function M.refresh(self)
+	local v = self.view
 	local secs = territory_map.get_sectors()
-
-	update_top_bar(territory_map.get_stats(), strategic_campaign.get_supplies(), strategic_campaign.get_turn())
-	camp_barracks.update(self)
-	update_lines(self, secs)
-
-	local attacked_sector = nil
-	for i = 1, 18 do
-		local s = secs[i]
-		if s then
-			if s.under_attack then
-				attacked_sector = s
-			end
-			update_sector_node(self, i, s)
-		end
+	local stats = territory_map.get_stats()
+	kit.set_text(v.title, i18n.t("ui_campaign"), 230, 24, "title")
+	kit.set_text(v.sector_count.text, stats.blue_count .. "/" .. stats.total_count, 76, 19, "label")
+	kit.set_text(v.turn, string.format(i18n.t("ui_turn_fmt"), strategic_campaign.get_turn()), 110, 16, "label")
+	kit.set_text(v.coins.text, kit.num(player_profile.get_points()), 86, 19, "label")
+	for id, label in pairs(v.regions) do
+		local r = territory_map.REGIONS[id]
+		kit.set_text(label, r and i18n.field(r, "name") or "", 220, 15, "title")
 	end
 
-	update_alert_banner(attacked_sector)
-	camp_inspector.update(self)
-end
-
--- Selects a sector with a bounce on its node and refreshes the map.
-function M.select_sector(self, sector_id)
-	sound_manager.play_click()
-	self.selected_sector_id = sector_id
-	M.bounce_sector(sector_id, 1.15, 0.25)
-	M.update_visuals(self)
-end
-
-function M.bounce_sector(sector_id, from_scale, duration)
-	pcall(function()
-		local btn = gui.get_node("sec_btn_" .. sector_id)
-		gui.cancel_animations(btn, "scale")
-		gui.set_scale(btn, vmath.vector3(from_scale, from_scale, 1.0))
-		gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, duration)
-	end)
-end
-
--- Pulsing frontline lines and alert banner.
-function M.pulse(self, dt)
-	self.pulse_timer = (self.pulse_timer or 0) + dt
-
-	local alpha_wave = 0.70 + 0.30 * math.sin(self.pulse_timer * 4.0)
-	local gold_pulse = vmath.vector4(0.98, 0.72 + 0.10 * math.sin(self.pulse_timer * 3.0), 0.15, alpha_wave)
-
-	for _, l in ipairs(self.lines or {}) do
-		if l.is_frontline then
-			pcall(gui.set_color, l.node, gold_pulse)
-		end
+	for _, road in ipairs(v.roads) do
+		local a, b = secs[road.from], secs[road.to]
+		local front = a.owner ~= b.owner
+		local color = front and ROAD_FRONT or ((a.owner == "blue") and ROAD_OURS or ROAD_ENEMY)
+		gui.set_color(road.node, color)
+		gui.set_size(road.node, vmath.vector3(road.len, front and 5 or 3, 0))
 	end
 
-	pcall(function()
-		local banner = gui.get_node("alert_banner")
-		if gui.is_enabled(banner) then
-			local b_alpha = 0.80 + 0.20 * math.sin(self.pulse_timer * 6.0)
-			gui.set_color(banner, vmath.vector4(0.85, 0.12, 0.12, b_alpha))
+	for id, n in pairs(v.sectors) do
+		local s = secs[id]
+		local ours = s.owner == "blue"
+		local target = territory_map.can_attack(id)
+		local selected = (self.selected_sector_id == id)
+		gui.set_color(n.btn.node, ours and BLUE or RED)
+		gui.set_enabled(n.flag, ours)
+		gui.set_enabled(n.enemy, not ours)
+		if not ours then
+			kit.set_icon(n.enemy, classes.sprite_of(enemy_class(s)), 34, 36, "game")
 		end
-	end)
+		gui.set_text(n.number, string.format("%02d", id))
+		for k, pip in ipairs(n.pips) do
+			gui.set_color(pip, (k <= (s.defense_level or 1)) and vmath.vector4(1, 1, 1, 1) or vmath.vector4(0.2, 0.25, 0.32, 0.9))
+		end
+		gui.set_enabled(n.alarm, s.under_attack == true)
+		kit.set_text(n.name, i18n.field(s, "name"), 110, 12, "label")
+		gui.set_color(n.name, selected and kit.C.gold or kit.C.white)
+
+		-- Pulse: gold = can be attacked, red = under attack, white = selected
+		gui.cancel_animations(n.glow, "color.w")
+		local glow
+		if s.under_attack then
+			glow = vmath.vector4(1, 0.25, 0.2, 0.9)
+		elseif selected then
+			glow = vmath.vector4(1, 1, 1, 0.75)
+		elseif target then
+			glow = vmath.vector4(1, 0.78, 0.2, 0.8)
+		end
+		if glow then
+			gui.set_color(n.glow, glow)
+			gui.animate(n.glow, "color.w", glow.w * 0.25, gui.EASING_INOUTSINE, 0.7, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
+		else
+			gui.set_color(n.glow, vmath.vector4(1, 1, 1, 0))
+		end
+		gui.set_scale(n.root, selected and vmath.vector3(1.15, 1.15, 1) or vmath.vector3(1, 1, 1))
+	end
+end
+
+function M.set_badges(self, squad, arsenal)
+	gui.set_enabled(self.view.squad_badge, squad)
+	gui.set_enabled(self.view.arsenal_badge, arsenal)
 end
 
 return M

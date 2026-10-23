@@ -51,12 +51,12 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 22.5
+    y: 20.5
     z: 0.06
   }
   scale {
-    x: 0.875
-    y: 0.875
+    x: 0.29
+    y: 0.29
   }
 }
 embedded_components {

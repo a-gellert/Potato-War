@@ -1,59 +1,136 @@
 -- gui/campaign_map/campaign_map.gui_script
--- Global Campaign Map Controller for Potato War (Island Campaign)
--- Widgets live in gui/campaign_map/camp_*.lua.
+-- War map: pick a sector, attack it with the squad, defend sectors under attack, fortify with
+-- coins; the squad and arsenal screens open on top. Built in code with lua_modules/ui_kit.lua;
+-- the board lives in camp_view.lua, the side panel in camp_inspector.lua.
 
+local kit = require("lua_modules.ui_kit")
 local ui_manager = require("lua_modules.ui_manager")
+local i18n = require("lua_modules.i18n")
 local territory_map = require("lua_modules.territory_map")
+local strategic_campaign = require("lua_modules.strategic_campaign")
+local progression = require("lua_modules.progression")
+local sound_manager = require("lua_modules.sound_manager")
 local camp_view = require("gui.campaign_map.camp_view")
-local camp_buttons = require("gui.campaign_map.camp_buttons")
+local camp_inspector = require("gui.campaign_map.camp_inspector")
+
+local function refresh(self)
+	camp_view.refresh(self)
+	camp_inspector.refresh(self)
+	camp_view.set_badges(self, progression.squad_can_improve(), progression.any_weapon_upgrade())
+
+	-- Campaign over: the whole island is ours (or lost)
+	local won = territory_map.is_victory("blue")
+	local lost = territory_map.is_defeat("blue")
+	gui.set_enabled(self.final.root, won or lost)
+	if won or lost then
+		kit.set_text(self.final.text, won and i18n.t("ui_campaign_won") or i18n.t("debrief_campaign_lost"), 440, 22, "title")
+		self.final.button.set_label(i18n.t("ui_new_campaign"))
+	end
+end
+
+local function open_overlay(path)
+	sound_manager.play("whoosh")
+	msg.post(path, "enable")
+	msg.post(path .. "#gui", "show", { from = "/gui_campaign_map#gui" })
+end
+
+local function start_sector_battle(self)
+	local sid = self.selected_sector_id
+	local cfg = sid and strategic_campaign.prepare_battle(sid)
+	if cfg then
+		sound_manager.play("radio")
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_battle", cfg)
+	end
+end
+
+local function fortify(self)
+	local sid = self.selected_sector_id
+	if sid and strategic_campaign.fortify(sid) then
+		sound_manager.play("crate")
+		kit.pop_in(self.view.sectors[sid].root)
+	else
+		sound_manager.play("tick")
+	end
+	refresh(self)
+end
+
+local function build_final(self)
+	local root = kit.group(nil, 345, 240, 676, 476)
+	self.final = { root = root }
+	kit.box(root, "dim", 0, 0, 676, 476, vmath.vector4(1, 1, 1, 0.75))
+	local p = kit.panel(root, 0, 0, 480, 220)
+	kit.icon(p, "ic_trophy", 0, 50, 70)
+	self.final.text = kit.text(p, "", 0, -10, 22, { font = "title", color = kit.C.gold, max_w = 440 })
+	self.final.button = kit.button(self.ui, p, "map_new_campaign", 0, -66, 280, 56, { style = "gold", label = "", px = 20, on_click = function()
+		strategic_campaign.start_new_campaign()
+		self.selected_sector_id = 1
+		sound_manager.play("unlock")
+		refresh(self)
+	end })
+	gui.set_enabled(root, false)
+end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(6)
 	self.ui = ui_manager.create(self)
 	self.selected_sector_id = 1
-	self.pulse_timer = 0
-
-	camp_view.build_lines(self)
-	camp_buttons.register(self)
-
-	-- Hidden by default until invoked
+	self.on_select = function(id)
+		self.selected_sector_id = id
+		sound_manager.play("click")
+		refresh(self)
+	end
+	camp_view.build(self, {
+		squad = function() open_overlay("/gui_squad") end,
+		arsenal = function() open_overlay("/gui_arsenal") end,
+		menu = function()
+			msg.post(".", "disable")
+			msg.post("/main#main", "show_menu")
+		end,
+	})
+	camp_inspector.build(self, {
+		action = function() start_sector_battle(self) end,
+		fortify = function() fortify(self) end,
+	})
+	build_final(self)
 	msg.post(".", "disable")
 end
 
 function on_input(self, action_id, action)
-	return self.ui:on_input(action_id, action)
+	self.ui:on_input(action_id, action)
+	return true
 end
 
 function update(self, dt)
 	self.ui:update(dt)
-	camp_view.pulse(self, dt)
+end
+
+-- Starts on a sector that needs attention: under attack first, otherwise the first target
+local function pick_default_sector(self)
+	local first_target
+	for id, s in pairs(territory_map.get_sectors()) do
+		if s.under_attack then
+			return id
+		end
+		if territory_map.can_attack(id) and (not first_target or id < first_target) then
+			first_target = id
+		end
+	end
+	return first_target or self.selected_sector_id or 1
 end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("show") then
 		msg.post(".", "enable")
-		-- If a specific sector is under attack, auto-select it
-		local secs = territory_map.get_sectors()
-		local attacked_id = nil
-		for i = 1, 18 do
-			if secs[i] and secs[i].under_attack then
-				attacked_id = i
-				break
-			end
-		end
-		self.selected_sector_id = attacked_id or self.selected_sector_id or 1
-		camp_view.update_visuals(self)
-
+		msg.post(".", "acquire_input_focus")
+		self.selected_sector_id = pick_default_sector(self)
+		refresh(self)
+	elseif message_id == hash("overlay_closed") or message_id == hash("refresh") then
+		refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
-
-	elseif message_id == hash("refresh") then
-		camp_view.update_visuals(self)
-
-	elseif message_id == hash("select_sector") then
-		if message and message.sector_id then
-			camp_view.select_sector(self, message.sector_id)
-		end
+	elseif message_id == hash("select_sector") and message.sector_id then
+		self.on_select(message.sector_id)
 	end
 end

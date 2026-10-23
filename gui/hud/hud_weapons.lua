@@ -5,6 +5,7 @@ local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local game_state = require("lua_modules.game_state")
 local i18n = require("lua_modules.i18n")
+local ui_manager = require("lua_modules.ui_manager")
 
 local M = {}
 
@@ -34,7 +35,7 @@ function M.update_selection(self, selected_weapon_id)
 			end
 
 			local ammo = game_state.get_ammo(w.id)
-			gui.play_flipbook(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
+			ui_manager.fit_icon(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
 
 			if w.id == "grenade" then
 				gui.set_text(ammo_node, "INF")
@@ -77,10 +78,9 @@ function M.update_inventory(self)
 			local name_node = gui.get_node("inv_name_" .. i)
 			local count_node = gui.get_node("inv_ammo_" .. i)
 
-			gui.play_flipbook(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
+			ui_manager.fit_icon(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
 
-			local key = "weapon_" .. w.id
-			gui.set_text(name_node, (i18n.t(key) ~= key) and i18n.t(key) or (w.name or w.id))
+			gui.set_text(name_node, i18n.field(w, "name"))
 
 			local ammo = game_state.get_ammo(w.id)
 			local is_selected = (game_state.selected_weapon_id == w.id)

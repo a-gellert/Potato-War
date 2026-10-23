@@ -3,6 +3,10 @@
 
 local weapons = require("lua_modules.weapons")
 local i18n = require("lua_modules.i18n")
+local sound_manager = require("lua_modules.sound_manager")
+local classes = require("lua_modules.classes")
+
+local STEP_SOUND_EVERY = 0.26
 
 go.property("team", 1)
 go.property("potato_id", 1)
@@ -107,25 +111,8 @@ local function update_facing(self, facing)
 	end
 end
 
-local CLASS_SPRITE_MAP = {
-	recruit     = "recruit",
-	assault     = "assault",
-	assault_2   = "assault",
-	sniper      = "sniper",
-	sapper      = "sapper",
-	sapper_2    = "sapper",
-	commando    = "sapper",
-	artillery   = "tank",
-	artillery_2 = "tank",
-	rocketeer   = "tank",
-	medic       = "medic",
-	surgeon     = "medic",
-	engineer    = "sapper",
-	tank        = "tank",
-}
-
 local function update_class_sprite(self)
-	local sprite_name = CLASS_SPRITE_MAP[self.class_id] or "recruit"
+	local sprite_name = classes.sprite_of(self.class_id)
 	pcall(function()
 		sprite.play_flipbook("#sprite", hash(sprite_name))
 	end)
@@ -321,6 +308,7 @@ local function process_turn_start(self)
 
 		if self.hp <= 0 then
 			self.is_alive = false
+			sound_manager.play("death", { vary = 0.08 })
 			sprite.play_flipbook("#sprite", hash("tombstone"))
 			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
@@ -421,6 +409,11 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("on_step") then
+		local now = socket.gettime()
+		if self.is_alive and now - (self.last_step_sound or 0) > STEP_SOUND_EVERY then
+			self.last_step_sound = now
+			sound_manager.play("step", { vary = 0.2 })
+		end
 		if self.is_alive and (not self.scale_anim_timer or self.scale_anim_timer <= 0) then
 			-- Quick squish-and-stretch on walking hop
 			local hop_val = message.hop or 0.5
@@ -509,6 +502,7 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("on_jump") then
 		if self.is_alive then
+			sound_manager.play("jump", { vary = 0.1 })
 			self.scale_anim_timer = 0.25
 			set_emotion(self, "jump", 0.6)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 0.76, BASE_SCALE * 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
@@ -516,6 +510,7 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
+			sound_manager.play("land", { vary = 0.1 })
 			self.scale_anim_timer = 0.28
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.32, BASE_SCALE * 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
@@ -537,6 +532,7 @@ function on_message(self, message_id, message, sender)
 
 		self.hp = math.max(0, self.hp - (message.damage or 0))
 		update_hp_bar(self)
+		sound_manager.play(self.hp <= 0 and "death" or "hurt", { vary = 0.1 })
 
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")

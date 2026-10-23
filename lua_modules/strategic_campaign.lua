@@ -132,7 +132,8 @@ function M.build_battle_config(s, battle_type)
 	local lvl_cfg = level_config.get(s.id)
 
 	local enemy_count = (battle_type == "assault") and (lvl_cfg.enemy_count or s.garrison or 2) or 2
-	local player_count = (battle_type == "defense") and math.max(1, s.garrison or 2) or 1
+	-- The whole squad from the barracks fights every sector battle
+	local player_count = #player_profile.get_squad()
 	local enemy_skill = lvl_cfg.enemy_skill or "normal"
 	local enemy_hp = lvl_cfg.enemy_hp or (def == 1 and 70 or (def == 2 and 85 or 100))
 
@@ -159,6 +160,7 @@ function M.build_battle_config(s, battle_type)
 		enemy_classes = lvl_cfg.enemy_classes,
 		enemy_levels = lvl_cfg.enemy_levels,
 		opponent_type = "bot",
+		use_squad = true,
 		enemy_skill = enemy_skill,
 		bot_difficulty = enemy_skill,
 		defense_level = def,
@@ -360,6 +362,23 @@ function M.execute_ai_counterattack(auto_resolve)
 	return result
 end
 
+-- Sectors left under attack for a whole turn fall unless their defences hold
+local function resolve_ignored_attacks(except_id)
+	local lost = {}
+	for id, s in pairs(territory_map.get_sectors()) do
+		if s.owner == "blue" and s.under_attack and id ~= except_id then
+			local hold_chance = 35 + ((s.defense_level or 1) - 1) * 27.5
+			if math.random(1, 100) <= hold_chance then
+				territory_map.set_under_attack(id, false)
+			else
+				territory_map.capture_sector(id, "red")
+				table.insert(lost, id)
+			end
+		end
+	end
+	return lost
+end
+
 -- Resolve tactical battle results
 function M.resolve_battle(winner_team, points_earned)
 	local sector_id = M.active_battle_sector_id
@@ -453,6 +472,15 @@ function M.resolve_battle(winner_team, points_earned)
 
 	player_profile.set_campaign_stats(stats)
 	player_profile.set_campaign_turn(M.get_turn() + 1)
+
+	-- A new turn: ignored attacks are settled, then the sectors pay their income
+	outcome.lost_sectors = resolve_ignored_attacks(sector_id)
+	if territory_map.is_defeat("blue") then
+		M.set_phase(M.PHASE_DEFEAT)
+		outcome.campaign_lost = true
+		return outcome
+	end
+	outcome.income = M.collect_income()
 	M.set_phase(M.PHASE_COUNTERATTACK)
 
 	-- Check for enemy counter-attack on next turn

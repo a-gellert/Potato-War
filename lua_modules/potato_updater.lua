@@ -13,17 +13,23 @@ local achievements = require("lua_modules.achievements")
 
 local M = {}
 
+local function liquid_sound()
+	sound_manager.play((game_state.current_biome == "volcano") and "sizzle" or "splash", { vary = 0.1 })
+end
+
 local function on_splash(p)
 	camera_controller.shake(8, 0.25)
-	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 4, radius = 24 })
+	liquid_sound()
+	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 4, radius = 24, silent = true })
 	msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
 	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y + 12, amount = 30, label = i18n.pick({ ru = "💦 ВОДА!", en = "💦 WATER!", pt = "💦 ÁGUA!", fr = "💦 EAU !", es = "💦 ¡AGUA!", tr = "💦 SU!" }) })
 end
 
 local function on_drowned(p)
 	camera_controller.shake(14, 0.40)
-	sound_manager.play_explosion()
-	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 6, radius = 36 })
+	liquid_sound()
+	sound_manager.play("death", { vary = 0.08 })
+	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 6, radius = 36, silent = true })
 	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = constants.WATER_LEVEL + 26, amount = 999, label = i18n.pick({ ru = "🔥 ФРИТЮРНИЦА!", en = "🔥 DEEP FRYER!", pt = "🔥 FRITADEIRA!", fr = "🔥 FRITEUSE !", es = "🔥 ¡FREIDORA!", tr = "🔥 FRİTÖZ!" }) })
 	msg.post(p.url, "drowned")
 	p.url = nil
@@ -60,7 +66,7 @@ function M.update(dt)
 				if result == "tutorial_rescue" then
 					go.set_position(p.pos, p.url)
 					camera_controller.follow(p.pos.x, p.pos.y, true)
-					sound_manager.play_jump()
+					sound_manager.play("jump")
 				elseif result == "water_splash" then
 					on_splash(p)
 				elseif result == "drowned" then

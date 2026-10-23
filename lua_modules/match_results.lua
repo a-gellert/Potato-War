@@ -8,6 +8,7 @@ local player_profile = require("lua_modules.player_profile")
 local achievements = require("lua_modules.achievements")
 local strategic_campaign = require("lua_modules.strategic_campaign")
 local i18n = require("lua_modules.i18n")
+local progression = require("lua_modules.progression")
 
 local M = {}
 
@@ -80,7 +81,31 @@ function M.build(seamless_stage, winner_team, points_earned, hp_healed, current_
 	end
 
 	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL) or (seamless_stage == 1)
+
+	-- XP, ranks, commander level, coins and the supply crate
+	local battle = game_state.battle or {}
+	local blue_total, blue_alive = 0, 0
+	for _, p in ipairs(game_state.potatoes or {}) do
+		if p.team == constants.TEAM_BLUE then
+			blue_total = blue_total + 1
+			if p.is_alive and p.hp > 0 then
+				blue_alive = blue_alive + 1
+			end
+		end
+	end
+	local progress = progression.finish_battle({
+		player_team = constants.TEAM_BLUE,
+		potatoes = game_state.potatoes or {},
+		won = (winner_team == constants.TEAM_BLUE),
+		flawless = (blue_total > 0 and blue_alive == blue_total),
+		uses_squad = battle.uses_squad,
+		sector_level = battle.sector_level,
+		is_tutorial = is_tutorial or battle.is_tutorial,
+		pvp = battle.pvp,
+	})
+
 	local data = {
+		progress = progress,
 		winner = winner_team,
 		points = points_earned + ach_bonus,
 		base_points = points_earned,
@@ -101,6 +126,8 @@ function M.build(seamless_stage, winner_team, points_earned, hp_healed, current_
 		apply_seamless_reward(data, 2)
 	end
 
+	-- Too big for a message: the results screen reads it from here
+	M.last = data
 	return data
 end
 

@@ -3,147 +3,67 @@
 
 local M = {}
 
+-- Hats (kept under the historic "skins" name: saves store unlocked_skins / equipped_skin by these ids).
+-- rarity drives the card frame in the shop and the drop chance from supply crates.
+local function hat(id, image, price, rarity, names, descs)
+	local s = { id = id, hat = image, price = price, rarity = rarity, tint = { 1.0, 1.0, 1.0, 1.0 } }
+	for lang, v in pairs(names) do
+		s["name_" .. lang] = v
+	end
+	for lang, v in pairs(descs) do
+		s["desc_" .. lang] = v
+	end
+	s.name = names.ru
+	s.desc = descs.ru
+	return s
+end
+
 M.SKINS = {
-	{
-		id = "classic",
-		name = "Без Шапки",
-		name_ru = "Без Шапки",
-		name_en = "Classic Spud",
-		name_pt = "Sem Chapéu",
-		name_fr = "Sans chapeau",
-		name_es = "Sin sombrero",
-		name_tr = "Şapkasız",
-		desc = "Классический бравый боец без головного убора",
-		desc_ru = "Классический бравый боец без головного убора",
-		desc_en = "Classic brave spud without headwear",
-		desc_pt = "Um valente soldado clássico, sem nada na cabeça",
-		desc_fr = "Un brave combattant classique, tête nue",
-		desc_es = "Un valiente soldado clásico, sin nada en la cabeza",
-		desc_tr = "Başlıksız, klasik ve cesur bir savaşçı",
-		price = 0,
-		hat = "none",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "cap",
-		name = "Кепка Бойца",
-		name_ru = "Кепка Бойца",
-		name_en = "Fighter Cap",
-		name_pt = "Boné de Combate",
-		name_fr = "Casquette de Combattant",
-		name_es = "Gorra de Combate",
-		name_tr = "Savaşçı Şapkası",
-		desc = "Спортивная синяя бейсболка с козырьком",
-		desc_ru = "Спортивная синяя бейсболка с козырьком",
-		desc_en = "Sporty blue baseball cap with visor",
-		desc_pt = "Boné esportivo azul com aba",
-		desc_fr = "Casquette de baseball bleue sportive à visière",
-		desc_es = "Gorra de béisbol azul deportiva con visera",
-		desc_tr = "Siperlikli sportif mavi beyzbol şapkası",
-		price = 100,
-		hat = "hat_cap",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "bandana",
-		name = "Бандана Ниндзя",
-		name_ru = "Бандана Ниндзя",
-		name_en = "Ninja Bandana",
-		name_pt = "Bandana Ninja",
-		name_fr = "Bandeau Ninja",
-		name_es = "Bandana Ninja",
-		name_tr = "Ninja Bandanası",
-		desc = "Боевая красная повязка скрытного диверсанта",
-		desc_ru = "Боевая красная повязка скрытного диверсанта",
-		desc_en = "Battle red headband of a stealth commando",
-		desc_pt = "Faixa vermelha de batalha de um comando furtivo",
-		desc_fr = "Bandeau rouge de combat d'un commando furtif",
-		desc_es = "Cinta roja de combate de un comando sigiloso",
-		desc_tr = "Gizli bir komandonun kırmızı savaş bandı",
-		price = 250,
-		hat = "hat_bandana",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "beret",
-		name = "Берет Десанта",
-		name_ru = "Берет Десанта",
-		name_en = "Elite Beret",
-		name_pt = "Boina de Elite",
-		name_fr = "Béret d'Élite",
-		name_es = "Boina de Élite",
-		name_tr = "Elit Bere",
-		desc = "Тактический бордовый берет ветерана",
-		desc_ru = "Тактический бордовый берет ветерана",
-		desc_en = "Tactical maroon beret with golden insignia",
-		desc_pt = "Boina tática bordô com insígnia dourada",
-		desc_fr = "Béret tactique bordeaux avec insigne doré",
-		desc_es = "Boina táctica granate con insignia dorada",
-		desc_tr = "Altın rozetli taktik bordo bere",
-		price = 400,
-		hat = "hat_beret",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "tophat",
-		name = "Цилиндр Джентльмена",
-		name_ru = "Цилиндр Джентльмена",
-		name_en = "Top Hat",
-		name_pt = "Cartola",
-		name_fr = "Haut-de-forme",
-		name_es = "Chistera",
-		name_tr = "Silindir Şapka",
-		desc = "Изысканный черный цилиндр с шелковой лентой",
-		desc_ru = "Изысканный черный цилиндр с шелковой лентой",
-		desc_en = "Refined gentleman top hat with silk ribbon",
-		desc_pt = "Refinada cartola de cavalheiro com fita de seda",
-		desc_fr = "Haut-de-forme raffiné de gentleman avec ruban de soie",
-		desc_es = "Elegante chistera de caballero con cinta de seda",
-		desc_tr = "İpek kurdeleli zarif bir centilmen silindir şapkası",
-		price = 600,
-		hat = "hat_tophat",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "viking",
-		name = "Шлем Викинга",
-		name_ru = "Шлем Викинга",
-		name_en = "Viking Helmet",
-		name_pt = "Capacete Viking",
-		name_fr = "Casque Viking",
-		name_es = "Casco Vikingo",
-		name_tr = "Viking Miğferi",
-		desc = "Стальной боевой шлем с могучими рогами",
-		desc_ru = "Стальной боевой шлем с могучими рогами",
-		desc_en = "Iron battle dome flanked by fierce horns",
-		desc_pt = "Elmo de ferro de batalha ladeado por chifres ferozes",
-		desc_fr = "Casque de bataille en fer flanqué de cornes féroces",
-		desc_es = "Casco de batalla de hierro flanqueado por cuernos feroces",
-		desc_tr = "Yanlarında azgın boynuzlar olan demir savaş miğferi",
-		price = 900,
-		hat = "hat_viking",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "king",
-		name = "Корона Короля",
-		name_ru = "Корона Короля",
-		name_en = "Royal Crown",
-		name_pt = "Coroa Real",
-		name_fr = "Couronne Royale",
-		name_es = "Corona Real",
-		name_tr = "Kraliyet Tacı",
-		desc = "Золотая корона правителя картофельных полей",
-		desc_ru = "Золотая корона правителя картофельных полей",
-		desc_en = "Golden monarch crown adorned with rubies",
-		desc_pt = "Coroa de monarca dourada adornada com rubis",
-		desc_fr = "Couronne dorée de monarque ornée de rubis",
-		desc_es = "Corona dorada de monarca adornada con rubíes",
-		desc_tr = "Yakutlarla süslü altın hükümdar tacı",
-		price = 1200,
-		hat = "hat_crown",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
+	hat("classic", "none", 0, "common",
+		{ ru = "Без Шапки", en = "Classic Spud", pt = "Sem Chapéu", fr = "Sans chapeau", es = "Sin sombrero", tr = "Şapkasız" },
+		{ ru = "Классический бравый боец без головного убора", en = "Classic brave spud without headwear", pt = "Um valente soldado clássico, sem nada na cabeça", fr = "Un brave combattant classique, tête nue", es = "Un valiente soldado clásico, sin nada en la cabeza", tr = "Başlıksız, klasik ve cesur bir savaşçı" }),
+	hat("cap", "hat_cap", 100, "common",
+		{ ru = "Кепка Бойца", en = "Fighter Cap", pt = "Boné de Combate", fr = "Casquette de Combattant", es = "Gorra de Combate", tr = "Savaşçı Şapkası" },
+		{ ru = "Спортивная бейсболка с козырьком", en = "Sporty baseball cap with visor", pt = "Boné esportivo com aba", fr = "Casquette de baseball sportive à visière", es = "Gorra de béisbol deportiva con visera", tr = "Siperlikli sportif beyzbol şapkası" }),
+	hat("bandana", "hat_bandana", 250, "common",
+		{ ru = "Бандана Ниндзя", en = "Ninja Bandana", pt = "Bandana Ninja", fr = "Bandeau Ninja", es = "Bandana Ninja", tr = "Ninja Bandanası" },
+		{ ru = "Боевая повязка скрытного диверсанта", en = "Battle headband of a stealth commando", pt = "Faixa de batalha de um comando furtivo", fr = "Bandeau de combat d'un commando furtif", es = "Cinta de combate de un comando sigiloso", tr = "Gizli bir komandonun savaş bandı" }),
+	hat("party", "hat_party", 350, "common",
+		{ ru = "Праздничный колпак", en = "Party Hat", pt = "Chapéu de Festa", fr = "Chapeau de fête", es = "Gorro de Fiesta", tr = "Parti Şapkası" },
+		{ ru = "Каждый взрыв — как праздничный салют", en = "Every blast is a celebration", pt = "Cada explosão é uma comemoração", fr = "Chaque explosion est une célébration", es = "Cada explosión es una celebración", tr = "Her patlama bir kutlama" }),
+	hat("beret", "hat_beret", 450, "rare",
+		{ ru = "Берет Десанта", en = "Elite Beret", pt = "Boina de Elite", fr = "Béret d'Élite", es = "Boina de Élite", tr = "Elit Bere" },
+		{ ru = "Тактический берет ветерана", en = "Tactical beret of a veteran", pt = "Boina tática de um veterano", fr = "Béret tactique d'un vétéran", es = "Boina táctica de un veterano", tr = "Bir gazinin taktik beresi" }),
+	hat("helmet", "hat_helmet", 600, "rare",
+		{ ru = "Армейская каска", en = "Army Helmet", pt = "Capacete do Exército", fr = "Casque militaire", es = "Casco Militar", tr = "Asker Miğferi" },
+		{ ru = "Каска настоящего ветерана окопов", en = "Helmet of a true trench veteran", pt = "Capacete de um verdadeiro veterano das trincheiras", fr = "Casque d'un vrai vétéran des tranchées", es = "Casco de un auténtico veterano de trincheras", tr = "Gerçek bir siper gazisinin miğferi" }),
+	hat("headphones", "hat_headphones", 750, "rare",
+		{ ru = "Наушники", en = "Headphones", pt = "Fones de Ouvido", fr = "Casque audio", es = "Auriculares", tr = "Kulaklık" },
+		{ ru = "В бой — под любимый трек", en = "Fight to your favourite track", pt = "Lute ao som da sua música favorita", fr = "Se battre sur son morceau préféré", es = "Pelea con tu canción favorita", tr = "En sevdiğin şarkıyla savaş" }),
+	hat("tophat", "hat_tophat", 900, "rare",
+		{ ru = "Цилиндр Джентльмена", en = "Top Hat", pt = "Cartola", fr = "Haut-de-forme", es = "Chistera", tr = "Silindir Şapka" },
+		{ ru = "Изысканный цилиндр с шелковой лентой", en = "Refined top hat with silk ribbon", pt = "Cartola refinada com fita de seda", fr = "Haut-de-forme raffiné avec ruban de soie", es = "Elegante chistera con cinta de seda", tr = "İpek kurdeleli zarif silindir şapka" }),
+	hat("chef", "hat_chef", 1050, "epic",
+		{ ru = "Колпак повара", en = "Chef Hat", pt = "Chapéu de Chef", fr = "Toque de chef", es = "Gorro de Chef", tr = "Aşçı Şapkası" },
+		{ ru = "Шеф картофельной кухни", en = "Head chef of the potato kitchen", pt = "Chef da cozinha de batatas", fr = "Chef de la cuisine des patates", es = "Chef de la cocina de patatas", tr = "Patates mutfağının baş aşçısı" }),
+	hat("cowboy", "hat_cowboy", 1250, "epic",
+		{ ru = "Ковбойская шляпа", en = "Cowboy Hat", pt = "Chapéu de Caubói", fr = "Chapeau de cowboy", es = "Sombrero Vaquero", tr = "Kovboy Şapkası" },
+		{ ru = "Шляпа самого быстрого стрелка", en = "Hat of the fastest gun in the field", pt = "Chapéu do pistoleiro mais rápido", fr = "Le chapeau de la gâchette la plus rapide", es = "Sombrero del pistolero más rápido", tr = "En hızlı silahşorun şapkası" }),
+	hat("viking", "hat_viking", 1500, "epic",
+		{ ru = "Шлем Викинга", en = "Viking Helmet", pt = "Capacete Viking", fr = "Casque Viking", es = "Casco Vikingo", tr = "Viking Miğferi" },
+		{ ru = "Стальной шлем с могучими рогами", en = "Iron helmet flanked by fierce horns", pt = "Elmo de ferro com chifres ferozes", fr = "Casque de fer flanqué de cornes féroces", es = "Casco de hierro con cuernos feroces", tr = "Azgın boynuzlu demir miğfer" }),
+	hat("pirate", "hat_pirate", 1800, "epic",
+		{ ru = "Пиратская треуголка", en = "Pirate Hat", pt = "Chapéu Pirata", fr = "Chapeau de pirate", es = "Sombrero Pirata", tr = "Korsan Şapkası" },
+		{ ru = "Гроза картофельных морей", en = "Terror of the potato seas", pt = "O terror dos mares de batata", fr = "La terreur des mers de patates", es = "El terror de los mares de patata", tr = "Patates denizlerinin korkulu rüyası" }),
+	hat("wizard", "hat_wizard", 2200, "legendary",
+		{ ru = "Шляпа волшебника", en = "Wizard Hat", pt = "Chapéu de Mago", fr = "Chapeau de sorcier", es = "Sombrero de Mago", tr = "Büyücü Şapkası" },
+		{ ru = "Магия взрывчатки", en = "The magic of explosives", pt = "A magia dos explosivos", fr = "La magie des explosifs", es = "La magia de los explosivos", tr = "Patlayıcıların büyüsü" }),
+	hat("propeller", "hat_propeller", 2600, "legendary",
+		{ ru = "Кепка с пропеллером", en = "Propeller Cap", pt = "Boné de Hélice", fr = "Casquette à hélice", es = "Gorra con Hélice", tr = "Pervaneli Şapka" },
+		{ ru = "Почти умеет летать", en = "It can almost fly", pt = "Quase sabe voar", fr = "Elle sait presque voler", es = "Casi sabe volar", tr = "Neredeyse uçabiliyor" }),
+	hat("king", "hat_crown", 3000, "legendary",
+		{ ru = "Корона Короля", en = "Royal Crown", pt = "Coroa Real", fr = "Couronne Royale", es = "Corona Real", tr = "Kraliyet Tacı" },
+		{ ru = "Корона правителя картофельных полей", en = "Crown of the ruler of the potato fields", pt = "Coroa do soberano dos campos de batata", fr = "Couronne du maître des champs de patates", es = "Corona del soberano de los campos de patata", tr = "Patates tarlalarının hükümdarının tacı" }),
 }
 
 M.SKINS_BY_ID = {}
@@ -204,6 +124,11 @@ M.data = {
 		sectors_lost = 0,
 		counterattacks_repelled = 0,
 	},
+	settings = { sfx = 1.0, music = 0.6 },
+	weapon_levels = {},
+	blueprints = {},
+	commander_xp = 0,
+	stats = { battles = 0, wins = 0, kills = 0, crates = 0 },
 }
 
 -- Localized status messages (lazy require: i18n loads player_profile lazily)
@@ -254,6 +179,12 @@ function M.load()
 			sectors_lost = 0,
 			counterattacks_repelled = 0,
 		}
+		M.data.settings = loaded.settings or { sfx = 1.0, music = 0.6 }
+		-- Progression (lua_modules/progression.lua)
+		M.data.weapon_levels = loaded.weapon_levels or {}
+		M.data.blueprints = loaded.blueprints or {}
+		M.data.commander_xp = loaded.commander_xp or 0
+		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
 	else
 		M.data.language = nil
 		M.data.points = 0
@@ -278,6 +209,11 @@ function M.load()
 			sectors_lost = 0,
 			counterattacks_repelled = 0,
 		}
+		M.data.settings = { sfx = 1.0, music = 0.6 }
+		M.data.weapon_levels = {}
+		M.data.blueprints = {}
+		M.data.commander_xp = 0
+		M.data.stats = { battles = 0, wins = 0, kills = 0, crates = 0 }
 	end
 	return M.data
 end
@@ -298,6 +234,22 @@ function M.set_language(lang)
 		M.data.language = lang
 		M.save()
 	end
+end
+
+-- kind: "sfx" | "music"; 0..1
+function M.get_volume(kind)
+	local s = M.data.settings or {}
+	local v = s[kind]
+	if v == nil then
+		v = (kind == "music") and 0.6 or 1.0
+	end
+	return v
+end
+
+function M.set_volume(kind, v)
+	M.data.settings = M.data.settings or {}
+	M.data.settings[kind] = v
+	M.save()
 end
 
 function M.get_points()

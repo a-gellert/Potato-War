@@ -25,6 +25,23 @@ local function hide_guide(self)
 	game_state.aim_target_y = nil
 end
 
+-- Airstrike targeting: only the crosshair, standing on the ground below the marked x
+local function show_target(self, wx, wy)
+	for i = 1, MAX_DOTS do
+		if self.dots[i] then
+			msg.post(self.dots[i], "disable")
+		end
+	end
+	wx = math.max(20, math.min(constants.WORLD_WIDTH - 20, wx))
+	local gy = terrain_grid.get_smooth_ground_y(wx, 4.0, wy)
+	local y = math.max(constants.WATER_LEVEL + 6, math.min(wy, gy + 10))
+	msg.post(self.crosshair, "enable")
+	go.set_position(vmath.vector3(wx, y, 0.35), self.crosshair)
+	game_state.aim_target_x = wx
+	game_state.aim_target_y = y
+	return wx
+end
+
 local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS, game_state.wind_vector)
 
@@ -101,6 +118,51 @@ function final(self)
 	end
 end
 
+-- Airstrike: press, slide to the spot and release to call the plane
+local function on_target_input(self, potato, weapon, action)
+	if action.pressed then
+		if action.y < 82 or (action.y > 485 and action.x > 820) then
+			self.dragging = false
+			return false
+		end
+		self.dragging = true
+		game_state.poki_gameplay_start()
+	end
+	if not self.dragging then
+		return false
+	end
+
+	local wx, wy = camera_controller.screen_to_world(action.x, action.y)
+	local tx = show_target(self, wx, wy)
+	game_state.is_aiming = true
+	msg.post("/gui_hud#gui", "hide_tutorial")
+	local facing_dir = (tx >= potato.pos.x) and 1 or -1
+	if potato.facing ~= facing_dir then
+		potato.facing = facing_dir
+		if potato.url then
+			msg.post(potato.url, "set_facing", { facing = facing_dir })
+		end
+	end
+
+	if action.released then
+		self.dragging = false
+		game_state.is_aiming = false
+		hide_guide(self)
+		game_state.tutorial_first_shot_done = true
+		msg.post("/gui_hud#gui", "tutorial_shot_fired")
+		msg.post("/main#main", "fire_weapon", {
+			origin_x = potato.pos.x,
+			origin_y = potato.pos.y + 8,
+			vel_x = 0,
+			vel_y = 0,
+			target_x = tx,
+			weapon_id = weapon.id,
+			owner_id = potato.id
+		})
+	end
+	return true
+end
+
 function on_input(self, action_id, action)
 	-- Only allow input when active turn and not bot
 	if game_state.state ~= constants.STATE_TURN_ACTIVE then
@@ -121,6 +183,10 @@ function on_input(self, action_id, action)
 	end
 
 	local weapon = weapons.get(game_state.selected_weapon_id)
+
+	if action_id == hash("touch") and weapon.aim == "target" then
+		return on_target_input(self, potato, weapon, action)
+	end
 
 	if action_id == hash("touch") then
 		if action.pressed then
@@ -147,7 +213,7 @@ function on_input(self, action_id, action)
 				msg.post("/gui_hud#gui", "hide_tutorial")
 				local dir_x = aim_x / len
 				local dir_y = aim_y / len
-				local power = math.min(weapon.max_power, len * weapon.power_scale) * 1.30
+				local power = (weapon.fixed_power and weapon.max_power or math.min(weapon.max_power, len * weapon.power_scale)) * 1.30
 
 				local vx = dir_x * power
 				local vy = dir_y * power
@@ -210,6 +276,10 @@ function on_message(self, message_id, message, sender)
 		local potato = game_state.active_potato
 		if potato and potato.is_alive then
 			local weapon = weapons.get(message.weapon_id)
+			if weapon.aim == "target" and message.target_x then
+				show_target(self, message.target_x, constants.WORLD_HEIGHT)
+				return
+			end
 			show_trajectory(self, potato.pos.x, potato.pos.y + 8, message.vx, message.vy, weapon)
 			local facing_dir = (message.vx >= 0) and 1 or -1
 			potato.facing = facing_dir

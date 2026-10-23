@@ -96,6 +96,25 @@ local function animate_button_click(node)
 	end)
 end
 
+-- Shows an atlas image in a box node at its own aspect ratio, scaled to fit max_w x max_h.
+-- The first call remembers the node's designed size as the default box.
+local fit_boxes = {}
+function M.fit_icon(node, image, max_w, max_h)
+	local key = gui.get_id(node)
+	if not fit_boxes[key] then
+		local s = gui.get_size(node)
+		local sc = gui.get_scale(node)
+		fit_boxes[key] = { s.x * sc.x, s.y * sc.y }
+	end
+	max_w = max_w or fit_boxes[key][1]
+	max_h = max_h or fit_boxes[key][2]
+	gui.set_size_mode(node, gui.SIZE_MODE_AUTO)
+	gui.play_flipbook(node, image)
+	local size = gui.get_size(node)
+	local k = math.min(max_w / math.max(1, size.x), max_h / math.max(1, size.y))
+	gui.set_scale(node, vmath.vector3(k, k, 1))
+end
+
 function M.create(script_instance)
 	local ui = {
 		buttons = {},

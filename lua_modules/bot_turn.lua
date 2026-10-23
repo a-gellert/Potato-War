@@ -214,7 +214,8 @@ local function update_aim(self, bot, dt)
 	msg.post("/aim_guide#aim_guide", "bot_aim_preview", {
 		vx = cur_vx,
 		vy = cur_vy,
-		weapon_id = plan.weapon_id
+		weapon_id = plan.weapon_id,
+		target_x = plan.target_x,
 	})
 
 	if self.bot_aim_timer <= 0 then
@@ -226,7 +227,8 @@ local function update_aim(self, bot, dt)
 			vel_x = plan.aim_dx * plan.power * 1.30,
 			vel_y = plan.aim_dy * plan.power * 1.30,
 			weapon_id = plan.weapon_id,
-			owner_id = bot.id
+			owner_id = bot.id,
+			target_x = plan.target_x,
 		})
 		plan_retreat(self, bot)
 	end

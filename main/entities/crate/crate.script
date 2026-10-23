@@ -12,6 +12,8 @@ go.property("crate_type", hash("medkit"))
 go.property("amount", 30)
 go.property("weapon_id", hash("bazooka"))
 
+local ICON_FIT = 30 -- world px of the weapon icon's longest side
+
 function init(self)
 	self.pos = go.get_position()
 	self.is_grounded = false
@@ -40,7 +42,10 @@ function init(self)
 				wpn_name = w.icon
 			end
 			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
-			go.set_scale(vmath.vector3(0.95, 0.95, 1.0), "#icon_sprite")
+			-- Icons come in different sizes: fit the longest side into the crate face
+			local size = go.get("#icon_sprite", "size")
+			local k = ICON_FIT / math.max(1, size.x, size.y)
+			go.set("#icon_sprite", "scale", vmath.vector3(k, k, 1.0))
 		end)
 	end
 end
@@ -49,6 +54,7 @@ local function collect_crate(self, potato)
 	if self.is_collected then return end
 	self.is_collected = true
 
+	sound_manager.play("pickup")
 	if self.type_str == "medkit" then
 		sound_manager.play_heal()
 		local heal_amt = self.amount or math.random(20, 50)
@@ -89,7 +95,6 @@ local function collect_crate(self, potato)
 			points = 0
 		})
 	else
-		sound_manager.play_shot()
 		local w_name = tostring(self.weapon_id)
 		local w = weapons.get(w_name)
 		local count = self.amount or 2
@@ -132,6 +137,7 @@ function update(self, dt)
 		if self.pos.y <= gy + 16.0 then
 			self.pos.y = gy + 16.0
 			self.is_grounded = true
+			sound_manager.play("crate", { vary = 0.1 })
 			pcall(function()
 				go.animate("#parachute_sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0, 0, 0), go.EASING_INQUAD, 0.25, 0, function()
 					pcall(msg.post, "#parachute_sprite", "disable")

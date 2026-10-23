@@ -157,4 +157,79 @@ images {
 images {
   image: "/main/assets/spore.png"
 }
+images {
+  image: "/main/assets/hat_chef.png"
+}
+images {
+  image: "/main/assets/hat_cowboy.png"
+}
+images {
+  image: "/main/assets/hat_headphones.png"
+}
+images {
+  image: "/main/assets/hat_helmet.png"
+}
+images {
+  image: "/main/assets/hat_party.png"
+}
+images {
+  image: "/main/assets/hat_pirate.png"
+}
+images {
+  image: "/main/assets/hat_propeller.png"
+}
+images {
+  image: "/main/assets/hat_wizard.png"
+}
+images {
+  image: "/main/assets/weapons/p_airbomb.png"
+}
+images {
+  image: "/main/assets/weapons/p_bomblet.png"
+}
+images {
+  image: "/main/assets/weapons/p_bullet.png"
+}
+images {
+  image: "/main/assets/weapons/p_missile.png"
+}
+images {
+  image: "/main/assets/weapons/p_pellet.png"
+}
+images {
+  image: "/main/assets/weapons/p_rocket.png"
+}
+images {
+  image: "/main/assets/weapons/plane.png"
+}
+images {
+  image: "/main/assets/weapons/target.png"
+}
+images {
+  image: "/main/assets/weapons/w_airstrike.png"
+}
+images {
+  image: "/main/assets/weapons/w_bazooka.png"
+}
+images {
+  image: "/main/assets/weapons/w_cluster.png"
+}
+images {
+  image: "/main/assets/weapons/w_dynamite.png"
+}
+images {
+  image: "/main/assets/weapons/w_grenade.png"
+}
+images {
+  image: "/main/assets/weapons/w_holy.png"
+}
+images {
+  image: "/main/assets/weapons/w_homing.png"
+}
+images {
+  image: "/main/assets/weapons/w_shotgun.png"
+}
+images {
+  image: "/main/assets/weapons/w_sniper.png"
+}
 extrude_borders: 2

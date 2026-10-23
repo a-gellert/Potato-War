@@ -1,22 +1,74 @@
 -- gui/main_menu/main_menu.gui_script
--- Main menu controller: home screen, quick-battle lobby, hat shop.
--- Widgets live in gui/main_menu/menu_*.lua.
+-- Main menu: home screen plus the settings, hat shop and quick-battle windows.
+-- The arsenal and the squad are separate screens (gui/arsenal, gui/squad) opened on top.
+-- Everything is built in code with lua_modules/ui_kit.lua; widgets live in gui/main_menu/menu_*.lua.
 
 local ui_manager = require("lua_modules.ui_manager")
+local sound_manager = require("lua_modules.sound_manager")
 local menu_home = require("gui.main_menu.menu_home")
+local menu_settings = require("gui.main_menu.menu_settings")
+local menu_shop = require("gui.main_menu.menu_shop")
 local menu_lobby = require("gui.main_menu.menu_lobby")
+
+local WINDOWS = {
+	settings = menu_settings,
+	shop = menu_shop,
+	lobby = menu_lobby,
+}
+
+local function open_window(self, name)
+	for key, mod in pairs(WINDOWS) do
+		mod.show(self, key == name)
+	end
+	self.window = name
+	if name then
+		sound_manager.play("whoosh")
+	end
+end
+
+local function open_overlay(self, path)
+	sound_manager.play("whoosh")
+	msg.post(path, "enable")
+	msg.post(path .. "#gui", "show", { from = "/gui_menu#gui" })
+end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(5)
 	self.ui = ui_manager.create(self)
-	self.overlay_mode = "skins"
 
-	menu_lobby.init_state(self)
-	menu_home.layout()
-	menu_home.register(self)
-	menu_home.hide_overlays()
-	menu_home.update_localized(self)
+	local close = function()
+		open_window(self, nil)
+		menu_home.refresh(self)
+	end
+	menu_home.build(self, {
+		settings = function() open_window(self, "settings") end,
+		arsenal = function() open_overlay(self, "/gui_arsenal") end,
+		squad = function() open_overlay(self, "/gui_squad") end,
+		hats = function() open_window(self, "shop") end,
+		quick = function() open_window(self, "lobby") end,
+		campaign = function()
+			msg.post(".", "disable")
+			msg.post("/gui_campaign_map", "enable")
+			msg.post("/gui_campaign_map#gui", "show")
+		end,
+	})
+	menu_settings.build(self, close)
+	menu_shop.build(self, close)
+	menu_lobby.build(self, close, function(config)
+		open_window(self, nil)
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_battle", config)
+	end)
+
+	self.on_language_changed = function()
+		menu_home.refresh(self)
+		menu_settings.refresh(self)
+	end
+	self.on_changed = function()
+		menu_home.refresh(self)
+	end
+	menu_home.refresh(self)
 end
 
 function on_input(self, action_id, action)
@@ -30,9 +82,14 @@ end
 function on_message(self, message_id, message, sender)
 	if message_id == hash("show") then
 		msg.post(".", "enable")
-		menu_home.hide_overlays()
-		menu_home.set_background_enabled(true)
-		menu_home.update_localized(self)
+		open_window(self, nil)
+		menu_home.refresh(self)
+	elseif message_id == hash("open_shop") then
+		msg.post(".", "enable")
+		menu_home.refresh(self)
+		open_window(self, "shop")
+	elseif message_id == hash("overlay_closed") then
+		menu_home.refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
 	end

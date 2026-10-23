@@ -9,11 +9,26 @@ local camera_controller = require("lua_modules.camera_controller")
 local game_state = require("lua_modules.game_state")
 local achievements = require("lua_modules.achievements")
 local i18n = require("lua_modules.i18n")
+local sound_manager = require("lua_modules.sound_manager")
+local progression = require("lua_modules.progression")
 
 go.property("vel_x", 0)
 go.property("vel_y", 0)
 go.property("weapon_type", hash("grenade"))
 go.property("owner_id", 0)
+go.property("target_id", 0)
+
+local FUSE_SOUND_EVERY = 0.55
+local BLINK_LAST = 1.2 -- fused bombs blink red in their last seconds
+
+local function find_potato(id)
+	for _, p in ipairs(game_state.potatoes) do
+		if p.id == id then
+			return p
+		end
+	end
+	return nil
+end
 
 function init(self)
 	local WEAPON_HASHES = {}
@@ -24,6 +39,18 @@ function init(self)
 	local w_id = WEAPON_HASHES[self.weapon_type] or "grenade"
 
 	self.weapon = weapons.get(w_id)
+
+	-- Weapon levels (progression): a per-shot view of the weapon with boosted damage and radius
+	self.owner = find_potato(self.owner_id)
+	local level = self.owner and progression.battle_weapon_level(w_id, self.owner.team, game_state.battle) or 1
+	if level > 1 then
+		local base = self.weapon
+		local bonus = progression.level_bonus(level)
+		self.weapon = setmetatable({
+			blast_radius = base.blast_radius * bonus.radius,
+			max_damage = math.floor(base.max_damage * bonus.damage + 0.5),
+		}, { __index = base })
+	end
 	self.pos = go.get_position()
 	self.origin_x = self.pos.x
 	self.origin_y = self.pos.y
@@ -31,6 +58,19 @@ function init(self)
 	self.fuse_timer = self.weapon.fuse_time
 	self.bounces = 0
 	self.is_active = true
+	self.age = 0
+	self.fuse_sound_timer = 0
+	self.rot_angle = math.atan2(self.vel.y, self.vel.x) - math.rad(self.weapon.art_angle or 0)
+
+	-- Homing missiles lock on the potato chosen by weapon_fire
+	if self.target_id ~= 0 then
+		for _, p in ipairs(game_state.potatoes) do
+			if p.id == self.target_id then
+				self.target = p
+				break
+			end
+		end
+	end
 
 	-- Set sprite according to weapon
 	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
@@ -71,6 +111,15 @@ local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 
 		msg.post(p.url, "apply_damage", { damage = dmg })
 		msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
+
+		-- Credit the shooter for battle XP (hits on the own team do not count)
+		local owner = self.owner
+		if owner and owner.stats and owner.team ~= p.team then
+			owner.stats.damage = owner.stats.damage + dmg
+			if p.hp <= 0 then
+				owner.stats.kills = owner.stats.kills + 1
+			end
+		end
 		msg.post("/main#main", "potato_damaged", { x = p.pos.x, y = p.pos.y, damage = dmg, potato_id = p.id })
 
 		if self.weapon.status_effect and p.is_alive then
@@ -170,7 +219,8 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		msg.post("/main#main", "spawn_explosion", {
 			x = hit_x,
 			y = hit_y,
-			radius = self.weapon.blast_radius
+			radius = self.weapon.blast_radius,
+			sfx = self.weapon.explode_sfx
 		})
 
 		-- Screen shake proportional to weapon blast
@@ -205,6 +255,12 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		end
 	end
 
+	-- Cluster bombs scatter their bomblets
+	local cl = self.weapon.cluster
+	if cl then
+		msg.post("/main#main", "spawn_cluster", { x = hit_x, y = hit_y, count = cl.count, weapon_id = cl.weapon, owner_id = self.owner_id })
+	end
+
 	go.delete()
 end
 
@@ -213,20 +269,39 @@ function update(self, dt)
 		return
 	end
 
+	-- Lit fuse: hissing and a red blink before the blast
+	if self.weapon.fuse_fx then
+		self.fuse_sound_timer = self.fuse_sound_timer - dt
+		if self.fuse_sound_timer <= 0 then
+			self.fuse_sound_timer = FUSE_SOUND_EVERY
+			sound_manager.play("fuse", { vary = 0.1 })
+		end
+	end
+	if (self.weapon.bounciness or 0) > 0.1 and self.fuse_timer < BLINK_LAST then
+		local on = math.floor(self.fuse_timer * 10) % 2 == 0
+		go.set("#sprite", "tint", on and vmath.vector4(1, 0.45, 0.45, 1) or vmath.vector4(1, 1, 1, 1))
+	end
+
 	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
 
 	-- Update camera tracking to follow this projectile
 	camera_controller.follow(self.pos.x, self.pos.y)
 
+	if status == "bounce" then
+		sound_manager.play("bounce", { vary = 0.15 })
+	end
+
 	if status == "explode" then
 		detonate(self, hx, hy, hit_potato)
 	elseif status == "water" then
 		self.is_active = false
+		sound_manager.play((game_state.current_biome == "volcano") and "sizzle" or "splash", { vary = 0.1 })
 		camera_controller.shake(6, 0.25)
 		msg.post("/main#main", "spawn_explosion", {
 			x = self.pos.x,
 			y = constants.WATER_LEVEL + 4,
-			radius = 18
+			radius = 18,
+			silent = true
 		})
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = self.pos.x,
@@ -239,8 +314,12 @@ function update(self, dt)
 		-- Update game object transform
 		go.set_position(self.pos)
 		local speed = math.sqrt(self.vel.x * self.vel.x + self.vel.y * self.vel.y)
-		if speed > 10.0 then
-			self.rot_angle = math.atan2(self.vel.y, self.vel.x)
+		if self.weapon.spin then
+			if not self.is_resting then
+				self.rot_angle = (self.rot_angle or 0) - self.vel.x * dt * 0.05
+			end
+		elseif speed > 10.0 then
+			self.rot_angle = math.atan2(self.vel.y, self.vel.x) - math.rad(self.weapon.art_angle or 0)
 		end
 		go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
 

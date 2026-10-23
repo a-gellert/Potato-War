@@ -1,51 +1,82 @@
 -- gui/game_over/game_over.gui_script
--- Military Debriefing & Combat Results Controller for Potato War
--- Widgets live in gui/game_over/go_*.lua.
+-- Battle results: victory/defeat title, squad and commander experience, coins, stars and the
+-- supply crate with its loot, then menu / retry / next. The training ground ends with a short
+-- onboarding splash instead. Built in code with lua_modules/ui_kit.lua; parts live in go_*.lua.
 
-local constants = require("lua_modules.constants")
-local game_state = require("lua_modules.game_state")
+local kit = require("lua_modules.ui_kit")
 local ui_manager = require("lua_modules.ui_manager")
 local i18n = require("lua_modules.i18n")
-local strategic_campaign = require("lua_modules.strategic_campaign")
-local go_seamless = require("gui.game_over.go_seamless")
-local go_frontline = require("gui.game_over.go_frontline")
+local constants = require("lua_modules.constants")
 local go_report = require("gui.game_over.go_report")
+local go_loot = require("gui.game_over.go_loot")
 local go_actions = require("gui.game_over.go_actions")
+local go_seamless = require("gui.game_over.go_seamless")
+local match_results = require("lua_modules.match_results")
 
-local function show_debrief(self, message)
-	local winner = message.winner
-	local outcome = message.campaign_outcome or strategic_campaign.last_battle_outcome
-	local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN) or (outcome ~= nil)
+local function build(self)
+	local root = kit.group(nil, 480, 270, 960, 540)
+	self.root = root
+	kit.dim(root, 0.78)
+	kit.box(root, "vignette", 0, 0, 980, 560)
+	self.title_glow = kit.box(root, "glow", 0, 222, 520, 120, vmath.vector4(1, 0.8, 0.3, 0.25))
+	self.title = kit.text(root, "", 0, 222, 54, { font = "title", max_w = 700 })
+	self.subtitle = kit.text(root, "", 0, 186, 16, { font = "label", color = kit.C.muted, max_w = 820 })
+	go_report.build(self, root)
+	go_loot.build(self, root)
+	go_actions.build(self, root)
+	gui.set_enabled(root, false)
+end
 
-	go_seamless.hide()
-	gui.set_text(gui.get_node("header_badge"), i18n.t("debrief_title"))
+local function show_debrief(self, data)
+	self.result = data
+	gui.set_enabled(self.root, true)
+	local winner = data.winner
+	local outcome = data.campaign_outcome
+	local title, color
+	if winner == constants.TEAM_BLUE then
+		title, color = i18n.t("ui_victory"), kit.C.gold
+	elseif winner == constants.TEAM_RED then
+		title, color = i18n.t("ui_defeat"), kit.C.red
+	else
+		title, color = i18n.t("ui_draw"), kit.C.white
+	end
+	kit.set_text(self.title, title, 700, 54, "title")
+	gui.set_color(self.title, color)
+	gui.set_color(self.title_glow, vmath.vector4(color.x, color.y, color.z, 0.25))
+	kit.pop_in(self.title)
 
-	go_frontline.layout(is_campaign, outcome)
-	go_report.play_sounds(winner, outcome)
-	go_report.set_title(winner, is_campaign, outcome)
-	go_report.set_stats(is_campaign, outcome)
-	go_report.set_rewards(message, winner, outcome)
-	go_report.set_hat_progress()
-	go_actions.show(message, winner, is_campaign)
+	local sub = ""
+	if outcome then
+		sub = outcome.campaign_won and i18n.t("ui_campaign_won") or i18n.field(outcome, "message")
+	end
+	kit.set_text(self.subtitle, sub, 820, 16, "label")
+
+	-- The onboarding battle also hands out its hat: show it among the loot
+	local progress = data.progress or {}
+	if data.seamless and data.unlocked_hat_id then
+		progress.loot = progress.loot or {}
+		table.insert(progress.loot, { type = "hat", hat_id = data.unlocked_hat_id })
+		progress.coins = (progress.coins or 0) + (data.coins_awarded or 0)
+	end
+	data.progress = progress
+
+	go_report.show(self, (progress.members and #progress.members > 0) and progress or nil)
+	go_loot.show(self, data)
+	go_actions.show(self, data)
 end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(10)
 	self.ui = ui_manager.create(self)
-
-	go_actions.register(self)
-
-	-- Hidden by default
-	pcall(go_seamless.hide)
+	build(self)
+	go_seamless.build(self)
 	msg.post(".", "disable")
 end
 
 function on_input(self, action_id, action)
-	if self.seamless_active then
-		return true
-	end
-	return self.ui:on_input(action_id, action)
+	self.ui:on_input(action_id, action)
+	return true -- the battle below must not react while the results are up
 end
 
 function update(self, dt)
@@ -54,11 +85,15 @@ end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("show_result") then
+		local data = match_results.last or {}
 		msg.post(".", "enable")
-		if message.seamless then
-			go_seamless.show(self, message, message.winner)
+		msg.post(".", "acquire_input_focus")
+		if data.seamless and data.seamless_stage == 1 then
+			gui.set_enabled(self.root, false)
+			go_seamless.show(self, data)
 		else
-			show_debrief(self, message)
+			go_seamless.hide(self)
+			show_debrief(self, data)
 		end
 	end
 end

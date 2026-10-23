@@ -1,0 +1,232 @@
+-- gui/arsenal/arsenal.gui_script
+-- Arsenal screen: every weapon as a rarity card with its level and blueprints; the side panel
+-- shows the stats now and after the upgrade, and spends coins + blueprints (lua_modules/progression).
+-- Opened on top of the menu or the war map with "show" { from = <url to notify on close> }.
+
+local kit = require("lua_modules.ui_kit")
+local ui_manager = require("lua_modules.ui_manager")
+local i18n = require("lua_modules.i18n")
+local weapons = require("lua_modules.weapons")
+local classes = require("lua_modules.classes")
+local progression = require("lua_modules.progression")
+local player_profile = require("lua_modules.player_profile")
+local sound_manager = require("lua_modules.sound_manager")
+
+local refresh, upgrade, close -- defined below, used by button callbacks
+
+local CARD_W, CARD_H = 88, 104
+local COL_X0, COL_STEP = -386, 94
+local ROW_Y = { 128, 18, -92 }
+local DETAIL_X = 296
+
+-- Names of the classes that carry a weapon from the start
+local function carriers(weapon_id)
+	local names = {}
+	for _, c in ipairs(classes.list()) do
+		if c.base_arsenal and c.base_arsenal[weapon_id] and c.tier <= 1 then
+			table.insert(names, i18n.field(c, "name"))
+		end
+	end
+	if #names > 3 then
+		names = { names[1], names[2], names[3], "..." }
+	end
+	return table.concat(names, ", ")
+end
+
+local function damage_text(w, level)
+	local dmg = math.floor(w.max_damage * progression.level_bonus(level).damage + 0.5)
+	local count = (w.fire_mode == "spread" or w.fire_mode == "multi_shot") and w.shot_count or (w.fire_mode == "airstrike" and w.bombs)
+	return count and (dmg .. " x" .. count) or tostring(dmg)
+end
+
+local function radius_text(w, level)
+	return tostring(math.floor(w.blast_radius * progression.level_bonus(level).radius + 0.5))
+end
+
+local function build_card(self, parent, i, w)
+	local col = (i - 1) % 6
+	local row = math.floor((i - 1) / 6) + 1
+	local card = { weapon = w }
+	card.btn = kit.button(self.ui, parent, "ars_card_" .. i, COL_X0 + col * COL_STEP, ROW_Y[row], CARD_W, CARD_H, { style = "dark", on_click = function()
+		self.selected = i
+		sound_manager.play("pop")
+		refresh(self)
+	end })
+	kit.set_image(card.btn.node, "card_" .. (w.rarity or "common"))
+	card.icon = kit.icon(card.btn.node, w.icon, 0, 16, 64, { texture = "game" })
+	kit.set_icon(card.icon, w.icon, 70, 50, "game")
+	card.level = kit.text(card.btn.node, "", 0, -39, 15, { font = "label", max_w = CARD_W - 12 })
+	card.bar = kit.bar(card.btn.node, 0, -17, 70, 10, kit.C.blue)
+	card.badge = kit.badge(card.btn.node, 36, 44)
+	card.select = kit.box(card.btn.node, "card_select", 0, 0, CARD_W + 8, CARD_H + 8)
+	return card
+end
+
+local function build(self)
+	local win = kit.window(self.ui, nil, "arsenal", 900, 480, "", function()
+		close(self)
+	end)
+	self.win = win
+	local p = win.panel
+	win.coins = kit.counter(win.header, "ic_coin", 300, 2, 140, "0")
+	self.cards = {}
+	for i, w in ipairs(weapons.PLAYER_LIST) do
+		self.cards[i] = build_card(self, p, i, w)
+	end
+	win.hint = kit.text(p, "", -150, -172, 14, { font = "label", color = kit.C.muted, max_w = 560 })
+
+	-- Detail panel
+	local d = kit.inset(p, DETAIL_X, -18, 272, 392)
+	self.detail = { node = d }
+	local dt = self.detail
+	kit.box(d, "glow", 0, 140, 220, 90, vmath.vector4(1, 1, 1, 0.1))
+	dt.icon = kit.icon(d, "w_bazooka", 0, 140, 80, { texture = "game" })
+	dt.name = kit.text(d, "", 0, 92, 21, { font = "title", max_w = 250 })
+	dt.rarity = kit.text(d, "", 0, 70, 14, { font = "label" })
+	dt.desc = kit.text(d, "", 0, 34, 13, { font = "body", width = 244, color = kit.C.muted })
+	dt.carriers = kit.text(d, "", 0, -4, 12, { font = "label", color = kit.C.blue, width = 244 })
+
+	local function stat_row(y, icon)
+		local r = {}
+		kit.icon(d, icon, -112, y, 26)
+		r.label = kit.text(d, "", -94, y, 15, { font = "label", align = "left", max_w = 110, color = kit.C.muted })
+		r.now = kit.text(d, "", 58, y, 17, { font = "label", align = "right", max_w = 60 })
+		r.arrow = kit.text(d, ">", 74, y, 15, { font = "label", color = kit.C.green })
+		r.next = kit.text(d, "", 90, y, 17, { font = "label", align = "left", max_w = 44, color = kit.C.green })
+		return r
+	end
+	dt.rows = {
+		damage = stat_row(-36, "ic_damage"),
+		radius = stat_row(-64, "ic_radius"),
+		ammo = stat_row(-92, "ic_ammo"),
+	}
+	kit.icon(d, "ic_blueprint", -112, -116, 30)
+	dt.bp_bar = kit.bar(d, 10, -116, 200, 18, kit.C.blue)
+	dt.bp_text = kit.text(d, "", 10, -116, 13, { font = "label" })
+	dt.cost_coin = kit.icon(d, "ic_coin", -30, -142, 24)
+	dt.cost = kit.text(d, "", -12, -142, 17, { font = "label", align = "left", color = kit.C.gold })
+	dt.upgrade = kit.button(self.ui, d, "ars_upgrade", 0, -176, 236, 50, { style = "green", icon = "ic_up", icon_size = 30, label = "", px = 20, on_click = function()
+		upgrade(self)
+	end })
+	dt.note = kit.text(d, "", 0, -142, 13, { font = "label", color = kit.C.muted, max_w = 252 })
+	gui.set_enabled(win.root, false)
+end
+
+function refresh(self)
+	local win, dt = self.win, self.detail
+	kit.set_text(win.title, i18n.t("ui_arsenal"), 600, 26, "title")
+	kit.set_text(win.coins.text, kit.num(player_profile.get_points()), 96, 19, "label")
+	kit.set_text(win.hint, i18n.t("ui_arsenal_hint"), 560, 14, "label")
+
+	for i, card in ipairs(self.cards) do
+		local w = card.weapon
+		local level = progression.weapon_level(w.id)
+		local cost = progression.upgrade_cost(w.id)
+		kit.set_text(card.level, level >= progression.MAX_WEAPON_LEVEL and i18n.t("ui_max") or string.format(i18n.t("ui_level_fmt"), level), CARD_W - 12, 15, "label")
+		gui.set_enabled(card.bar.node, cost ~= nil)
+		if cost then
+			card.bar.set(progression.blueprints(w.id) / cost.blueprints)
+		end
+		gui.set_enabled(card.badge, (progression.can_upgrade(w.id)))
+		gui.set_enabled(card.select, i == self.selected)
+	end
+
+	-- Selected weapon
+	local w = self.cards[self.selected].weapon
+	local level = progression.weapon_level(w.id)
+	local cost = progression.upgrade_cost(w.id)
+	kit.set_icon(dt.icon, w.icon, 200, 76, "game")
+	kit.set_text(dt.name, i18n.field(w, "name"), 250, 21, "title")
+	kit.set_text(dt.rarity, i18n.t("rarity_" .. (w.rarity or "common")) .. "  •  " .. string.format(i18n.t("ui_level_fmt"), level), 250, 14, "label")
+	gui.set_color(dt.rarity, progression.RARITY[w.rarity or "common"].color)
+	gui.set_text(dt.desc, i18n.field(w, "desc"))
+	local who = carriers(w.id)
+	gui.set_text(dt.carriers, who ~= "" and string.format(i18n.t("ui_carried_by"), who) or i18n.t("ui_from_airdrops"))
+
+	local next_level = cost and (level + 1) or nil
+	local rows = {
+		damage = { "ui_damage", damage_text(w, level), next_level and damage_text(w, next_level) },
+		radius = { "ui_radius", radius_text(w, level), next_level and radius_text(w, next_level) },
+		ammo = { "ui_bonus_ammo", "+" .. progression.level_bonus(level).extra_ammo, next_level and ("+" .. progression.level_bonus(next_level).extra_ammo) },
+	}
+	for key, r in pairs(dt.rows) do
+		local v = rows[key]
+		kit.set_text(r.label, i18n.t(v[1]), 110, 15, "label")
+		gui.set_text(r.now, v[2])
+		gui.set_text(r.next, v[3] or "")
+		gui.set_enabled(r.arrow, v[3] ~= nil and v[3] ~= v[2])
+		gui.set_enabled(r.next, v[3] ~= nil and v[3] ~= v[2])
+	end
+
+	if cost then
+		local have = progression.blueprints(w.id)
+		dt.bp_bar.set(have / cost.blueprints)
+		dt.bp_bar.set_color(have >= cost.blueprints and kit.C.green or kit.C.blue)
+		gui.set_text(dt.bp_text, have .. " / " .. cost.blueprints)
+		gui.set_enabled(dt.bp_bar.node, true)
+		local ok, why = progression.can_upgrade(w.id)
+		gui.set_enabled(dt.cost_coin, why ~= "blueprints")
+		gui.set_enabled(dt.cost, why ~= "blueprints")
+		gui.set_text(dt.cost, kit.num(cost.coins))
+		gui.set_color(dt.cost, player_profile.get_points() >= cost.coins and kit.C.gold or kit.C.red)
+		gui.set_enabled(dt.note, why == "blueprints")
+		kit.set_text(dt.note, i18n.t("ui_need_blueprints"), 252, 13, "label")
+		gui.set_enabled(dt.upgrade.node, true)
+		dt.upgrade.set_enabled(ok)
+		dt.upgrade.set_label(i18n.t("ui_upgrade"))
+	else
+		gui.set_enabled(dt.bp_bar.node, false)
+		gui.set_text(dt.bp_text, "")
+		gui.set_enabled(dt.cost_coin, false)
+		gui.set_enabled(dt.cost, false)
+		gui.set_enabled(dt.note, true)
+		kit.set_text(dt.note, i18n.t("ui_max_level"), 252, 13, "label")
+		gui.set_enabled(dt.upgrade.node, false)
+	end
+end
+
+function upgrade(self)
+	local w = self.cards[self.selected].weapon
+	if progression.upgrade_weapon(w.id) then
+		sound_manager.play("unlock")
+		sound_manager.play("coins")
+		kit.pop_in(self.cards[self.selected].btn.node)
+		kit.pop_in(self.detail.icon)
+		refresh(self)
+	end
+end
+
+function close(self)
+	gui.set_enabled(self.win.root, false)
+	msg.post(".", "disable")
+	if self.notify then
+		msg.post(self.notify, "overlay_closed")
+	end
+end
+
+function init(self)
+	gui.set_render_order(8)
+	self.ui = ui_manager.create(self)
+	self.selected = 1
+	build(self)
+	msg.post(".", "disable")
+end
+
+function on_input(self, action_id, action)
+	self.ui:on_input(action_id, action)
+	return true -- modal: nothing below reacts while the arsenal is open
+end
+
+function update(self, dt)
+	self.ui:update(dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show") then
+		self.notify = message.from
+		msg.post(".", "acquire_input_focus")
+		gui.set_enabled(self.win.root, true)
+		refresh(self)
+		kit.pop_in(self.win.panel)
+	end
+end

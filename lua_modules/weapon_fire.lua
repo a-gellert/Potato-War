@@ -5,21 +5,70 @@
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local physics_sim = require("lua_modules.physics_sim")
+local terrain_grid = require("lua_modules.terrain_grid")
+local inventory_manager = require("lua_modules.inventory_manager")
+local progression = require("lua_modules.progression")
 local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
 local sound_manager = require("lua_modules.sound_manager")
 
 local M = {}
 
-local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id)
+local PLANE_ALTITUDE = 0.92 -- plane altitude as a share of the world height
+
+-- Bots fire most weapons freely; these heavy ones they really have to carry and use up
+local BOT_LIMITED = { airstrike = true, homing = true, dynamite = true, cluster = true, holy_grenade = true }
+
+local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id, target_id)
 	local url = factory.create("#projectile_factory", vmath.vector3(x, y, 0.2), nil, {
 		vel_x = vx,
 		vel_y = vy,
 		weapon_type = hash(weapon_id),
-		owner_id = owner_id or 0
+		owner_id = owner_id or 0,
+		target_id = target_id or 0,
 	})
 	table.insert(self.active_projectiles, url)
 	return url
+end
+
+local function find_potato(id)
+	for _, p in ipairs(game_state.potatoes) do
+		if p.id == id then
+			return p
+		end
+	end
+	return nil
+end
+
+-- Enemy closest to where the shot would land: the homing missile locks on it
+local function homing_target(shooter, x, y, vx, vy, weapon)
+	local ix, iy = physics_sim.simulate_shot(x, y, vx, vy, weapon, terrain_grid, {}, shooter.id, game_state.wind_vector)
+	local best, best_d = nil, math.huge
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive and p.team ~= shooter.team then
+			local d = (p.pos.x - ix) ^ 2 + (p.pos.y - iy) ^ 2
+			if d < best_d then
+				best, best_d = p, d
+			end
+		end
+	end
+	return best
+end
+
+-- Airstrike: a plane crosses the map towards the marked spot and drops a row of bombs there
+local function call_airstrike(self, weapon, shooter, target_x)
+	local from_x = shooter and shooter.pos.x or target_x
+	local dir = (target_x >= from_x) and 1 or -1
+	local start_x = (dir > 0) and -180 or (constants.WORLD_WIDTH + 180)
+	local url = factory.create("#plane_factory", vmath.vector3(start_x, constants.WORLD_HEIGHT * PLANE_ALTITUDE, 0.45), nil, {
+		target_x = target_x,
+		dir = dir,
+		owner_id = shooter and shooter.id or 0,
+		bombs = weapon.bombs or 5,
+		spacing = weapon.bomb_spacing or 34,
+	})
+	-- The plane counts as a live projectile until it has left the map
+	table.insert(self.active_projectiles, url)
 end
 
 local function fire_melee(weapon)
@@ -30,6 +79,8 @@ local function fire_melee(weapon)
 	local facing = potato.facing or 1
 	local hit_x = potato.pos.x + facing * 20
 	local hit_y = potato.pos.y + 4
+	local level = progression.battle_weapon_level(weapon.id, potato.team, game_state.battle)
+	local max_damage = math.floor(weapon.max_damage * progression.level_bonus(level).damage + 0.5)
 
 	-- Visual slash effect
 	msg.post(".", "spawn_explosion", { x = hit_x, y = hit_y, radius = 12 })
@@ -42,14 +93,20 @@ local function fire_melee(weapon)
 			local dy = p.pos.y - hit_y
 			local dist = math.sqrt(dx * dx + dy * dy)
 			if dist < (weapon.melee_range or 42) then
-				local dmg = physics_sim.apply_blast(p, hit_x, hit_y, weapon.blast_radius, weapon.blast_force, weapon.max_damage)
+				local dmg = physics_sim.apply_blast(p, hit_x, hit_y, weapon.blast_radius, weapon.blast_force, max_damage)
 				if dmg == 0 then
-					dmg = weapon.max_damage
+					dmg = max_damage
 					p.hp = math.max(0, p.hp - dmg)
 					if p.hp <= 0 then p.is_alive = false end
 					p.vel.x = p.vel.x + facing * (weapon.blast_force or 400) * 0.7
 					p.vel.y = p.vel.y + (weapon.blast_force or 400) * 0.5
 					p.is_grounded = false
+				end
+				if dmg > 0 and potato.stats and p.team ~= potato.team then
+					potato.stats.damage = potato.stats.damage + dmg
+					if p.hp <= 0 then
+						potato.stats.kills = potato.stats.kills + 1
+					end
 				end
 				if dmg > 0 and p.url then
 					msg.post(p.url, "apply_damage", { damage = dmg })
@@ -64,7 +121,8 @@ end
 -- Handles the "fire_weapon" message
 function M.fire(self, message)
 	local weapon = weapons.get(message.weapon_id or "grenade")
-	sound_manager.play_shot()
+	sound_manager.play(weapon.sfx or "throw", { vary = 0.06 })
+	local shooter = message.owner_id and find_potato(message.owner_id)
 
 	-- Weapon recoil animation on firing potato
 	if message.owner_id then
@@ -73,6 +131,8 @@ function M.fire(self, message)
 				msg.post(p.url, "on_recoil")
 				if p.team == constants.TEAM_BLUE then
 					game_state.consume_ammo(message.weapon_id or "grenade")
+				elseif BOT_LIMITED[weapon.id] then
+					inventory_manager.consume_ammo(p.id, weapon.id)
 				end
 				break
 			end
@@ -82,6 +142,9 @@ function M.fire(self, message)
 	if weapon.fire_mode == "melee" then
 		-- Instant melee damage — no projectile
 		fire_melee(weapon)
+
+	elseif weapon.fire_mode == "airstrike" then
+		call_airstrike(self, weapon, shooter, message.target_x or (shooter and shooter.pos.x) or constants.WORLD_WIDTH * 0.5)
 
 	elseif weapon.fire_mode == "spread" then
 		-- Spread: multiple projectiles simultaneously in a fan
@@ -113,8 +176,9 @@ function M.fire(self, message)
 		end
 
 	else
-		-- Single projectile (default: grenade, rifle, molotov, bazooka, holy_grenade)
-		spawn_projectile(self, message.origin_x, message.origin_y, message.vel_x, message.vel_y, weapon.id, message.owner_id)
+		-- Single projectile (default: grenade, rifle, molotov, bazooka, holy_grenade, homing)
+		local target = weapon.homing and shooter and homing_target(shooter, message.origin_x, message.origin_y, message.vel_x, message.vel_y, weapon)
+		spawn_projectile(self, message.origin_x, message.origin_y, message.vel_x, message.vel_y, weapon.id, message.owner_id, target and target.id)
 	end
 
 	game_state.on_action_fired()
@@ -167,7 +231,7 @@ function M.track_projectiles(self)
 end
 
 function M.spawn_napalm(self, message)
-	sound_manager.play_explosion()
+	sound_manager.play(message.is_pepper and "pop" or "sizzle", { vary = 0.1 })
 	local count = message.count or 6
 	local spread = message.spread or 40
 	for _ = 1, count do
@@ -195,9 +259,25 @@ function M.spawn_beetles(self, message)
 	end
 end
 
+-- Cluster bomb burst: bomblets fan out upwards
+function M.spawn_cluster(self, message)
+	local count = message.count or 5
+	for i = 1, count do
+		local vx = (i - (count + 1) / 2) * 70 + (math.random() - 0.5) * 40
+		local vy = 240 + math.random() * 140
+		spawn_projectile(self, message.x, message.y + 6, vx, vy, message.weapon_id or "bomblet", message.owner_id)
+	end
+end
+
+-- One bomb of the airstrike row
+function M.drop_airstrike_bomb(self, message)
+	spawn_projectile(self, message.x, message.y, message.vx or 0, -30, "airstrike_bomb", message.owner_id)
+	sound_manager.play("whistle", { vary = 0.1 })
+end
+
 function M.drop_air_bomb(self, message)
 	spawn_projectile(self, message.x, message.y, (math.random() - 0.5) * 40, -340, "air_bomb", 999)
-	sound_manager.play_shot()
+	sound_manager.play("whistle", { vary = 0.1 })
 end
 
 return M

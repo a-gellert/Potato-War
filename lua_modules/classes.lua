@@ -243,6 +243,7 @@ M.CLASSES = {
 			drill = 4,
 			garlic = 2,
 			shotgun = 2,
+			dynamite = 1,
 		},
 		active_skill = {
 			id = "trench_dig",
@@ -295,6 +296,7 @@ M.CLASSES = {
 			garlic = 4,
 			beetle = 2,
 			bazooka = 2,
+			cluster = 2,
 		},
 		active_skill = {
 			id = "cluster_trap",
@@ -347,6 +349,7 @@ M.CLASSES = {
 			burst = 4,
 			molotov = 3,
 			garlic = 2,
+			dynamite = 1,
 		},
 		active_skill = {
 			id = "smoke_screen",
@@ -398,6 +401,7 @@ M.CLASSES = {
 			grenade = -1,
 			bazooka = 4,
 			garlic = 2,
+			homing = 1,
 		},
 		active_skill = {
 			id = "siege_stance",
@@ -447,7 +451,7 @@ M.CLASSES = {
 		base_arsenal = {
 			grenade = -1,
 			bazooka = 6,
-			air_bomb = 2,
+			airstrike = 1,
 			holy_grenade = 1,
 		},
 		active_skill = {
@@ -498,6 +502,7 @@ M.CLASSES = {
 		base_arsenal = {
 			grenade = -1,
 			bazooka = 5,
+			homing = 2,
 			drill = 3,
 			burst = 2,
 		},
@@ -677,6 +682,28 @@ M.CLASSES = {
 		},
 	},
 }
+
+-- Potato body art of each class (atlas images in main/assets/game.atlas)
+M.SPRITES = {
+	recruit = "recruit",
+	assault = "assault",
+	assault_2 = "assault",
+	sniper = "sniper",
+	sapper = "sapper",
+	sapper_2 = "sapper",
+	commando = "sapper",
+	artillery = "tank",
+	artillery_2 = "tank",
+	rocketeer = "tank",
+	medic = "medic",
+	surgeon = "medic",
+	engineer = "sapper",
+	tank = "tank",
+}
+
+function M.sprite_of(class_id)
+	return M.SPRITES[class_id] or "recruit"
+end
 
 -- Fast lookup / query helpers
 function M.get(class_id)
