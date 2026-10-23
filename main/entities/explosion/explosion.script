@@ -2,6 +2,8 @@
 -- Visual blast flash, billowing gunpowder smoke, and dynamic clods of earth
 
 local constants = require("lua_modules.constants")
+local game_state = require("lua_modules.game_state")
+local debris_fx = require("lua_modules.debris_fx")
 
 go.property("radius", 30)
 
@@ -17,28 +19,39 @@ function init(self)
 
 	-- Dense smoky charcoal and gunpowder puffs (lingering & expanding outward)
 	go.set("#smoke1", "tint", vmath.vector4(0.24, 0.22, 0.21, 0.95))
-	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(2.5, 2.5, 1.0), go.EASING_OUTQUAD, 0.55)
+	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.2, 3.2, 1.0), go.EASING_OUTQUAD, 0.55)
 	go.animate("#smoke1", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.08)
 
 	go.set("#smoke2", "tint", vmath.vector4(0.34, 0.31, 0.29, 0.90))
-	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(2.8, 2.8, 1.0), go.EASING_OUTQUAD, 0.58)
+	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.5, 3.5, 1.0), go.EASING_OUTQUAD, 0.58)
 	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.58, 0.08)
 
-	-- Flying clods of earth & rich soil debris (комья чернозема и глины)
+	pcall(function()
+		go.set("#smoke3", "tint", vmath.vector4(0.28, 0.25, 0.22, 0.88))
+		go.animate("#smoke3", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.0, 3.0, 1.0), go.EASING_OUTQUAD, 0.60)
+		go.animate("#smoke3", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.60, 0.10)
+
+		go.set("#smoke4", "tint", vmath.vector4(0.20, 0.18, 0.16, 0.92))
+		go.animate("#smoke4", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.4, 3.4, 1.0), go.EASING_OUTQUAD, 0.62)
+		go.animate("#smoke4", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.62, 0.10)
+
+		-- Sudden bright blast shockwave / flash ring expansion
+		local ring_target = (self.radius * 3.2) / 32.0
+		go.set("#flash_ring", "tint", vmath.vector4(2.0, 1.6, 0.8, 1.0))
+		go.animate("#flash_ring", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(ring_target, ring_target, 1.0), go.EASING_OUTQUAD, 0.25)
+		go.animate("#flash_ring", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.28)
+	end)
+
+	-- Biome-colored flying debris: physical chunks that bounce off the terrain
+	local biome = game_state.current_biome or "grass"
+	local pos = go.get_position()
+	debris_fx.burst("#debris_factory", pos.x, pos.y, self.radius, biome)
+
+	-- Biome-tinted dust sprites hugging the blast center
 	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }
-	local dirt_colors = {
-		vmath.vector4(0.24, 0.18, 0.13, 1.0), -- Dark fertile chernozem
-		vmath.vector4(0.32, 0.23, 0.16, 1.0), -- Rich loam
-		vmath.vector4(0.18, 0.13, 0.09, 1.0), -- Heavy black earth
-		vmath.vector4(0.38, 0.27, 0.19, 1.0), -- Clay chunk
-		vmath.vector4(0.26, 0.19, 0.14, 1.0),
-		vmath.vector4(0.34, 0.24, 0.17, 1.0),
-		vmath.vector4(0.19, 0.14, 0.10, 1.0),
-		vmath.vector4(0.36, 0.25, 0.18, 1.0),
-	}
-	for i, d_id in ipairs(dirt_ids) do
+	for _, d_id in ipairs(dirt_ids) do
 		pcall(function()
-			go.set(d_id, "tint", dirt_colors[i])
+			go.set(d_id, "tint", debris_fx.dust_color(biome))
 			go.set(d_id, "scale", vmath.vector3(1.6 + math.random() * 0.8, 1.6 + math.random() * 0.8, 1.0))
 			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.55)
 			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.15)
@@ -67,7 +80,7 @@ function init(self)
 	end
 
 	-- Delete object after all animations settle
-	timer.delay(0.60, false, function()
+	timer.delay(0.70, false, function()
 		go.delete()
 	end)
 end

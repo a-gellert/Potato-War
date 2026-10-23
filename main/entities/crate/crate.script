@@ -49,8 +49,6 @@ local function collect_crate(self, potato)
 	if self.is_collected then return end
 	self.is_collected = true
 
-	local is_ru = (i18n.current_lang == "ru")
-
 	if self.type_str == "medkit" then
 		sound_manager.play_heal()
 		local heal_amt = self.amount or math.random(20, 50)
@@ -76,7 +74,15 @@ local function collect_crate(self, potato)
 			is_max_hp = was_full
 		})
 
-		local title = is_ru and ("Аптечка +" .. heal_amt .. (was_full and " МАКС HP!" or " HP!")) or ("Medkit +" .. heal_amt .. (was_full and " MAX HP!" or " HP!"))
+		local amt_str = "+" .. heal_amt
+		local title = i18n.pick({
+			ru = "Аптечка " .. amt_str .. (was_full and " МАКС HP!" or " HP!"),
+			en = "Medkit " .. amt_str .. (was_full and " MAX HP!" or " HP!"),
+			pt = "Kit médico " .. amt_str .. (was_full and " HP MÁX!" or " HP!"),
+			fr = "Trousse de soins " .. amt_str .. (was_full and " HP MAX !" or " HP !"),
+			es = "Botiquín " .. amt_str .. (was_full and " HP MÁX!" or " HP!"),
+			tr = "İlk yardım " .. amt_str .. (was_full and " MAKS HP!" or " HP!"),
+		})
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
 			icon = "❤️",
 			title = title,
@@ -89,7 +95,17 @@ local function collect_crate(self, potato)
 		local count = self.amount or 2
 		game_state.add_ammo(w.id, count)
 
-		local title = is_ru and ("Ящик: +" .. count .. " " .. (w.name or w.id) .. "!") or ("Crate: +" .. count .. " " .. (w.name or w.id) .. "!")
+		local wn = i18n.field(w, "name")
+		if wn == "" then wn = w.id end
+		local cnt = "+" .. count .. " " .. wn
+		local title = i18n.pick({
+			ru = "Ящик: " .. cnt .. "!",
+			en = "Crate: " .. cnt .. "!",
+			pt = "Caixa: " .. cnt .. "!",
+			fr = "Caisse : " .. cnt .. " !",
+			es = "Caja: " .. cnt .. "!",
+			tr = "Sandık: " .. cnt .. "!",
+		})
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
 			icon = "📦",
 			title = title,

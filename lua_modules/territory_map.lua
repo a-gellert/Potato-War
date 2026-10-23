@@ -3,6 +3,7 @@
 
 local player_profile = require("lua_modules.player_profile")
 local constants = require("lua_modules.constants")
+local i18n = require("lua_modules.i18n")
 
 local M = {}
 
@@ -19,10 +20,10 @@ end
 
 -- 4 Climatic regions on the Potato Island:
 M.REGIONS = {
-	[1] = { id = "meadows", name_ru = "Прибрежные Луга", name_en = "Coastal Meadows", biome = "grass" },
-	[2] = { id = "canyon", name_ru = "Пустынный Каньон", name_en = "Desert Canyon", biome = "desert" },
-	[3] = { id = "ice_pass", name_ru = "Ледяной Перевал", name_en = "Ice Pass", biome = "arctic" },
-	[4] = { id = "volcano", name_ru = "Вулканические Бастионы", name_en = "Volcano Bastions", biome = "volcano" },
+	[1] = { id = "meadows", name_ru = "Прибрежные Луга", name_en = "Coastal Meadows", name_pt = "Prados Costeiros", name_fr = "Prairies Côtières", name_es = "Prados Costeros", name_tr = "Kıyı Çayırları", biome = "grass" },
+	[2] = { id = "canyon", name_ru = "Пустынный Каньон", name_en = "Desert Canyon", name_pt = "Cânion do Deserto", name_fr = "Canyon du Désert", name_es = "Cañón del Desierto", name_tr = "Çöl Kanyonu", biome = "desert" },
+	[3] = { id = "ice_pass", name_ru = "Ледяной Перевал", name_en = "Ice Pass", name_pt = "Passo de Gelo", name_fr = "Col de Glace", name_es = "Paso de Hielo", name_tr = "Buz Geçidi", biome = "arctic" },
+	[4] = { id = "volcano", name_ru = "Вулканические Бастионы", name_en = "Volcano Bastions", name_pt = "Bastiões Vulcânicos", name_fr = "Bastions Volcaniques", name_es = "Bastiones Volcánicos", name_tr = "Volkanik Tabyalar", biome = "volcano" },
 }
 
 -- Default 18 sectors layout across 960x540 screen
@@ -33,6 +34,10 @@ M.DEFAULT_SECTORS = {
 		id = 1,
 		name_ru = "Бухта Высадки",
 		name_en = "Landing Cove",
+		name_pt = "Enseada do Desembarque",
+		name_fr = "Crique du Débarquement",
+		name_es = "Cala del Desembarco",
+		name_tr = "Çıkarma Koyu",
 		region = 1,
 		biome = "grass",
 		terrain_preset = "hills",
@@ -49,6 +54,10 @@ M.DEFAULT_SECTORS = {
 		id = 2,
 		name_ru = "Зеленые Холмы",
 		name_en = "Green Hills",
+		name_pt = "Colinas Verdes",
+		name_fr = "Collines Vertes",
+		name_es = "Colinas Verdes",
+		name_tr = "Yeşil Tepeler",
 		region = 1,
 		biome = "grass",
 		terrain_preset = "hills",
@@ -65,6 +74,10 @@ M.DEFAULT_SECTORS = {
 		id = 3,
 		name_ru = "Изумрудная Долина",
 		name_en = "Emerald Valley",
+		name_pt = "Vale Esmeralda",
+		name_fr = "Vallée d'Émeraude",
+		name_es = "Valle Esmeralda",
+		name_tr = "Zümrüt Vadisi",
 		region = 1,
 		biome = "grass",
 		terrain_preset = "hills",
@@ -81,6 +94,10 @@ M.DEFAULT_SECTORS = {
 		id = 4,
 		name_ru = "Маяк Спокойствия",
 		name_en = "Tranquil Lighthouse",
+		name_pt = "Farol da Tranquilidade",
+		name_fr = "Phare de la Tranquillité",
+		name_es = "Faro de la Tranquilidad",
+		name_tr = "Huzur Feneri",
 		region = 1,
 		biome = "grass",
 		terrain_preset = "islands",
@@ -99,6 +116,10 @@ M.DEFAULT_SECTORS = {
 		id = 5,
 		name_ru = "Песчаные Дюны",
 		name_en = "Sandy Dunes",
+		name_pt = "Dunas Arenosas",
+		name_fr = "Dunes de Sable",
+		name_es = "Dunas Arenosas",
+		name_tr = "Kum Tepeleri",
 		region = 2,
 		biome = "desert",
 		terrain_preset = "flat",
@@ -115,6 +136,10 @@ M.DEFAULT_SECTORS = {
 		id = 6,
 		name_ru = "Каньон Эхо",
 		name_en = "Echo Canyon",
+		name_pt = "Cânion do Eco",
+		name_fr = "Canyon de l'Écho",
+		name_es = "Cañón del Eco",
+		name_tr = "Yankı Kanyonu",
 		region = 2,
 		biome = "desert",
 		terrain_preset = "canyon_bridge",
@@ -131,6 +156,10 @@ M.DEFAULT_SECTORS = {
 		id = 7,
 		name_ru = "Пыльный Перекресток",
 		name_en = "Dusty Crossroads",
+		name_pt = "Encruzilhada Empoeirada",
+		name_fr = "Carrefour Poussiéreux",
+		name_es = "Cruce Polvoriento",
+		name_tr = "Tozlu Kavşak",
 		region = 2,
 		biome = "desert",
 		terrain_preset = "swiss_cheese",
@@ -147,6 +176,10 @@ M.DEFAULT_SECTORS = {
 		id = 8,
 		name_ru = "Северный Мост",
 		name_en = "North Bridge",
+		name_pt = "Ponte do Norte",
+		name_fr = "Pont du Nord",
+		name_es = "Puente del Norte",
+		name_tr = "Kuzey Köprüsü",
 		region = 2,
 		biome = "desert",
 		terrain_preset = "canyon_bridge",
@@ -163,6 +196,10 @@ M.DEFAULT_SECTORS = {
 		id = 9,
 		name_ru = "Золотой Оазис",
 		name_en = "Golden Oasis",
+		name_pt = "Oásis Dourado",
+		name_fr = "Oasis Doré",
+		name_es = "Oasis Dorado",
+		name_tr = "Altın Vaha",
 		region = 2,
 		biome = "desert",
 		terrain_preset = "hills",
@@ -181,6 +218,10 @@ M.DEFAULT_SECTORS = {
 		id = 10,
 		name_ru = "Морозные Высоты",
 		name_en = "Frost Heights",
+		name_pt = "Alturas Congeladas",
+		name_fr = "Hauteurs Glaciales",
+		name_es = "Alturas Gélidas",
+		name_tr = "Buz Zirveleri",
 		region = 3,
 		biome = "arctic",
 		terrain_preset = "floating_islands",
@@ -197,6 +238,10 @@ M.DEFAULT_SECTORS = {
 		id = 11,
 		name_ru = "Парящие Льдины",
 		name_en = "Floating Floes",
+		name_pt = "Blocos de Gelo Flutuantes",
+		name_fr = "Banquises Flottantes",
+		name_es = "Témpanos Flotantes",
+		name_tr = "Yüzen Buz Kütleleri",
 		region = 3,
 		biome = "arctic",
 		terrain_preset = "floating_islands",
@@ -213,6 +258,10 @@ M.DEFAULT_SECTORS = {
 		id = 12,
 		name_ru = "Хребет Метелей",
 		name_en = "Blizzard Ridge",
+		name_pt = "Cume das Nevascas",
+		name_fr = "Crête des Blizzards",
+		name_es = "Cresta de las Ventiscas",
+		name_tr = "Tipi Sırtı",
 		region = 3,
 		biome = "arctic",
 		terrain_preset = "cavern",
@@ -229,6 +278,10 @@ M.DEFAULT_SECTORS = {
 		id = 13,
 		name_ru = "Ледяной Бастион",
 		name_en = "Ice Bastion",
+		name_pt = "Bastião de Gelo",
+		name_fr = "Bastion de Glace",
+		name_es = "Bastión de Hielo",
+		name_tr = "Buz Tabyası",
 		region = 3,
 		biome = "arctic",
 		terrain_preset = "bunkers",
@@ -247,6 +300,10 @@ M.DEFAULT_SECTORS = {
 		id = 14,
 		name_ru = "Обсидиановые Врата",
 		name_en = "Obsidian Gates",
+		name_pt = "Portões de Obsidiana",
+		name_fr = "Portes d'Obsidienne",
+		name_es = "Puertas de Obsidiana",
+		name_tr = "Obsidyen Kapıları",
 		region = 4,
 		biome = "volcano",
 		terrain_preset = "bunkers",
@@ -263,6 +320,10 @@ M.DEFAULT_SECTORS = {
 		id = 15,
 		name_ru = "Лавовое Ущелье",
 		name_en = "Lava Gorge",
+		name_pt = "Desfiladeiro de Lava",
+		name_fr = "Gorge de Lave",
+		name_es = "Garganta de Lava",
+		name_tr = "Lav Geçidi",
 		region = 4,
 		biome = "volcano",
 		terrain_preset = "canyon_bridge",
@@ -279,6 +340,10 @@ M.DEFAULT_SECTORS = {
 		id = 16,
 		name_ru = "Катакомбы Угля",
 		name_en = "Charcoal Catacombs",
+		name_pt = "Catacumbas de Carvão",
+		name_fr = "Catacombes de Charbon",
+		name_es = "Catacumbas de Carbón",
+		name_tr = "Kömür Katakombları",
 		region = 4,
 		biome = "volcano",
 		terrain_preset = "cavern",
@@ -295,6 +360,10 @@ M.DEFAULT_SECTORS = {
 		id = 17,
 		name_ru = "Бункер Генералов",
 		name_en = "Generals Bunker",
+		name_pt = "Bunker dos Generais",
+		name_fr = "Bunker des Généraux",
+		name_es = "Búnker de los Generales",
+		name_tr = "Generaller Sığınağı",
 		region = 4,
 		biome = "volcano",
 		terrain_preset = "bunkers",
@@ -311,6 +380,10 @@ M.DEFAULT_SECTORS = {
 		id = 18,
 		name_ru = "Вулканическая Цитадель",
 		name_en = "Volcano Citadel",
+		name_pt = "Cidadela Vulcânica",
+		name_fr = "Citadelle Volcanique",
+		name_es = "Ciudadela Volcánica",
+		name_tr = "Volkanik Kale",
 		region = 4,
 		biome = "volcano",
 		terrain_preset = "bunkers",
@@ -339,6 +412,10 @@ local function deep_copy_sectors(source)
 			id = s.id,
 			name_ru = s.name_ru,
 			name_en = s.name_en,
+			name_pt = s.name_pt,
+			name_fr = s.name_fr,
+			name_es = s.name_es,
+			name_tr = s.name_tr,
 			region = s.region,
 			biome = s.biome,
 			terrain_preset = s.terrain_preset,
@@ -476,9 +553,9 @@ end
 
 function M.fortify_sector(id)
 	local s = M.get_sector(id)
-	if not s or s.owner ~= "blue" then return false, "Нельзя укрепить" end
+	if not s or s.owner ~= "blue" then return false, i18n.pick({ ru = "Нельзя укрепить", en = "Cannot fortify", pt = "Não é possível fortificar", fr = "Impossible de fortifier", es = "No se puede fortificar", tr = "Tahkim edilemez" }) end
 	if (s.defense_level or 1) >= 3 then
-		return false, "Максимальный уровень"
+		return false, i18n.pick({ ru = "Максимальный уровень", en = "Maximum level", pt = "Nível máximo", fr = "Niveau maximum", es = "Nivel máximo", tr = "Maksimum seviye" })
 	end
 	s.defense_level = (s.defense_level or 1) + 1
 	if s.defense_level == 2 then
@@ -699,12 +776,8 @@ end
 -- Get localized sector name
 function M.get_name(sector, lang)
 	if not sector then return "" end
-	lang = lang or "en"
-	if lang == "ru" then
-		return sector.name_ru or sector.name_en or ""
-	else
-		return sector.name_en or sector.name_ru or ""
-	end
+	lang = lang or i18n.current_lang or "en"
+	return sector["name_" .. lang] or sector.name_en or sector.name_ru or ""
 end
 
 -- Reset alias

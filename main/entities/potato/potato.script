@@ -2,12 +2,20 @@
 -- Controls potato visuals, health bar, weapon attachment, elemental statuses, and DoT effects
 
 local weapons = require("lua_modules.weapons")
+local i18n = require("lua_modules.i18n")
 
 go.property("team", 1)
 go.property("potato_id", 1)
 go.property("hp", 100)
 go.property("max_hp", 100)
 go.property("facing", 1)
+
+-- Held weapon + gloves live in a child game object (main/entities/weapon_rig)
+local function rig_post(self, message_id, message)
+	if self.rig then
+		msg.post(msg.url(nil, self.rig, "weapon_rig"), message_id, message)
+	end
+end
 
 local function update_hp_bar(self)
 	local pct = math.max(0, math.min(1.0, self.hp / self.max_hp))
@@ -17,7 +25,7 @@ local function update_hp_bar(self)
 	local cur_w = total_w * pct
 	local offset_x = -((total_w - cur_w) * 16.0) * 0.5
 	go.set("#hp_fill", "scale", vmath.vector3(cur_w, 0.38, 1.0))
-	go.set("#hp_fill", "position", vmath.vector3(offset_x, 31.0, 0.09))
+	go.set("#hp_fill", "position", vmath.vector3(offset_x, 38.75, 0.09))
 
 	-- Crisp white HP counter inside bar
 	pcall(function()
@@ -92,30 +100,12 @@ local function update_facing(self, facing)
 	self.facing = (facing >= 0) and 1 or -1
 	local flip = (self.facing < 0)
 	sprite.set_hflip("#sprite", flip)
-	sprite.set_hflip("#weapon_sprite", flip)
+	rig_post(self, "set_facing", { facing = self.facing })
 	sprite.set_hflip("#emotion", flip)
 	if self.hat_id and self.hat_id ~= "none" then
 		sprite.set_hflip("#hat_sprite", flip)
 	end
 end
-
-local WEAPON_SPRITE_MAP = {
-	grenade       = "grenade",
-	rifle         = "skewer_rifle",
-	knife         = "knife",
-	peeler        = "peeler",
-	molotov       = "oil_bottle",
-	burst         = "rifle",
-	bazooka       = "masher_bazooka",
-	shotgun       = "grater",
-	holy_grenade  = "holy_spud",
-	beetle        = "beetle_crate",
-	drill         = "drill_missile",
-	pepper        = "pepper_bomb",
-	garlic        = "garlic_bomb",
-	beetle_minion = "beetle_minion",
-	air_bomb      = "air_bomb",
-}
 
 local CLASS_SPRITE_MAP = {
 	recruit     = "recruit",
@@ -155,6 +145,10 @@ local function clean_expired_statuses(self)
 end
 
 function init(self)
+	self.rig = factory.create("#rig_factory", nil, nil, {}, 1)
+	go.set_parent(self.rig, go.get_id(), false)
+	go.set_position(vmath.vector3(3, -2, 0), self.rig)
+
 	self.is_alive = (self.hp > 0)
 	self.is_active = false
 	self.hp_bar_timer = 0
@@ -188,7 +182,7 @@ function init(self)
 	pcall(function() msg.post("#hp_text", "enable") end)
 
 	-- Hide weapon, reticle, and hit sparks by default until active
-	msg.post("#weapon_sprite", "disable")
+	rig_post(self, "hide")
 	msg.post("#reticle", "disable")
 	pcall(function()
 		msg.post("#hit_spark1", "disable")
@@ -201,7 +195,7 @@ function init(self)
 	self.scale_anim_timer = 0
 end
 
-local BASE_SCALE = 0.25
+local BASE_SCALE = 0.3125
 
 function update(self, dt)
 	if self.scale_anim_timer and self.scale_anim_timer > 0 then
@@ -270,7 +264,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = "🔥 ОЖОГ"
+			label = i18n.pick({ ru = "🔥 ОЖОГ", en = "🔥 BURN", pt = "🔥 QUEIMADURA", fr = "🔥 BRÛLURE", es = "🔥 QUEMADURA", tr = "🔥 YANIK" })
 		})
 
 		burn_data.duration = (burn_data.duration or 1) - 1
@@ -291,7 +285,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = "☠ ЯД"
+			label = i18n.pick({ ru = "☠ ЯД", en = "☠ POISON", pt = "☠ VENENO", fr = "☠ POISON", es = "☠ VENENO", tr = "☠ ZEHİR" })
 		})
 
 		poison_data.duration = (poison_data.duration or 1) - 1
@@ -306,7 +300,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = "🍯 КЛЕЙ"
+			label = i18n.pick({ ru = "🍯 КЛЕЙ", en = "🍯 GLUE", pt = "🍯 COLA", fr = "🍯 COLLE", es = "🍯 PEGAMENTO", tr = "🍯 YAPIŞKAN" })
 		})
 	end
 
@@ -316,7 +310,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = "💫 ОГЛУШЕНИЕ"
+			label = i18n.pick({ ru = "💫 ОГЛУШЕНИЕ", en = "💫 STUN", pt = "💫 ATORDOADO", fr = "💫 ÉTOURDI", es = "💫 ATURDIDO", tr = "💫 SERSEMLEDİ" })
 		})
 	end
 
@@ -332,7 +326,7 @@ local function process_turn_start(self)
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
 	pcall(function() msg.post("#hp_text", "disable") end)
@@ -378,11 +372,11 @@ function on_message(self, message_id, message, sender)
 		self.is_active = message.active
 		if self.is_alive and self.is_active then
 			msg.post("#reticle", "enable")
-			msg.post("#weapon_sprite", "enable")
+			rig_post(self, "show")
 			set_emotion(self, "aim")
 		else
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			set_emotion(self, "idle")
 		end
 
@@ -400,6 +394,7 @@ function on_message(self, message_id, message, sender)
 		end
 		if message.tint then
 			self.skin_tint = vmath.vector4(message.tint[1] or 1, message.tint[2] or 1, message.tint[3] or 1, message.tint[4] or 1)
+			rig_post(self, "set_tint", { tint = self.skin_tint })
 			go.set("#sprite", "tint", self.skin_tint)
 		end
 
@@ -411,17 +406,14 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("set_weapon") then
 		if self.is_alive and message.weapon_id then
-			local w_id = tostring(message.weapon_id)
-			local sprite_name = WEAPON_SPRITE_MAP[w_id] or "grenade"
-			pcall(function()
-				sprite.play_flipbook("#weapon_sprite", hash(sprite_name))
-				local flip = (self.facing < 0)
-				sprite.set_hflip("#weapon_sprite", flip)
-				if self.is_active then
-					msg.post("#weapon_sprite", "enable")
-				end
-			end)
+			rig_post(self, "set_weapon", { weapon_id = tostring(message.weapon_id) })
+			if self.is_active then
+				rig_post(self, "show")
+			end
 		end
+
+	elseif message_id == hash("set_aim") then
+		rig_post(self, "set_aim", { vx = message.vx, vy = message.vy })
 
 	elseif message_id == hash("set_facing") then
 		if message.facing then
@@ -472,7 +464,7 @@ function on_message(self, message_id, message, sender)
 					x = p_pos.x,
 					y = p_pos.y + 24,
 					amount = combo.bonus_damage,
-					label = "💥 " .. combo.name
+					label = "💥 " .. i18n.field(combo, "name")
 				})
 			end
 			if combo.duration_bonus then
@@ -481,10 +473,10 @@ function on_message(self, message_id, message, sender)
 		else
 			-- Show status overhead icon/label
 			local label_map = {
-				burning   = "🔥 ОЖОГ!",
-				poisoned  = "☠ ЯД!",
-				glued     = "🍯 КЛЕЙ!",
-				concussed = "💫 ОГЛУШЕН!",
+				burning   = i18n.pick({ ru = "🔥 ОЖОГ!", en = "🔥 BURN!", pt = "🔥 QUEIMADURA!", fr = "🔥 BRÛLURE !", es = "🔥 ¡QUEMADURA!", tr = "🔥 YANIK!" }),
+				poisoned  = i18n.pick({ ru = "☠ ЯД!", en = "☠ POISON!", pt = "☠ VENENO!", fr = "☠ POISON !", es = "☠ ¡VENENO!", tr = "☠ ZEHİR!" }),
+				glued     = i18n.pick({ ru = "🍯 КЛЕЙ!", en = "🍯 GLUE!", pt = "🍯 COLA!", fr = "🍯 COLLE !", es = "🍯 ¡PEGAMENTO!", tr = "🍯 YAPIŞKAN!" }),
+				concussed = i18n.pick({ ru = "💫 ОГЛУШЕН!", en = "💫 STUNNED!", pt = "💫 ATORDOADO!", fr = "💫 ÉTOURDI !", es = "💫 ¡ATURDIDO!", tr = "💫 SERSEMLEDİ!" }),
 			}
 			msg.post("/gui_hud#gui", "show_damage", {
 				x = p_pos.x,
@@ -531,7 +523,11 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.18
-			msg.post("#weapon_sprite", "disable")
+			if message_id == hash("hide_weapon") then
+				rig_post(self, "hide")
+			else
+				rig_post(self, "fire")
+			end
 			set_emotion(self, "happy", 1.5)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.18, BASE_SCALE * 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
@@ -588,7 +584,7 @@ function on_message(self, message_id, message, sender)
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			msg.post("#emotion", "disable")
 			msg.post("#hat_sprite", "disable")
 			msg.post("#hp_bg", "disable")
@@ -599,7 +595,7 @@ function on_message(self, message_id, message, sender)
 		self.is_alive = false
 		self.hp = 0
 		msg.post("#reticle", "disable")
-		msg.post("#weapon_sprite", "disable")
+		rig_post(self, "hide")
 		msg.post("#emotion", "disable")
 		msg.post("#hat_sprite", "disable")
 		msg.post("#hp_bg", "disable")
@@ -607,5 +603,11 @@ function on_message(self, message_id, message, sender)
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
 			go.delete()
 		end)
+	end
+end
+
+function final(self)
+	if self.rig then
+		pcall(go.delete, self.rig, true)
 	end
 end

@@ -1,0 +1,2 @@
+prototype: "/main/entities/weapon_rig/weapon_rig.go"
+load_dynamically: false

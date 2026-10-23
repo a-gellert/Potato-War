@@ -1,7 +1,7 @@
 script: "/gui/hud/hud.gui_script"
 fonts {
   name: "system_font"
-  font: "/druid/fonts/druid_text_bold.font"
+  font: "/main/assets/ui.font"
 }
 textures {
   name: "game"
@@ -9,56 +9,7 @@ textures {
 }
 nodes {
   position {
-    x: 180.0
-    y: 514.0
-  }
-  size {
-    x: 240.0
-    y: 40.0
-  }
-  color {
-    x: 0.1
-    y: 0.13
-    z: 0.17
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "phase_badge"
-  yanchor: YANCHOR_TOP
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.92
-}
-nodes {
-  scale {
-    x: 0.56
-    y: 0.56
-  }
-  size {
-    x: 390.0
-    y: 28.0
-  }
-  color {
-    y: 0.8
-    z: 0.2
-  }
-  type: TYPE_TEXT
-  text: "\342\232\224\357\270\217 \320\250\320\242\320\243\320\240\320\234: \320\241\320\225\320\232\320\242\320\236\320\240"
-  font: "system_font"
-  id: "txt_battle_phase"
-  parent: "phase_badge"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 746.0
+    x: 90.0
     y: 514.0
   }
   size {
@@ -73,6 +24,7 @@ nodes {
   type: TYPE_BOX
   texture: "game/box"
   id: "wind_panel"
+  xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   slice9 {
@@ -156,631 +108,78 @@ nodes {
 }
 nodes {
   position {
-    x: 110.0
-    y: 252.0
-  }
-  size {
-    x: 200.0
-    y: 112.0
-  }
-  color {
-    x: 0.13
-    y: 0.17
-    z: 0.24
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "squad_panel"
-  xanchor: XANCHOR_LEFT
-  yanchor: YANCHOR_BOTTOM
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.96
-}
-nodes {
-  position {
-    y: 42.0
-  }
-  scale {
-    x: 0.46
-    y: 0.46
-  }
-  size {
-    x: 390.0
-    y: 20.0
-  }
-  color {
-    x: 0.35
-    y: 0.75
-  }
-  type: TYPE_TEXT
-  text: "\320\236\320\242\320\240\320\257\320\224 \320\241\320\230\320\235\320\230\320\245"
-  font: "system_font"
-  id: "squad_title"
-  parent: "squad_panel"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: 20.0
-  }
-  size {
-    x: 186.0
-    y: 20.0
-  }
-  color {
-    x: 0.14
-    y: 0.18
-    z: 0.24
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "spud_slot_1"
-  parent: "squad_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 3.0
-    y: 3.0
-    z: 3.0
-    w: 3.0
-  }
-}
-nodes {
-  position {
-    x: -54.0
-  }
-  scale {
-    x: 0.4
-    y: 0.4
-  }
-  size {
-    x: 160.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "1. \320\221\320\276\320\265\321\206"
-  font: "system_font"
-  id: "spud_name_1"
-  parent: "spud_slot_1"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 15.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.04
-    y: 0.05
-    z: 0.06
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bg_1"
-  parent: "spud_slot_1"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -30.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bar_1"
-  pivot: PIVOT_W
-  parent: "spud_hp_bg_1"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 66.0
-  }
-  scale {
-    x: 0.38
-    y: 0.38
-  }
-  size {
-    x: 70.0
-    y: 20.0
-  }
-  color {
-    x: 0.9
-    y: 0.95
-  }
-  type: TYPE_TEXT
-  text: "100"
-  font: "system_font"
-  id: "spud_hp_txt_1"
-  parent: "spud_slot_1"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -2.0
-  }
-  size {
-    x: 186.0
-    y: 20.0
-  }
-  color {
-    x: 0.14
-    y: 0.18
-    z: 0.24
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "spud_slot_2"
-  parent: "squad_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 3.0
-    y: 3.0
-    z: 3.0
-    w: 3.0
-  }
-}
-nodes {
-  position {
-    x: -54.0
-  }
-  scale {
-    x: 0.4
-    y: 0.4
-  }
-  size {
-    x: 160.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "2. \320\221\320\276\320\265\321\206"
-  font: "system_font"
-  id: "spud_name_2"
-  parent: "spud_slot_2"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 15.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.04
-    y: 0.05
-    z: 0.06
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bg_2"
-  parent: "spud_slot_2"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -30.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bar_2"
-  pivot: PIVOT_W
-  parent: "spud_hp_bg_2"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 66.0
-  }
-  scale {
-    x: 0.38
-    y: 0.38
-  }
-  size {
-    x: 70.0
-    y: 20.0
-  }
-  color {
-    x: 0.9
-    y: 0.95
-  }
-  type: TYPE_TEXT
-  text: "100"
-  font: "system_font"
-  id: "spud_hp_txt_2"
-  parent: "spud_slot_2"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -24.0
-  }
-  size {
-    x: 186.0
-    y: 20.0
-  }
-  color {
-    x: 0.14
-    y: 0.18
-    z: 0.24
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "spud_slot_3"
-  parent: "squad_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 3.0
-    y: 3.0
-    z: 3.0
-    w: 3.0
-  }
-}
-nodes {
-  position {
-    x: -54.0
-  }
-  scale {
-    x: 0.4
-    y: 0.4
-  }
-  size {
-    x: 160.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "3. \320\221\320\276\320\265\321\206"
-  font: "system_font"
-  id: "spud_name_3"
-  parent: "spud_slot_3"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 15.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.04
-    y: 0.05
-    z: 0.06
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bg_3"
-  parent: "spud_slot_3"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -30.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bar_3"
-  pivot: PIVOT_W
-  parent: "spud_hp_bg_3"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 66.0
-  }
-  scale {
-    x: 0.38
-    y: 0.38
-  }
-  size {
-    x: 70.0
-    y: 20.0
-  }
-  color {
-    x: 0.9
-    y: 0.95
-  }
-  type: TYPE_TEXT
-  text: "100"
-  font: "system_font"
-  id: "spud_hp_txt_3"
-  parent: "spud_slot_3"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    y: -46.0
-  }
-  size {
-    x: 186.0
-    y: 20.0
-  }
-  color {
-    x: 0.14
-    y: 0.18
-    z: 0.24
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "spud_slot_4"
-  parent: "squad_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 3.0
-    y: 3.0
-    z: 3.0
-    w: 3.0
-  }
-}
-nodes {
-  position {
-    x: -54.0
-  }
-  scale {
-    x: 0.4
-    y: 0.4
-  }
-  size {
-    x: 160.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "4. \320\221\320\276\320\265\321\206"
-  font: "system_font"
-  id: "spud_name_4"
-  parent: "spud_slot_4"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 15.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.04
-    y: 0.05
-    z: 0.06
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bg_4"
-  parent: "spud_slot_4"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -30.0
-  }
-  size {
-    x: 60.0
-    y: 8.0
-  }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "spud_hp_bar_4"
-  pivot: PIVOT_W
-  parent: "spud_hp_bg_4"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: 66.0
-  }
-  scale {
-    x: 0.38
-    y: 0.38
-  }
-  size {
-    x: 70.0
-    y: 20.0
-  }
-  color {
-    x: 0.9
-    y: 0.95
-  }
-  type: TYPE_TEXT
-  text: "100"
-  font: "system_font"
-  id: "spud_hp_txt_4"
-  parent: "spud_slot_4"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
     x: 480.0
-    y: 514.0
+    y: 494.0
   }
   size {
-    x: 310.0
-    y: 40.0
+    x: 60.0
+    y: 60.0
   }
   color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
+    x: 0.16
+    y: 0.5
+    z: 0.92
   }
   type: TYPE_BOX
-  texture: "game/box"
-  id: "banner_bg"
+  texture: "game/circle"
+  id: "timer_circle"
   yanchor: YANCHOR_TOP
   inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.88
 }
 nodes {
-  position {
-    x: -42.0
-  }
-  scale {
-    x: 0.4
-    y: 0.4
+  rotation {
+    z: 90.0
   }
   size {
-    x: 230.0
-    y: 30.0
-  }
-  type: TYPE_TEXT
-  text: "\320\245\320\276\320\264: \320\232\320\260\321\200\321\202\320\276\321\210\320\272\320\260 (\320\241\320\270\320\275\320\270\320\265)"
-  font: "system_font"
-  id: "banner_text"
-  parent: "banner_bg"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 110.0
-  }
-  size {
-    x: 55.0
-    y: 32.0
+    x: 74.0
+    y: 74.0
   }
   color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
+    x: 0.05
+    y: 0.07
+    z: 0.1
   }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "timer_bg"
-  parent: "banner_bg"
+  type: TYPE_PIE
+  id: "timer_ring_bg"
+  parent: "timer_circle"
   inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
+  outerBounds: PIEBOUNDS_ELLIPSE
+  innerRadius: 31.0
+  perimeterVertices: 64
+  pieFillAngle: 360.0
+  alpha: 0.55
 }
 nodes {
-  scale {
-    x: 0.9
-    y: 0.9
+  rotation {
+    z: 90.0
   }
   size {
-    x: 40.0
-    y: 26.0
+    x: 74.0
+    y: 74.0
   }
-  color {
-    x: 0.8
-  }
-  type: TYPE_TEXT
-  text: "15"
-  font: "system_font"
-  id: "timer_text"
-  parent: "timer_bg"
+  type: TYPE_PIE
+  id: "timer_ring"
+  parent: "timer_circle"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 480.0
-    y: 488.0
-  }
-  size {
-    x: 310.0
-    y: 6.0
-  }
-  color {
-    x: 0.08
-    y: 0.1
-    z: 0.12
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "timer_bar_bg"
-  yanchor: YANCHOR_TOP
-  inherit_alpha: true
+  outerBounds: PIEBOUNDS_ELLIPSE
+  innerRadius: 31.0
+  perimeterVertices: 64
+  pieFillAngle: 360.0
   alpha: 0.9
 }
 nodes {
-  position {
-    x: -155.0
-  }
   size {
-    x: 310.0
-    y: 6.0
+    x: 52.0
+    y: 30.0
   }
-  color {
-    x: 0.18
-    y: 0.8
-    z: 0.44
-  }
-  type: TYPE_BOX
-  texture: "game/white_pixel"
-  id: "timer_bar_fill"
-  pivot: PIVOT_W
-  parent: "timer_bar_bg"
+  type: TYPE_TEXT
+  text: "25"
+  font: "system_font"
+  id: "timer_text"
+  parent: "timer_circle"
   inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
 }
 nodes {
   position {
@@ -1469,11 +868,11 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 450.0
+    y: 416.0
   }
   size {
-    x: 580.0
-    y: 44.0
+    x: 840.0
+    y: 64.0
   }
   color {
     x: 0.1
@@ -1496,18 +895,19 @@ nodes {
 }
 nodes {
   scale {
-    x: 0.62
-    y: 0.62
+    x: 0.56
+    y: 0.56
   }
   size {
-    x: 880.0
-    y: 36.0
+    x: 1440.0
+    y: 100.0
   }
   color {
     y: 0.9
     z: 0.25
   }
   type: TYPE_TEXT
+  line_break: true
   text: "\360\237\216\257 \320\235\320\260\320\277\321\200\320\260\320\262\321\214 \320\277\321\200\320\270\321\206\320\265\320\273 \320\275\320\260 \320\262\321\200\320\260\320\263\320\260 \320\270 \320\276\321\202\320\277\321\203\321\201\321\202\320\270 \320\264\320\273\321\217 \320\262\321\213\321\201\321\202\321\200\320\265\320\273\320\260!"
   font: "system_font"
   id: "tutorial_hint_text"
@@ -1559,7 +959,7 @@ nodes {
     z: 0.88
   }
   type: TYPE_TEXT
-  text: "ТЫ"
+  text: "YOU"
   font: "system_font"
   id: "marker_player_text"
   parent: "marker_player_bg"
@@ -1677,7 +1077,7 @@ nodes {
     z: 0.85
   }
   type: TYPE_TEXT
-  text: "ВРАГ"
+  text: "ENEMY"
   font: "system_font"
   id: "marker_enemy_text"
   parent: "marker_enemy_bg"

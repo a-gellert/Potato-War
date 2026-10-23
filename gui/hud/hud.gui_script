@@ -1,192 +1,26 @@
 -- gui/hud/hud.gui_script
--- Controls HUD turn banner, 15-second countdown timer, start-of-level card drafting, weapon icons (1-8), and animated tutorial hint
+-- Battle HUD: turn timer circle, wind, weapon bar & inventory, touch controls, tutorial hints, popups.
+-- Widgets live in gui/hud/hud_*.lua.
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local game_state = require("lua_modules.game_state")
 local ui_manager = require("lua_modules.ui_manager")
-local player_profile = require("lua_modules.player_profile")
 local i18n = require("lua_modules.i18n")
-local camera_controller = require("lua_modules.camera_controller")
+local hud_timer = require("gui.hud.hud_timer")
+local hud_weapons = require("gui.hud.hud_weapons")
+local hud_indicators = require("gui.hud.hud_indicators")
+local hud_tutorial = require("gui.hud.hud_tutorial")
+local hud_popups = require("gui.hud.hud_popups")
 
-local WEAPON_BUTTON_IDS = {
-	"btn_wpn_1", "btn_wpn_2", "btn_wpn_3", "btn_wpn_4", "btn_wpn_5"
-}
+local ACTIVE_BTN_COLOR = vmath.vector4(0.78, 0.58, 0.22, 1.0) -- Warm tactical brass on hold
+local NORMAL_BTN_COLOR = vmath.vector4(0.20, 0.23, 0.26, 1.0) -- Graphite steel plate
 
-local function update_weapon_selection(self, selected_weapon_id)
-	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold
-	local def_color = vmath.vector4(0.20, 0.26, 0.34, 1.0) -- Normal available
-	local lock_color = vmath.vector4(0.10, 0.12, 0.15, 0.40) -- Empty / locked
-
-	for i = 1, 5 do
-		pcall(function()
-			local btn_node = gui.get_node(WEAPON_BUTTON_IDS[i])
-			local ammo_node = gui.get_node("ammo_wpn_" .. i)
-			local icon_node = gui.get_node("icon_wpn_" .. i)
-			local num_node = gui.get_node("num_wpn_" .. i)
-
-			local w = game_state.get_slot_weapon(i)
-
-			if w then
-				local ammo = game_state.get_ammo(w.id)
-				local is_unlocked = game_state.is_weapon_unlocked(w.id)
-				local icon_name = w.icon or w.projectile_sprite or "circle"
-				gui.play_flipbook(icon_node, hash(icon_name))
-
-				if w.id == "grenade" then
-					gui.set_text(ammo_node, "INF")
-					gui.set_color(ammo_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-				else
-					gui.set_text(ammo_node, (ammo > 0) and ("x" .. ammo) or "0")
-					gui.set_color(ammo_node, (ammo > 0) and vmath.vector4(1, 1, 1, 1) or vmath.vector4(0.5, 0.5, 0.5, 0.5))
-				end
-
-				if is_unlocked then
-					gui.set_color(btn_node, w.id == selected_weapon_id and sel_color or def_color)
-					gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
-				else
-					gui.set_color(btn_node, lock_color)
-					gui.set_color(icon_node, vmath.vector4(0.4, 0.4, 0.4, 0.35))
-				end
-			else
-				-- Empty slot in loadout
-				gui.set_color(btn_node, lock_color)
-				gui.set_color(icon_node, vmath.vector4(0, 0, 0, 0))
-				gui.set_text(ammo_node, "")
-			end
-		end)
-	end
+local function hide_aim()
+	msg.post("/aim_guide#aim_guide", "hide_aim")
 end
 
-local function update_wind_widget(self)
-	local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
-	local is_ru = (i18n.current_lang == "ru")
-	pcall(function()
-		local val_node = gui.get_node("wind_val")
-		local arrow_node = gui.get_node("wind_arrow")
-		local title_node = gui.get_node("wind_title")
-
-		gui.set_text(title_node, is_ru and "ВЕТЕР:" or "WIND:")
-
-		local spd = math.abs(cur_wind_x)
-		gui.set_text(val_node, tostring(spd) .. (is_ru and " м/с" or " m/s"))
-
-		if cur_wind_x > 2 then
-			-- Wind blows to the right: arrow points right (rotation 0)
-			gui.set_enabled(arrow_node, true)
-			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 0))
-			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
-			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
-			if spd > 20 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0)) -- Intense orange/red
-			elseif spd > 10 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Moderate gold
-			else
-				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0)) -- Calm cyan
-			end
-		elseif cur_wind_x < -2 then
-			-- Wind blows to the left: arrow points left (rotation 180 deg)
-			gui.set_enabled(arrow_node, true)
-			gui.set_rotation(arrow_node, vmath.vector3(0, 0, 180))
-			local scale_factor = 0.5 + 0.4 * (spd / 30.0)
-			gui.set_scale(arrow_node, vmath.vector3(scale_factor, scale_factor, 1.0))
-			if spd > 20 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.45, 0.20, 1.0))
-			elseif spd > 10 then
-				gui.set_color(arrow_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-			else
-				gui.set_color(arrow_node, vmath.vector4(0.20, 0.85, 0.95, 1.0))
-			end
-		else
-			-- Calm / No wind (0-2 m/s): hide arrow or keep tiny neutral dot
-			gui.set_enabled(arrow_node, false)
-		end
-	end)
-end
-
-local function update_phase_widget(self)
-	local is_ru = (i18n.current_lang == "ru")
-	pcall(function()
-		local badge_node = gui.get_node("phase_badge")
-		local text_node = gui.get_node("txt_battle_phase")
-
-		local b_type = self.battle_type or "assault"
-		local sec_name = self.sector_name or (is_ru and "Сектор" or "Sector")
-
-		if b_type == "defense" then
-			gui.set_color(badge_node, vmath.vector4(0.08, 0.16, 0.24, 0.92))
-			gui.set_color(text_node, vmath.vector4(0.20, 0.85, 1.0, 1.0))
-			gui.set_text(text_node, (is_ru and "🛡️ ОБОРОНА: " or "🛡️ DEFENSE: ") .. string.upper(sec_name))
-		else
-			gui.set_color(badge_node, vmath.vector4(0.18, 0.10, 0.10, 0.92))
-			gui.set_color(text_node, vmath.vector4(1.0, 0.80, 0.20, 1.0))
-			gui.set_text(text_node, (is_ru and "⚔️ ШТУРМ: " or "⚔️ ASSAULT: ") .. string.upper(sec_name))
-		end
-	end)
-end
-
-local function update_squad_widget(self)
-	local is_ru = (i18n.current_lang == "ru")
-	pcall(function()
-		local title_node = gui.get_node("squad_title")
-		gui.set_text(title_node, is_ru and "📟 КПК ОТРЯДА" or "📟 SQUAD PDA")
-		gui.set_color(title_node, vmath.vector4(0.15, 0.78, 0.95, 1.0))
-
-		local blue_spuds = {}
-		for _, p in ipairs(game_state.potatoes or {}) do
-			if p.team == constants.TEAM_BLUE then
-				table.insert(blue_spuds, p)
-			end
-		end
-
-		for i = 1, 4 do
-			local slot = gui.get_node("spud_slot_" .. i)
-			local name_node = gui.get_node("spud_name_" .. i)
-			local hp_bar = gui.get_node("spud_hp_bar_" .. i)
-			local hp_txt = gui.get_node("spud_hp_txt_" .. i)
-
-			local p = blue_spuds[i]
-			if p then
-				gui.set_enabled(slot, true)
-				local cls_label = p.class_name or (is_ru and "Боец" or "Spud")
-				if p.unit_level and p.unit_level > 1 then
-					cls_label = cls_label .. " " .. string.rep("★", p.unit_level)
-				end
-				gui.set_text(name_node, tostring(i) .. ". " .. cls_label)
-
-				local is_active = (p == game_state.active_potato and p.is_alive)
-				if is_active then
-					gui.set_color(slot, vmath.vector4(0.25, 0.22, 0.08, 0.95))
-					gui.set_color(name_node, vmath.vector4(1.0, 0.88, 0.25, 1.0))
-				else
-					gui.set_color(slot, vmath.vector4(0.12, 0.15, 0.20, 0.85))
-					gui.set_color(name_node, vmath.vector4(0.9, 0.9, 0.9, 1.0))
-				end
-
-				if p.is_alive and p.hp > 0 then
-					gui.set_text(hp_txt, tostring(p.hp))
-					local frac = math.max(0, math.min(1.0, p.hp / math.max(1, p.max_hp or 100)))
-					gui.set_size(hp_bar, vmath.vector3(60.0 * frac, 8.0, 0))
-					if frac > 0.5 then
-						gui.set_color(hp_bar, vmath.vector4(0.15, 0.78, 0.95, 1.0)) -- Tactical Cyan
-					elseif frac > 0.25 then
-						gui.set_color(hp_bar, vmath.vector4(0.95, 0.77, 0.06, 1.0)) -- Amber
-					else
-						gui.set_color(hp_bar, vmath.vector4(0.95, 0.35, 0.45, 1.0)) -- Coral
-					end
-				else
-					gui.set_text(hp_txt, "💀")
-					gui.set_size(hp_bar, vmath.vector3(0, 8.0, 0))
-					gui.set_color(name_node, vmath.vector4(0.45, 0.45, 0.45, 0.6))
-				end
-			else
-				gui.set_enabled(slot, false)
-			end
-		end
-	end)
-end
-
-local function update_hud_localization(self)
+local function update_localization(self)
 	pcall(function()
 		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
 		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
@@ -198,256 +32,116 @@ local function update_hud_localization(self)
 	end)
 end
 
-local function update_inventory_ui(self)
-	local sel_color = vmath.vector4(0.95, 0.77, 0.06, 1.0) -- Gold border / active
-	local def_color = vmath.vector4(0.18, 0.23, 0.30, 0.95) -- Available
-	local dimmed_bg = vmath.vector4(0.06, 0.08, 0.10, 0.40) -- Darkened cell when ammo = 0
-	local dimmed_icon = vmath.vector4(0.20, 0.20, 0.20, 0.25)
-	local dimmed_txt = vmath.vector4(0.35, 0.35, 0.35, 0.40)
-
-	pcall(function()
-		gui.set_text(gui.get_node("inventory_title"), i18n.t("inventory_title"))
-		gui.set_text(gui.get_node("inventory_sub"), i18n.t("inventory_sub"))
-		gui.set_text(gui.get_node("txt_inventory"), i18n.t("btn_inventory"))
-	end)
-
-	for i = 1, 12 do
-		local ok, err = pcall(function()
-			local w = weapons.LIST[i]
-			if not w then return end
-
-			local slot_node = gui.get_node("inv_slot_" .. i)
-			local icon_node = gui.get_node("inv_icon_" .. i)
-			local name_node = gui.get_node("inv_name_" .. i)
-			local count_node = gui.get_node("inv_ammo_" .. i)
-
-			local icon_name = w.icon or w.projectile_sprite or "circle"
-			gui.play_flipbook(icon_node, hash(icon_name))
-
-			local name_txt = (i18n.t("weapon_" .. w.id) ~= "weapon_" .. w.id) and i18n.t("weapon_" .. w.id) or (w.name or w.id)
-			gui.set_text(name_node, name_txt)
-
-			local ammo = game_state.get_ammo(w.id)
-			local is_selected = (game_state.selected_weapon_id == w.id)
-
-			if w.id == "grenade" then
-				gui.set_text(count_node, "INF")
-				gui.set_color(count_node, vmath.vector4(0.95, 0.77, 0.06, 1.0))
-				gui.set_color(slot_node, is_selected and sel_color or def_color)
-				gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
-				gui.set_color(name_node, vmath.vector4(1, 1, 1, 1))
-			else
-				if ammo > 0 then
-					gui.set_text(count_node, "x" .. ammo)
-					gui.set_color(count_node, vmath.vector4(1, 1, 1, 1))
-					gui.set_color(slot_node, is_selected and sel_color or def_color)
-					gui.set_color(icon_node, vmath.vector4(1, 1, 1, 1))
-					gui.set_color(name_node, vmath.vector4(1, 1, 1, 1))
-				else
-					-- 0 ammo: Darken the cell, icon, and labels
-					gui.set_text(count_node, "0")
-					gui.set_color(count_node, dimmed_txt)
-					gui.set_color(slot_node, dimmed_bg)
-					gui.set_color(icon_node, dimmed_icon)
-					gui.set_color(name_node, dimmed_txt)
-				end
-			end
+local function detect_touch_screen()
+	local sname = sys.get_sys_info().system_name
+	local is_touch = (sname == "Android" or sname == "iPhone OS")
+	if html5 then
+		pcall(function()
+			is_touch = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'") == "1"
 		end)
-		if not ok then
-			constants.log(">>> ERROR IN update_inventory_ui slot " .. i .. ":", err)
+	end
+	return is_touch
+end
+
+-- Hold button that walks/jumps the potato via main.script while pressed
+local function register_move_button(self, node_id, dir, other_key, other_dir)
+	return self.ui:hold_button(node_id, {
+		slop = 14,
+		on_press = function()
+			pcall(gui.set_color, gui.get_node(node_id), ACTIVE_BTN_COLOR)
+			hide_aim()
+			msg.post("/main#main", "player_move_state", { dir = dir })
+		end,
+		on_hold = function(dt)
+			msg.post("/main#main", "player_move", { dir = dir, dt = dt })
+		end,
+		on_release = function()
+			pcall(gui.set_color, gui.get_node(node_id), NORMAL_BTN_COLOR)
+			local other = self[other_key]
+			local fallback_dir = (other and other.is_held) and other_dir or 0
+			msg.post("/main#main", "player_move_state", { dir = fallback_dir })
+		end,
+	})
+end
+
+local function register_buttons(self)
+	-- Weapon quick slots (instant press on touch)
+	for i = 1, hud_weapons.SLOT_COUNT do
+		local slot_idx = i
+		self.ui:button("btn_wpn_" .. i, function()
+			hide_aim()
+			game_state.select_slot(slot_idx)
+		end, { instant = true, slop = 10 })
+	end
+
+	-- Continuous movement & jump for touch controls
+	self.left_hb = register_move_button(self, "btn_left", -1, "right_hb", 1)
+	self.right_hb = register_move_button(self, "btn_right", 1, "left_hb", -1)
+	self.jump_hb = self.ui:hold_button("btn_jump", {
+		slop = 14,
+		on_press = function()
+			pcall(gui.set_color, gui.get_node("btn_jump"), ACTIVE_BTN_COLOR)
+			hide_aim()
+			msg.post("/main#main", "player_jump")
+		end,
+		on_release = function()
+			pcall(gui.set_color, gui.get_node("btn_jump"), NORMAL_BTN_COLOR)
+		end,
+	})
+
+	self.ui:button("btn_pause", function()
+		hide_aim()
+		msg.post("/main#main", "show_menu")
+	end, { slop = 12 })
+
+	-- Inventory button, close button and 12 inventory slots
+	self.ui:button("btn_inventory", function()
+		if game_state.mode ~= constants.MODE_CAMPAIGN then
+			hide_aim()
+			hud_weapons.toggle_inventory(self)
+		end
+	end, { slop = 12 })
+
+	self.ui:button("btn_inv_close", function()
+		hide_aim()
+		hud_weapons.toggle_inventory(self, false)
+	end, { slop = 12 })
+
+	for i = 1, hud_weapons.INVENTORY_COUNT do
+		local w = weapons.LIST[i]
+		if w then
+			self.ui:button("inv_slot_" .. i, function()
+				hide_aim()
+				hud_weapons.select_inventory_weapon(self, w.id)
+			end, { slop = 10 })
 		end
 	end
-end
-
-local function toggle_inventory(self, force_state)
-	if game_state.mode == constants.MODE_CAMPAIGN and force_state ~= false then
-		self.is_inventory_open = false
-		pcall(function()
-			gui.set_enabled(gui.get_node("inventory_overlay"), false)
-		end)
-		return
-	end
-	if force_state ~= nil then
-		self.is_inventory_open = force_state
-	else
-		self.is_inventory_open = not self.is_inventory_open
-	end
-	pcall(function()
-		gui.set_enabled(gui.get_node("inventory_overlay"), self.is_inventory_open)
-	end)
-	if self.is_inventory_open then
-		update_inventory_ui(self)
-	end
-end
-
-local function select_inventory_weapon(self, weapon_id)
-	local ammo = game_state.get_ammo(weapon_id)
-	if weapon_id ~= "grenade" and ammo <= 0 then
-		return -- Cannot select empty dimmed weapon!
-	end
-	game_state.select_weapon(weapon_id)
-	update_weapon_selection(self, weapon_id)
-	update_inventory_ui(self)
-	toggle_inventory(self, false)
-end
-
-local function hide_tutorial_hint(self)
-	self.tutorial_hand_done = true
-	pcall(function()
-		local h_node = gui.get_node("tutorial_hand")
-		if h_node then gui.set_enabled(h_node, false) end
-		local r_node = gui.get_node("tutorial_ripple")
-		if r_node then gui.set_enabled(r_node, false) end
-		local hint_panel = gui.get_node("tutorial_hint_panel")
-		if hint_panel then gui.set_enabled(hint_panel, false) end
-		local mp = gui.get_node("marker_player_bg")
-		if mp then gui.set_enabled(mp, false) end
-		local me = gui.get_node("marker_enemy_bg")
-		if me then gui.set_enabled(me, false) end
-	end)
 end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(2)
 	self.ui = ui_manager.create(self)
-
-	self.last_seconds = -1
-	self.last_fraction = -1
-	self.last_team = nil
 	self.last_weapon = nil
-	self.last_points = -1
-	self.tutorial_hand_done = false
-	self.tutorial_hand_timer = 0
-	self.tap_hint_timer = 0
 	self.badge_timer = 0
-
-	-- Detect touch device vs desktop PC (hide screen AWD buttons on PC with mouse cursor)
-	local sys_info = sys.get_sys_info()
-	local sname = sys_info.system_name
-	self.is_touch_screen = (sname == "Android" or sname == "iPhone OS")
-	if html5 then
-		pcall(function()
-			self.is_touch_screen = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'") == "1"
-		end)
-	end
-
-	-- Hide tutorial elements initially
-	pcall(function()
-		gui.set_enabled(gui.get_node("tutorial_hint_panel"), false)
-		gui.set_enabled(gui.get_node("tutorial_hand"), false)
-		gui.set_enabled(gui.get_node("tutorial_ripple"), false)
-		gui.set_enabled(gui.get_node("marker_player_bg"), false)
-		gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
-	end)
-
-	-- Register weapon buttons dynamically (instant press on touch for 5 slots)
-	for i = 1, 5 do
-		local slot_idx = i
-		self.ui:button(WEAPON_BUTTON_IDS[i], function()
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			game_state.select_slot(slot_idx)
-		end, { instant = true, slop = 10 })
-	end
-
-	-- Register continuous movement & jump hold buttons for touch controls
-	local active_btn_color = vmath.vector4(0.78, 0.58, 0.22, 1.0) -- Warm tactical brass on hold
-	local normal_btn_color = vmath.vector4(0.20, 0.23, 0.26, 1.0) -- Graphite steel plate
-
-	self.left_hb = self.ui:hold_button("btn_left", {
-		slop = 14,
-		on_press = function()
-			pcall(gui.set_color, gui.get_node("btn_left"), active_btn_color)
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			msg.post("/main#main", "player_move_state", { dir = -1 })
-		end,
-		on_hold = function(dt)
-			msg.post("/main#main", "player_move", { dir = -1, dt = dt })
-		end,
-		on_release = function()
-			pcall(gui.set_color, gui.get_node("btn_left"), normal_btn_color)
-			local fallback_dir = (self.right_hb and self.right_hb.is_held) and 1 or 0
-			msg.post("/main#main", "player_move_state", { dir = fallback_dir })
-		end,
-	})
-
-	self.right_hb = self.ui:hold_button("btn_right", {
-		slop = 14,
-		on_press = function()
-			pcall(gui.set_color, gui.get_node("btn_right"), active_btn_color)
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			msg.post("/main#main", "player_move_state", { dir = 1 })
-		end,
-		on_hold = function(dt)
-			msg.post("/main#main", "player_move", { dir = 1, dt = dt })
-		end,
-		on_release = function()
-			pcall(gui.set_color, gui.get_node("btn_right"), normal_btn_color)
-			local fallback_dir = (self.left_hb and self.left_hb.is_held) and -1 or 0
-			msg.post("/main#main", "player_move_state", { dir = fallback_dir })
-		end,
-	})
-
-	self.jump_hb = self.ui:hold_button("btn_jump", {
-		slop = 14,
-		on_press = function()
-			pcall(gui.set_color, gui.get_node("btn_jump"), active_btn_color)
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			msg.post("/main#main", "player_jump")
-		end,
-		on_release = function()
-			pcall(gui.set_color, gui.get_node("btn_jump"), normal_btn_color)
-		end,
-	})
-
-	self.ui:button("btn_pause", function()
-		msg.post("/aim_guide#aim_guide", "hide_aim")
-		msg.post("/main#main", "show_menu")
-	end, { slop = 12 })
-
-	-- Register Inventory button and close button
 	self.is_inventory_open = false
+	self.is_touch_screen = detect_touch_screen()
+
+	hud_timer.init(self)
+	hud_tutorial.init(self)
 	pcall(function()
 		gui.set_enabled(gui.get_node("inventory_overlay"), false)
 	end)
+	register_buttons(self)
+	update_localization(self)
 
-	self.ui:button("btn_inventory", function()
-		if game_state.mode ~= constants.MODE_CAMPAIGN then
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			toggle_inventory(self)
-		end
-	end, { slop = 12 })
-
-	self.ui:button("btn_inv_close", function()
-		msg.post("/aim_guide#aim_guide", "hide_aim")
-		toggle_inventory(self, false)
-	end, { slop = 12 })
-
-	-- Register 12 inventory slots
-	for i = 1, 12 do
-		local slot_idx = i
-		local w = weapons.LIST[slot_idx]
-		if w then
-			self.ui:button("inv_slot_" .. slot_idx, function()
-				msg.post("/aim_guide#aim_guide", "hide_aim")
-				select_inventory_weapon(self, w.id)
-			end, { slop = 10 })
-		end
-	end
-
-	-- Update static labels with localization
-	update_hud_localization(self)
-
-	-- Hook ammo changes from game state
 	game_state.on_ammo_changed = function()
-		update_weapon_selection(self, game_state.selected_weapon_id)
+		hud_weapons.update_selection(self, game_state.selected_weapon_id)
 		if self.is_inventory_open then
-			update_inventory_ui(self)
+			hud_weapons.update_inventory(self)
 		end
 	end
-
-	-- Cards overlay disabled by default
-	update_weapon_selection(self, game_state.selected_weapon_id)
+	hud_weapons.update_selection(self, game_state.selected_weapon_id)
 end
 
 function on_input(self, action_id, action)
@@ -457,476 +151,83 @@ function on_input(self, action_id, action)
 	-- Key Q / inventory hotkey
 	if action_id == hash("inventory") and action.pressed then
 		if game_state.mode ~= constants.MODE_CAMPAIGN then
-			toggle_inventory(self)
+			hud_weapons.toggle_inventory(self)
 		end
 		return true
 	end
 
-	local handled = self.ui:on_input(action_id, action)
-	if handled then
-		msg.post("/aim_guide#aim_guide", "hide_aim")
+	if self.ui:on_input(action_id, action) then
+		hide_aim()
 		return true
 	end
 
-	-- Block background aiming when inventory is visible or when touching HUD control panels
+	-- Block background aiming while the inventory is open
 	if self.is_inventory_open then
 		return true
 	end
 
-	if action_id == hash("touch") or action_id == hash("touch_multi") then
-
-		if action_id == hash("touch") then
-			if action.pressed then
-				self.panel_touch_captured = false
-				local ok_pick, hit_panel = pcall(function()
-					local tc = gui.get_node("touch_controls")
-					local wp = gui.get_node("weapon_panel")
-					return (gui.is_enabled(tc) and gui.pick_node(tc, action.x, action.y))
-						or (gui.is_enabled(wp) and gui.pick_node(wp, action.x, action.y))
-				end)
-				if ok_pick and hit_panel then
-					self.panel_touch_captured = true
-					msg.post("/aim_guide#aim_guide", "hide_aim")
-					return true
-				end
-			elseif action.released then
-				if self.panel_touch_captured then
-					self.panel_touch_captured = false
-					return true
-				end
-			elseif self.panel_touch_captured then
+	-- Swallow touches that start on the HUD control panels so they don't aim
+	if action_id == hash("touch") then
+		if action.pressed then
+			self.panel_touch_captured = false
+			local ok_pick, hit_panel = pcall(function()
+				local tc = gui.get_node("touch_controls")
+				local wp = gui.get_node("weapon_panel")
+				return (gui.is_enabled(tc) and gui.pick_node(tc, action.x, action.y))
+					or (gui.is_enabled(wp) and gui.pick_node(wp, action.x, action.y))
+			end)
+			if ok_pick and hit_panel then
+				self.panel_touch_captured = true
+				hide_aim()
 				return true
 			end
+		elseif action.released then
+			if self.panel_touch_captured then
+				self.panel_touch_captured = false
+				return true
+			end
+		elseif self.panel_touch_captured then
+			return true
 		end
 	end
 
 	return false
 end
 
-local function update_fighter_badges(self, dt)
-	self.badge_timer = (self.badge_timer or 0) + dt
-	local is_ru = (i18n.current_lang == "ru")
-
-	local p = game_state.active_potato
-	local mp = gui.get_node("marker_player_bg")
-	local me = gui.get_node("marker_enemy_bg")
-
-	local is_active_game = (game_state.state == constants.STATE_TURN_ACTIVE or game_state.state == constants.STATE_ACTION)
-
-	if not is_active_game or not p or not p.is_alive then
-		gui.set_enabled(mp, false)
-		gui.set_enabled(me, false)
-		return
-	end
-
-	local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
-	if sx < 20 or sx > 940 or sy < 20 or sy > 520 then
-		gui.set_enabled(mp, false)
-		gui.set_enabled(me, false)
-		return
-	end
-
-	local bounce_y = math.sin(self.badge_timer * 4.5) * 3.0
-	local arrow_pulse = 14 + math.sin(self.badge_timer * 6.0) * 2.5
-	local hp = p.hp or 100
-	local max_hp = p.max_hp or 100
-	local hp_pct = math.max(0.01, math.min(1.0, hp / max_hp))
-
-	if p.team == constants.TEAM_BLUE then
-		-- Active Player Fighter: neat plate + name + micro HP + Cyan pulse triangle
-		gui.set_enabled(mp, true)
-		gui.set_enabled(me, false)
-		gui.set_position(mp, vmath.vector3(sx, sy + 34 + bounce_y, 0))
-
-		local name_text = p.name or (is_ru and "ТЫ" or "YOU")
-		gui.set_text(gui.get_node("marker_player_text"), name_text)
-		gui.set_scale(gui.get_node("marker_player_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
-		gui.set_position(gui.get_node("marker_player_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
-	else
-		-- Active Enemy Fighter: neat plate + name + micro HP + Coral pulse triangle
-		gui.set_enabled(me, true)
-		gui.set_enabled(mp, false)
-		gui.set_position(me, vmath.vector3(sx, sy + 34 + bounce_y, 0))
-
-		local name_text = p.name or (is_ru and "ВРАГ" or "ENEMY")
-		gui.set_text(gui.get_node("marker_enemy_text"), name_text)
-		gui.set_scale(gui.get_node("marker_enemy_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
-		gui.set_position(gui.get_node("marker_enemy_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
-	end
-end
-
 function update(self, dt)
 	self.ui:update(dt)
 
-	if game_state.state ~= constants.STATE_MENU and game_state.state ~= constants.STATE_GAME_OVER then
-		pcall(function()
-			gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
-		end)
-
-		-- 1. Update Timer
-		local seconds_left = math.max(0, math.ceil(game_state.turn_timer))
-		local fraction = math.max(0, math.min(1.0, game_state.turn_timer / constants.TURN_DURATION))
-
-		if seconds_left ~= self.last_seconds or math.abs(fraction - (self.last_fraction or 0)) > 0.01 then
-			self.last_seconds = seconds_left
-			self.last_fraction = fraction
-
-			pcall(function()
-				local t_txt = gui.get_node("timer_text")
-				local t_fill = gui.get_node("timer_bar_fill")
-				local t_bg = gui.get_node("timer_bg")
-
-				gui.set_text(t_txt, tostring(seconds_left))
-				gui.set_scale(t_fill, vmath.vector3(fraction, 1.0, 1.0))
-
-				if seconds_left <= 5 then
-					-- Pulsing Alert Red in final 5 seconds
-					gui.set_color(t_bg, vmath.vector4(0.85, 0.22, 0.22, 1.0))
-					gui.set_color(t_fill, vmath.vector4(0.95, 0.28, 0.24, 1.0))
-					gui.set_color(t_txt, vmath.vector4(1.0, 0.95, 0.95, 1.0))
-				else
-					-- Military Dark Steel Plate with Rivets
-					gui.set_color(t_bg, vmath.vector4(0.12, 0.16, 0.22, 1.0))
-					-- Tactical Steel Gold / Amber Progress Bar (no toxic green!)
-					gui.set_color(t_fill, vmath.vector4(0.92, 0.72, 0.22, 1.0))
-					-- Crisp Gold / White Digits
-					gui.set_color(t_txt, vmath.vector4(1.0, 0.88, 0.35, 1.0))
-				end
-			end)
-		end
-
-		-- 2. Update Turn Banner & Tactical Widgets
-		local cur_wind_x = game_state.wind_vector and math.floor(game_state.wind_vector.x) or 0
-		if game_state.active_team ~= self.last_team or self.last_wind_x ~= cur_wind_x then
-			self.last_team = game_state.active_team
-			self.last_wind_x = cur_wind_x
-
-			pcall(function()
-				local banner = gui.get_node("banner_text")
-				local bg = gui.get_node("banner_bg")
-
-				local base_text = ""
-				if game_state.active_team == constants.TEAM_BLUE then
-					base_text = i18n.t("turn_blue")
-					gui.set_color(bg, vmath.vector4(0.12, 0.30, 0.55, 0.90))
-				else
-					if game_state.mode == constants.MODE_PVP_BOTS then
-						base_text = i18n.t("turn_red_pvp_bot")
-					elseif game_state.mode == constants.MODE_QUICK_PVP then
-						base_text = i18n.t("turn_red_pvp")
-					else
-						base_text = i18n.t("turn_red_bot")
-					end
-					gui.set_color(bg, vmath.vector4(0.65, 0.18, 0.15, 0.90))
-					hide_tutorial_hint(self)
-				end
-				gui.set_text(banner, base_text)
-			end)
-		end
-
-		update_wind_widget(self)
-		update_phase_widget(self)
-		update_squad_widget(self)
-		update_fighter_badges(self, dt)
-
-		-- Dynamic contextual tutorial hints (Step 1: Movement, Step 2: Jump, Step 3: Weapon, Step 4: Aim & Shoot)
-		local is_tutorial_mode = (game_state.mode == constants.MODE_TUTORIAL)
-		local is_arena_1 = is_tutorial_mode or (game_state.mode == constants.MODE_CAMPAIGN and (game_state.campaign_level or 1) == 1)
-		local should_show_hand = not self.tutorial_hand_done
-			and is_arena_1
-			and game_state.state == constants.STATE_TURN_ACTIVE
-			and game_state.active_team == constants.TEAM_BLUE
-			and not game_state.is_aiming
-
-		if should_show_hand then
-			self.tutorial_hand_timer = (self.tutorial_hand_timer or 0) + dt
-			local is_ru = (i18n.current_lang == "ru")
-
-			if self.tap_hint_timer and self.tap_hint_timer > 0 then
-				self.tap_hint_timer = self.tap_hint_timer - dt
-			end
-
-			local active_p = game_state.active_potato
-			local cur_x = active_p and active_p.pos.x or 260
-			local has_bazooka = (game_state.selected_weapon_id == "bazooka") or (game_state.get_ammo("bazooka") > 0)
-
-			pcall(function()
-				local hint_panel = gui.get_node("tutorial_hint_panel")
-				local hint_text = gui.get_node("tutorial_hint_text")
-				if hint_panel and hint_text then
-					gui.set_enabled(hint_panel, true)
-					if is_tutorial_mode then
-						if cur_x < 380 then
-							-- Step 1: Movement
-							local msg_t = is_ru and "👣 ШАГ 1: Движение — используй [A/D] или стрелки на экране" or "👣 STEP 1: Movement — use [A/D] or on-screen arrows"
-							gui.set_text(hint_text, msg_t)
-							gui.set_color(hint_text, vmath.vector4(0.3, 0.95, 0.5, 1.0))
-						elseif cur_x < 506 then
-							-- Step 2: Jump
-							local msg_t = is_ru and "🦘 ШАГ 2: Прыжок — нажми [Пробел / W]" or "🦘 STEP 2: Jump — press [Space / W]"
-							gui.set_text(hint_text, msg_t)
-							gui.set_color(hint_text, vmath.vector4(0.95, 0.85, 0.2, 1.0))
-						elseif not has_bazooka and cur_x < 650 then
-							-- Step 3: Weapon crate
-							local msg_t = is_ru and "📦 ШАГ 3: Подбери ящик с Базукой!" or "📦 STEP 3: Collect the Bazooka crate!"
-							gui.set_text(hint_text, msg_t)
-							gui.set_color(hint_text, vmath.vector4(1.0, 0.7, 0.2, 1.0))
-						else
-							-- Step 4: Aim & Shoot
-							local is_slingshot = (game_state.aim_control_mode == "slingshot")
-							if self.tap_hint_timer and self.tap_hint_timer > 0 then
-								local tap_msg
-								if is_slingshot then
-									tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД как рогатку для силы выстрела!" or "💡 PULL BACK like a slingshot to set power!"
-								else
-									tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону мишени для силы выстрела!" or "💡 HOLD & DRAG towards target to set power!"
-								end
-								gui.set_text(hint_text, tap_msg)
-								gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
-							else
-								local shoot_msg
-								if is_slingshot then
-									shoot_msg = is_ru and "🎯 ШАГ 4: Оттяни картошку назад и отпусти для выстрела!" or "🎯 STEP 4: Pull back and release like a slingshot to shoot!"
-								else
-									shoot_msg = is_ru and "🎯 ШАГ 4: Наведи прицел и зажми ЛКМ для выстрела в мишень!" or "🎯 STEP 4: Aim and hold mouse to shoot the target!"
-								end
-								gui.set_text(hint_text, shoot_msg)
-								gui.set_color(hint_text, vmath.vector4(0.2, 0.85, 1.0, 1.0))
-							end
-						end
-					else
-						local is_slingshot = (game_state.aim_control_mode == "slingshot")
-						if self.tap_hint_timer and self.tap_hint_timer > 0 then
-							local tap_msg
-							if is_slingshot then
-								tap_msg = is_ru and "💡 ОТТЯНИ НАЗАД от врага и отпусти для выстрела!" or "💡 PULL BACK away from enemy and release to shoot!"
-							else
-								tap_msg = is_ru and "💡 ЗАЖМИ и ПОТЯНИ в сторону врага для выстрела!" or "💡 HOLD & DRAG towards enemy to fire!"
-							end
-							gui.set_text(hint_text, tap_msg)
-							gui.set_color(hint_text, vmath.vector4(1.0, 0.4, 0.2, 1.0))
-						else
-							if is_slingshot then
-								local sling_msg = is_ru and "🎯 Оттяни назад и отпусти для выстрела!" or "🎯 Pull back and release like a slingshot to shoot!"
-								gui.set_text(hint_text, sling_msg)
-							else
-								gui.set_text(hint_text, i18n.t("tutorial_hint"))
-							end
-							gui.set_color(hint_text, vmath.vector4(1.0, 0.90, 0.25, 1.0))
-						end
-					end
-				end
-			end)
-
-			local p = game_state.active_potato
-			if p and p.is_alive then
-				local cycle = self.tutorial_hand_timer % 1.55
-
-				local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
-
--- (Floating fighter badges are handled by update_fighter_badges)
-
-				local is_slingshot = (game_state.aim_control_mode == "slingshot")
-				local alpha = 0
-				local scale = 0.62
-				local x_off = 11
-				local y_off = -17
-				local ripple_alpha = 0
-				local ripple_scale = 0.3
-
-				if cycle < 0.25 then
-					-- 1. Fade in & press down on potato
-					local t = cycle / 0.25
-					alpha = 0.75 * t
-					scale = 0.76 - 0.14 * t
-					ripple_alpha = 0.55 * (1.0 - t)
-					ripple_scale = 0.3 + 0.5 * t
-				elseif cycle < 1.00 then
-					-- 2. Drag towards enemy (direct) OR pull backwards like slingshot
-					local t = (cycle - 0.25) / 0.75
-					local eased = (t < 0.5) and (2 * t * t) or (-1 + (4 - 2 * t) * t)
-					alpha = 0.75
-					scale = 0.62
-					if is_slingshot then
-						x_off = 11 - 70 * eased
-						y_off = -17 - 24 * math.sin(eased * math.pi * 0.5)
-					else
-						x_off = 11 + 75 * eased
-						y_off = -17 + 24 * math.sin(eased * math.pi * 0.5)
-					end
-				elseif cycle < 1.30 then
-					-- 3. Release & fade out
-					local t = (cycle - 1.00) / 0.30
-					alpha = 0.75 * (1.0 - t)
-					scale = 0.62 + 0.14 * t
-					if is_slingshot then
-						x_off = 11 - 70
-						y_off = -17 - 24
-					else
-						x_off = 11 + 75
-						y_off = -17 + 24
-					end
-				else
-					-- 4. Pause before repeating
-					alpha = 0
-				end
-
-				pcall(function()
-					local h_node = gui.get_node("tutorial_hand")
-					local r_node = gui.get_node("tutorial_ripple")
-
-					if alpha > 0.02 then
-						gui.set_enabled(h_node, true)
-						gui.set_position(h_node, vmath.vector3(sx + x_off, sy + y_off, 0))
-						gui.set_scale(h_node, vmath.vector3(scale, scale, 1))
-						gui.set_color(h_node, vmath.vector4(1, 1, 1, alpha))
-					else
-						gui.set_enabled(h_node, false)
-					end
-
-					if ripple_alpha > 0.02 then
-						gui.set_enabled(r_node, true)
-						gui.set_position(r_node, vmath.vector3(sx, sy, 0))
-						gui.set_scale(r_node, vmath.vector3(ripple_scale, ripple_scale, 1))
-						gui.set_color(r_node, vmath.vector4(1, 1, 1, ripple_alpha))
-					else
-						gui.set_enabled(r_node, false)
-					end
-				end)
-			else
-				pcall(function()
-					gui.set_enabled(gui.get_node("tutorial_hand"), false)
-					gui.set_enabled(gui.get_node("tutorial_ripple"), false)
-					gui.set_enabled(gui.get_node("marker_player_bg"), false)
-					gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
-				end)
-			end
-		else
-			pcall(function()
-				gui.set_enabled(gui.get_node("tutorial_hand"), false)
-				gui.set_enabled(gui.get_node("tutorial_ripple"), false)
-				gui.set_enabled(gui.get_node("tutorial_hint_panel"), false)
-				gui.set_enabled(gui.get_node("marker_player_bg"), false)
-				gui.set_enabled(gui.get_node("marker_enemy_bg"), false)
-			end)
-		end
-
-		-- 3. Update Weapon Selection & panel visibility
-		pcall(function()
-			local wp_node = gui.get_node("weapon_panel")
-			local tc_node = gui.get_node("touch_controls")
-			local inv_btn = gui.get_node("btn_inventory")
-			local is_player_turn = not game_state.is_bot_turn() and game_state.state == constants.STATE_TURN_ACTIVE
-			local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
-
-			local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN)
-			if is_pvp then
-				gui.set_enabled(wp_node, false)
-			else
-				gui.set_enabled(wp_node, is_player_turn)
-			end
-
-			gui.set_enabled(tc_node, is_player_turn and self.is_touch_screen)
-			gui.set_enabled(inv_btn, (not is_campaign) and is_player_turn)
-		end)
-
-		if game_state.selected_weapon_id ~= self.last_weapon then
-			self.last_weapon = game_state.selected_weapon_id
-			update_weapon_selection(self, game_state.selected_weapon_id)
-		end
-
+	if game_state.state == constants.STATE_MENU or game_state.state == constants.STATE_GAME_OVER then
+		return
 	end
+
+	pcall(function()
+		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
+	end)
+	hud_timer.update(self)
+	hud_indicators.update_wind(self)
+	hud_indicators.update_badges(self, dt)
+	hud_tutorial.update(self, dt)
+	hud_weapons.update_panels(self)
 end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("match_started") then
-		self.tutorial_hand_done = false
-		self.tutorial_hand_timer = 0
-		self.battle_type = message and message.battle_type or "assault"
-		local is_ru = (i18n.current_lang == "ru")
-		self.sector_name = (message and ((is_ru and message.sector_name_ru) or message.sector_name_en or message.sector_name)) or (is_ru and "Сектор" or "Sector")
-		update_hud_localization(self)
-		update_phase_widget(self)
-		update_wind_widget(self)
-		update_squad_widget(self)
-		toggle_inventory(self, false)
-		update_inventory_ui(self)
+		hud_tutorial.reset(self)
+		hud_timer.reset(self)
+		update_localization(self)
+		hud_indicators.update_wind(self)
+		hud_weapons.toggle_inventory(self, false)
+		hud_weapons.update_inventory(self)
 	elseif message_id == hash("toggle_inventory") then
-		toggle_inventory(self)
+		hud_weapons.toggle_inventory(self)
 	elseif message_id == hash("hide_tutorial") or message_id == hash("tutorial_shot_fired") then
-		hide_tutorial_hint(self)
+		hud_tutorial.on_hide(self)
 	elseif message_id == hash("tutorial_tap_hint") then
-		self.tap_hint_timer = 2.5
+		hud_tutorial.on_tap_hint(self)
 	elseif message_id == hash("show_damage") then
-		pcall(function()
-			local sx, sy = camera_controller.world_to_screen(message.x or 480, message.y or 270)
-			local x = sx
-			local y = sy + 18
-			local amt = message.amount or 0
-			local is_heal = (message.is_heal == true)
-			local is_crit = (not is_heal) and (amt >= 45)
-			local label = message.label
-
-			local text_str = ""
-			if label then
-				text_str = (amt > 0) and (label .. " -" .. tostring(amt)) or label
-			else
-				local prefix = is_heal and "+" or "-"
-				text_str = prefix .. tostring(amt)
-			end
-
-			local txt_node = gui.new_text_node(vmath.vector3(x, y, 0), text_str)
-			gui.set_font(txt_node, "system_font")
-			local base_scale = is_heal and 0.85 or (is_crit and 1.15 or (label and 0.80 or 0.75))
-			gui.set_scale(txt_node, vmath.vector3(base_scale * 1.5, base_scale * 1.5, 1.0))
-			if is_heal then
-				gui.set_color(txt_node, vmath.vector4(0.18, 1.0, 0.45, 1.0)) -- Vibrant emerald green
-			elseif label and string.find(label, "ЯД") then
-				gui.set_color(txt_node, vmath.vector4(0.35, 1.0, 0.30, 1.0)) -- Poison green
-			elseif label and string.find(label, "ОЖОГ") then
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.45, 0.15, 1.0)) -- Fire orange
-			elseif label and string.find(label, "КЛЕЙ") then
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.90, 0.25, 1.0)) -- Honey yellow
-			elseif is_crit then
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.18, 0.12, 1.0)) -- Crit red
-			else
-				gui.set_color(txt_node, vmath.vector4(1.0, 0.88, 0.2, 1.0)) -- Gold/yellow
-			end
-
-			-- Punchy scale-down pop and drifting upward with horizontal scatter
-			local scatter_x = (math.random() - 0.5) * 24
-			gui.animate(txt_node, "scale", vmath.vector3(base_scale, base_scale, 1.0), gui.EASING_OUTBACK, 0.22)
-			gui.animate(txt_node, "position.x", x + scatter_x, gui.EASING_OUTQUAD, 0.75)
-			gui.animate(txt_node, "position.y", y + (is_crit and 58 or 44), gui.EASING_OUTQUAD, 0.75)
-			gui.animate(txt_node, "color.w", 0.0, gui.EASING_INQUAD, 0.75, 0.25, function()
-				pcall(gui.delete_node, txt_node)
-			end)
-		end)
+		pcall(hud_popups.show_damage, message)
 	elseif message_id == hash("show_achievement_toast") then
-		pcall(function()
-			local panel = gui.get_node("toast_panel")
-			local txt = gui.get_node("toast_text")
-			local pts = message.points or 0
-			local pts_str = ""
-			if pts > 0 then
-				pts_str = (i18n.current_lang == "ru") and (" +" .. tostring(pts) .. " очков!") or (" +" .. tostring(pts) .. " pts!")
-			end
-			local icon = message.icon or "🏆"
-			local title = message.title or ""
-			gui.set_text(txt, icon .. " " .. title .. pts_str)
-			gui.set_enabled(panel, true)
-
-			gui.cancel_animation(panel, gui.PROP_POSITION)
-			gui.cancel_animation(panel, gui.PROP_SCALE)
-			gui.set_position(panel, vmath.vector3(480, 520, 0))
-			gui.set_scale(panel, vmath.vector3(0.85, 0.85, 1.0))
-
-			gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, 460, 0), gui.EASING_OUTBACK, 0.35)
-			gui.animate(panel, gui.PROP_SCALE, vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBACK, 0.35, 0, function()
-				gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, 530, 0), gui.EASING_INQUAD, 0.35, 1.8, function()
-					gui.set_enabled(panel, false)
-				end)
-			end)
-		end)
+		pcall(hud_popups.show_toast, message)
 	end
 end

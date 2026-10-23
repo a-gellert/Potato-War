@@ -3,6 +3,7 @@
 -- Includes slope movement, ceiling collision, wind drift, and status effect integration.
 
 local constants = require("lua_modules.constants")
+local game_state = require("lua_modules.game_state")
 
 local M = {}
 
@@ -65,7 +66,7 @@ function M.update_potato(p, dt, terrain, wind_vector)
 		if game_state and game_state.mode == constants.MODE_TUTORIAL then
 			-- Fail-safe tutorial rescue: teleport back to safe edge without penalty
 			p.pos.x = 380.0
-			p.pos.y = 180.0
+			p.pos.y = terrain.get_smooth_ground_y(380.0, 4.0) + 20.0
 			p.vel.x = 0
 			p.vel.y = 0
 			p.is_grounded = true

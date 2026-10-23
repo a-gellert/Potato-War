@@ -82,6 +82,7 @@ M.campaign_level = 1
 M.active_team = constants.TEAM_BLUE
 M.turn_timer = constants.TURN_DURATION
 M.selected_weapon_id = weapons.TYPES.GRENADE
+M.current_biome = "grass" -- set by terrain.script; read by debris/particle effects
 M.wind_vector = vmath.vector3(0, 0, 0) -- Dynamic wind vector { x, y, 0 }
 
 M.potatoes = {} -- list of all potato records { id, team, pos, vel, hp, max_hp, is_alive, is_grounded, url, class_id, statuses }
@@ -435,7 +436,7 @@ end
 function M.get_current_config()
 	if M.match_config and M.match_config.potato_count then
 		return {
-			name = "Командный Бой",
+			name = require("lua_modules.i18n").pick({ ru = "Командный Бой", en = "Team Battle", pt = "Batalha em Equipe", fr = "Combat d'Équipe", es = "Batalla por Equipos", tr = "Takım Savaşı" }),
 			enemy_hp = 100,
 			enemy_count = M.match_config.red_count or M.match_config.potato_count,
 			red_count = M.match_config.red_count or M.match_config.potato_count,
@@ -501,6 +502,9 @@ local function begin_current_turn()
 	local wind_dir = (math.random() > 0.5) and 1 or -1
 	local wind_x = wind_dir * math.random(0, 30)
 	local wind_y = math.random(-3, 3)
+	if M.mode == constants.MODE_TUTORIAL then
+		wind_x, wind_y = 0, 0
+	end
 	M.wind_vector = vmath.vector3(wind_x, wind_y, 0)
 
 	-- Turn start triggers for active potato: skill cooldown and DoT / debuffs
@@ -641,11 +645,13 @@ function M.next_turn()
 		return
 	end
 
-	-- Switch active team
-	M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
-	if M.mode == constants.MODE_TUTORIAL and M.active_team == constants.TEAM_BLUE then
-		M.add_ammo("bazooka", 1) -- Replenish bazooka for player in tutorial!
+	if M.mode == constants.MODE_TUTORIAL then
+		-- Training target never fires back: the player keeps the turn until it is destroyed
+		M.active_team = constants.TEAM_BLUE
+		M.add_ammo("bazooka", 1)
 		M.select_weapon("bazooka")
+	else
+		M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
 	end
 	begin_current_turn()
 end

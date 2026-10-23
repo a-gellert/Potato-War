@@ -1,7 +1,7 @@
 script: "/gui/main_menu/main_menu.gui_script"
 fonts {
   name: "system_font"
-  font: "/druid/fonts/druid_text_bold.font"
+  font: "/main/assets/ui.font"
 }
 textures {
   name: "game"

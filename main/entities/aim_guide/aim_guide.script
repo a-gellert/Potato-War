@@ -147,7 +147,7 @@ function on_input(self, action_id, action)
 				msg.post("/gui_hud#gui", "hide_tutorial")
 				local dir_x = aim_x / len
 				local dir_y = aim_y / len
-				local power = math.min(weapon.max_power, len * weapon.power_scale)
+				local power = math.min(weapon.max_power, len * weapon.power_scale) * 1.30
 
 				local vx = dir_x * power
 				local vy = dir_y * power
@@ -159,6 +159,7 @@ function on_input(self, action_id, action)
 				potato.facing = facing_dir
 				if potato.url then
 					msg.post(potato.url, "set_facing", { facing = facing_dir })
+					msg.post(potato.url, "set_aim", { vx = vx, vy = vy })
 				end
 
 				show_trajectory(self, potato.pos.x, potato.pos.y + 8, vx, vy, weapon)
@@ -214,6 +215,7 @@ function on_message(self, message_id, message, sender)
 			potato.facing = facing_dir
 			if potato.url then
 				msg.post(potato.url, "set_facing", { facing = facing_dir })
+				msg.post(potato.url, "set_aim", { vx = message.vx, vy = message.vy })
 			end
 		end
 

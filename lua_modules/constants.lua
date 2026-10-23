@@ -31,7 +31,7 @@ M.SETTLE_TIMEOUT = 3.5 -- Physics settle timeout (balanced for Poki playtime)
 
 -- Physics
 M.GRAVITY = 460.0
-M.POTATO_RADIUS = 12.0
+M.POTATO_RADIUS = 15.0
 M.POTATO_WALK_SPEED = 75.0
 M.POTATO_JUMP_IMPULSE = 295.0
 M.MAX_FALL_SPEED = 600.0
@@ -45,6 +45,14 @@ M.TEAM_NAMES = {
 	[M.TEAM_BLUE] = "Картошка (Синие)",
 	[M.TEAM_RED] = "Картошка (Красные)",
 }
+
+-- Localized team name (TEAM_NAMES above holds the Russian defaults)
+function M.get_team_name(team)
+	local blue = team == M.TEAM_BLUE
+	return require("lua_modules.i18n").pick(blue
+		and { ru = "Картошка (Синие)", en = "Potato (Blue)", pt = "Batata (Azuis)", fr = "Patate (Bleus)", es = "Patata (Azules)", tr = "Patates (Mavi)" }
+		or { ru = "Картошка (Красные)", en = "Potato (Red)", pt = "Batata (Vermelhos)", fr = "Patate (Rouges)", es = "Patata (Rojos)", tr = "Patates (Kırmızı)" })
+end
 
 M.TEAM_COLORS = {
 	[M.TEAM_BLUE] = vmath.vector4(0.18, 0.55, 0.90, 1.0),

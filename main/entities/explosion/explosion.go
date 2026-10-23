@@ -2,6 +2,10 @@ components {
   id: "explosion"
   component: "/main/entities/explosion/explosion.script"
 }
+components {
+  id: "debris_factory"
+  component: "/main/entities/debris/debris.factory"
+}
 embedded_components {
   id: "sprite"
   type: "sprite"
@@ -48,6 +52,60 @@ embedded_components {
   scale {
     x: 0.6
     y: 0.6
+    z: 1.0
+  }
+}
+embedded_components {
+  id: "smoke3"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"smoke\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: -18.0
+    y: -8.0
+    z: 0.44
+  }
+  scale {
+    x: 0.7
+    y: 0.7
+    z: 1.0
+  }
+}
+embedded_components {
+  id: "smoke4"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"smoke\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  position {
+    x: 18.0
+    y: -6.0
+    z: 0.44
+  }
+  scale {
+    x: 0.7
+    y: 0.7
+    z: 1.0
+  }
+}
+embedded_components {
+  id: "flash_ring"
+  type: "sprite"
+  data: "tile_set: \"/main/assets/game.atlas\"\n"
+  "default_animation: \"circle\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ADD\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.55
+  }
+  scale {
+    x: 0.2
+    y: 0.2
     z: 1.0
   }
 }

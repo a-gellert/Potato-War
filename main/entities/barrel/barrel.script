@@ -7,6 +7,7 @@ local camera_controller = require("lua_modules.camera_controller")
 local game_state = require("lua_modules.game_state")
 local physics_sim = require("lua_modules.physics_sim")
 local player_profile = require("lua_modules.player_profile")
+local i18n = require("lua_modules.i18n")
 
 go.property("radius", 55)
 go.property("max_damage", 45)
@@ -90,7 +91,7 @@ local function explode(self)
 		player_profile.add_points(25)
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
 			icon = "💥",
-			title = "TNT БАБАХ!",
+			title = i18n.pick({ ru = "TNT БАБАХ!", en = "TNT BOOM!", pt = "TNT BUM!", fr = "TNT BOUM !", es = "¡TNT BUM!", tr = "TNT GÜM!" }),
 			points = 25
 		})
 	end

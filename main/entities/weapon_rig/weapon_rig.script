@@ -1,0 +1,254 @@
+-- main/entities/weapon_rig/weapon_rig.script
+-- Rayman-style held weapon: the weapon sprite plus two floating glove hands, aimed with the
+-- potato's drag, with recoil and muzzle particles for non-thrown weapons.
+-- Child of a potato game object (created and driven by potato.script).
+--
+-- Everything is laid out in a "facing right" frame and mirrored by hand (Defold forbids negative
+-- scale): x positions are multiplied by the facing, the weapon sprite is hflipped.
+
+local S = 0.6875 -- weapon art scale (image px -> world units)
+
+-- sprite: atlas animation; kind: "throw" | "gun" | "melee"
+-- hold: distance (units) of the weapon center from the rig origin along the aim direction
+-- back/front: glove positions in image px relative to the sprite center (x right, y down)
+-- muzzle: image px along the weapon's long axis where particles appear
+-- art_angle: direction (rad) the art points at when unrotated (knife art points up-right)
+local CONFIG = {
+	rifle   = { sprite = "skewer_rifle", kind = "gun", fx = "rifle", hold = 10, back = { -10, 8 }, front = { 9, 6 }, muzzle = 29 },
+	burst   = { sprite = "rifle", kind = "gun", fx = "rifle", hold = 10, back = { -13, 3 }, front = { 8, 8 }, muzzle = 25 },
+	bazooka = { sprite = "masher_bazooka", kind = "gun", fx = "heavy", hold = 9, back = { -17, 3 }, front = { 3, 10 }, muzzle = 26 },
+	shotgun = { sprite = "grater", kind = "gun", fx = "shotgun", hold = 10, back = { -14, 2 }, front = { 6, 10 }, muzzle = 26 },
+	drill   = { sprite = "drill_missile", kind = "gun", fx = "heavy", hold = 10, back = { -10, 7 }, front = { 6, 7 }, muzzle = 22 },
+	knife   = { sprite = "knife", kind = "melee", hold = 12, back = { -8, 9 }, front = { -12, 15 }, art_angle = math.rad(45), muzzle = 22 },
+	peeler  = { sprite = "peeler", kind = "melee", hold = 11, back = { -12, 3 }, front = { -4, 3 }, muzzle = 20 },
+	grenade       = { sprite = "grenade", kind = "throw", hold = 17, back = { -16, 4 }, front = { 16, 4 } },
+	molotov       = { sprite = "oil_bottle", kind = "throw", hold = 17, back = { -13, 6 }, front = { 13, 6 } },
+	holy_grenade  = { sprite = "holy_spud", kind = "throw", hold = 16, back = { -11, 5 }, front = { 11, 5 } },
+	beetle        = { sprite = "beetle_crate", kind = "throw", hold = 16, back = { -11, 3 }, front = { 11, 3 } },
+	pepper        = { sprite = "pepper_bomb", kind = "throw", hold = 17, back = { -14, 5 }, front = { 14, 5 } },
+	garlic        = { sprite = "garlic_bomb", kind = "throw", hold = 17, back = { -14, 5 }, front = { 14, 5 } },
+	air_bomb      = { sprite = "air_bomb", kind = "throw", hold = 17, back = { -19, 3 }, front = { 19, 3 } },
+	beetle_minion = { sprite = "beetle_minion", kind = "throw", hold = 16, back = { -10, 4 }, front = { 10, 4 } },
+}
+CONFIG.holy_spud = CONFIG.holy_grenade
+
+-- Gloves match the potato body color (average of the potato sprites, slightly lighter)
+local GLOVE_BASE = vmath.vector4(0.80, 0.62, 0.37, 1.0)
+local GLOVE_OUTLINE = vmath.vector4(0.20, 0.11, 0.08, 1.0)
+local HIDE_AFTER_GUN_SHOT = 0.7
+local HIDE_AFTER_THROW = 0.14
+
+local function new_part(self, parent, sprite_name, with_outline)
+	local id = factory.create("#part_factory", nil, nil, {}, 1)
+	go.set_parent(id, parent, false)
+	local spr = msg.url(nil, id, "sprite")
+	local out = msg.url(nil, id, "outline")
+	if sprite_name then
+		sprite.play_flipbook(spr, hash(sprite_name))
+	end
+	if with_outline then
+		go.set(spr, "tint", GLOVE_BASE)
+		go.set(spr, "scale", vmath.vector3(0.34, 0.34, 1))
+		go.set(out, "tint", GLOVE_OUTLINE)
+		go.set(out, "scale", vmath.vector3(0.45, 0.45, 1))
+	else
+		msg.post(out, "disable")
+	end
+	return { id = id, spr = spr, out = out }
+end
+
+local function show_parts(self, visible)
+	self.visible = visible
+	local m = visible and "enable" or "disable"
+	for _, part in ipairs({ self.weapon, self.hand_back, self.hand_front }) do
+		msg.post(part.spr, m)
+		if part ~= self.weapon then
+			msg.post(part.out, m)
+		end
+	end
+	if not visible then
+		self.hide_timer = nil
+	end
+end
+
+local function set_weapon(self, weapon_id)
+	local cfg = CONFIG[weapon_id] or CONFIG.grenade
+	self.cfg = cfg
+	self.weapon_id = weapon_id
+	sprite.play_flipbook(self.weapon.spr, hash(cfg.sprite))
+	sprite.set_hflip(self.weapon.spr, self.facing < 0)
+	go.set(self.weapon.spr, "scale", vmath.vector3(S, S, 1))
+	self.kick = 0
+end
+
+local function rotate(x, y, a)
+	local c, s = math.cos(a), math.sin(a)
+	return x * c - y * s, x * s + y * c
+end
+
+-- Layout of weapon + gloves for the current aim / recoil / bob.
+local function layout(self)
+	local cfg = self.cfg
+	local m = self.aim
+	local hold = cfg.hold - self.kick
+	local f = self.facing
+	local wx, wy = math.cos(m) * hold * f, math.sin(m) * hold
+	-- With the art hflipped (facing left) the rotation has to be mirrored too
+	local art = (cfg.kind ~= "throw") and (m - (cfg.art_angle or 0)) * f or 0
+
+	go.set_position(vmath.vector3(wx, wy, 0.05), self.weapon.id)
+	go.set_rotation(vmath.quat_rotation_z(art), self.weapon.id)
+
+	local bob_x = math.sin(self.t * 3.1) * 0.7
+	local bob_y = math.cos(self.t * 2.3) * 0.9
+	local bx, by = rotate(cfg.back[1] * S * f, -cfg.back[2] * S, art)
+	local fx, fy = rotate(cfg.front[1] * S * f, -cfg.front[2] * S, art)
+	go.set_position(vmath.vector3(wx + bx + bob_x, wy + by + bob_y, 0.06), self.hand_back.id)
+	go.set_position(vmath.vector3(wx + fx - bob_x, wy + fy - bob_y * 0.7, 0.062), self.hand_front.id)
+end
+
+local function pick(a, b) return a + math.random() * (b - a) end
+
+local function spawn_fx(self, kind, ox, oy, angle, count, o)
+	for _ = 1, count do
+		local a = angle + pick(-o.spread, o.spread)
+		local speed = pick(o.v0, o.v1)
+		factory.create("#fx_factory", vmath.vector3(ox, oy, 0.52), nil, {
+			vx = math.cos(a) * speed * self.facing,
+			vy = math.sin(a) * speed + (o.lift or 0),
+			spin = pick(-300, 300),
+			life = pick(o.l0, o.l1),
+			grav = o.grav,
+			bounce = 0,
+			size = pick(o.s0, o.s1),
+			anim = hash(kind),
+			tint = vmath.vector4(o.tint),
+			grow = o.grow or 1,
+			drag = o.drag or 0,
+			fade_start = o.fade or 0.55,
+		})
+	end
+end
+
+local FX = {
+	flash = function(self, ox, oy, a, big)
+		spawn_fx(self, "star", ox, oy, a, 1, { spread = 0, v0 = 0, v1 = 0, l0 = 0.10, l1 = 0.12, grav = 0, s0 = big, s1 = big, tint = vmath.vector4(2.0, 1.6, 0.7, 1), grow = 1.7, fade = 0.2 })
+	end,
+	sparks = function(self, ox, oy, a, n, spread, power)
+		spawn_fx(self, "spark", ox, oy, a, n, { spread = spread, v0 = power * 0.5, v1 = power, l0 = 0.22, l1 = 0.45, grav = 0.5, s0 = 0.8, s1 = 1.6, tint = vmath.vector4(2.0, 1.1, 0.35, 1), fade = 0.4 })
+	end,
+	smoke = function(self, ox, oy, a, n, spread, power, size)
+		spawn_fx(self, "smoke", ox, oy, a, n, { spread = spread, v0 = power * 0.4, v1 = power, lift = 22, l0 = 0.55, l1 = 0.95, grav = -0.12, s0 = size * 0.5, s1 = size, tint = vmath.vector4(0.85, 0.82, 0.8, 0.75), grow = 2.4, drag = 2.2, fade = 0.3 })
+	end,
+}
+
+local function muzzle_effects(self)
+	local cfg = self.cfg
+	local pos = go.get_world_position()
+	local m = self.aim
+	local reach = cfg.hold + (cfg.muzzle or 20) * S
+	local mx, my = math.cos(m) * reach, math.sin(m) * reach
+	local ox, oy = pos.x + mx * self.facing, pos.y + my
+	-- direction in the mirrored frame (spawn_fx applies the facing to vx)
+	local fxk = cfg.fx
+	if cfg.kind == "melee" then
+		FX.flash(self, ox, oy, m, 1.1)
+		FX.sparks(self, ox, oy, m, 6, 1.1, 170)
+	elseif fxk == "shotgun" then
+		FX.flash(self, ox, oy, m, 2.0)
+		FX.sparks(self, ox, oy, m, 10, 0.5, 340)
+		FX.smoke(self, ox, oy, m, 5, 0.5, 70, 0.55)
+	elseif fxk == "heavy" then
+		FX.flash(self, ox, oy, m, 2.4)
+		FX.sparks(self, ox, oy, m, 8, 0.4, 300)
+		FX.smoke(self, ox, oy, m, 5, 0.45, 90, 0.7)
+		-- Back-blast behind the tube
+		local bx, by = math.cos(m) * (cfg.hold - 14 * S), math.sin(m) * (cfg.hold - 14 * S)
+		FX.smoke(self, pos.x + bx * self.facing, pos.y + by, m + math.pi, 4, 0.5, 80, 0.6)
+		FX.sparks(self, pos.x + bx * self.facing, pos.y + by, m + math.pi, 4, 0.5, 200)
+	else
+		FX.flash(self, ox, oy, m, 1.4)
+		FX.sparks(self, ox, oy, m, 5, 0.35, 260)
+		FX.smoke(self, ox, oy, m, 3, 0.4, 55, 0.45)
+	end
+end
+
+function init(self)
+	self.facing = 1
+	self.aim = 0.25
+	self.target_aim = 0.25
+	self.kick = 0
+	self.t = math.random() * 6.28
+	self.visible = false
+	self.cfg = CONFIG.grenade
+
+	local me = go.get_id()
+	self.weapon = new_part(self, me, "grenade", false)
+	self.hand_back = new_part(self, me, "circle", true)
+	self.hand_front = new_part(self, me, "circle", true)
+	set_weapon(self, "grenade")
+	show_parts(self, false)
+end
+
+function update(self, dt)
+	self.t = self.t + dt
+	if not self.visible then return end
+
+	-- Smooth aim, recoil recovery, delayed hide after the shot
+	self.aim = self.aim + (self.target_aim - self.aim) * math.min(1, dt * 16)
+	self.kick = self.kick * math.max(0, 1 - dt * 14)
+	if self.hide_timer then
+		self.hide_timer = self.hide_timer - dt
+		if self.hide_timer <= 0 then
+			show_parts(self, false)
+			return
+		end
+	end
+	layout(self)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_weapon") then
+		set_weapon(self, tostring(message.weapon_id))
+		if self.visible then layout(self) end
+
+	elseif message_id == hash("set_facing") then
+		self.facing = (message.facing >= 0) and 1 or -1
+		sprite.set_hflip(self.weapon.spr, self.facing < 0)
+		if self.visible then layout(self) end
+
+	elseif message_id == hash("set_tint") then
+		local t = message.tint
+		local c = vmath.vector4(GLOVE_BASE.x * t.x, GLOVE_BASE.y * t.y, GLOVE_BASE.z * t.z, 1)
+		go.set(self.hand_back.spr, "tint", c)
+		go.set(self.hand_front.spr, "tint", c)
+
+	elseif message_id == hash("set_aim") then
+		-- Aim angle in the mirrored (facing-right) frame
+		self.target_aim = math.atan2(message.vy, math.abs(message.vx))
+
+	elseif message_id == hash("show") then
+		if not self.visible then
+			self.target_aim = 0.25
+			self.aim = 0.25
+			self.kick = 0
+		end
+		show_parts(self, true)
+		layout(self)
+
+	elseif message_id == hash("hide") then
+		show_parts(self, false)
+
+	elseif message_id == hash("fire") then
+		if not self.visible then return end
+		local kind = self.cfg.kind
+		if kind == "throw" then
+			self.kick = -8 -- hands swing forward, then vanish
+			self.hide_timer = HIDE_AFTER_THROW
+		else
+			self.kick = (self.cfg.fx == "heavy") and 7 or ((self.cfg.kind == "melee") and -6 or 4.5)
+			self.hide_timer = HIDE_AFTER_GUN_SHOT
+			muzzle_effects(self)
+		end
+	end
+end
