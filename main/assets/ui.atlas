@@ -1,0 +1,227 @@
+images {
+  image: "/main/assets/ui/badge.png"
+}
+images {
+  image: "/main/assets/ui/bar_bg.png"
+}
+images {
+  image: "/main/assets/ui/bar_fill.png"
+}
+images {
+  image: "/main/assets/ui/btn_blue.png"
+}
+images {
+  image: "/main/assets/ui/btn_dark.png"
+}
+images {
+  image: "/main/assets/ui/btn_gold.png"
+}
+images {
+  image: "/main/assets/ui/btn_green.png"
+}
+images {
+  image: "/main/assets/ui/btn_red.png"
+}
+images {
+  image: "/main/assets/ui/btn_steel.png"
+}
+images {
+  image: "/main/assets/ui/card_common.png"
+}
+images {
+  image: "/main/assets/ui/card_epic.png"
+}
+images {
+  image: "/main/assets/ui/card_legendary.png"
+}
+images {
+  image: "/main/assets/ui/card_rare.png"
+}
+images {
+  image: "/main/assets/ui/card_select.png"
+}
+images {
+  image: "/main/assets/ui/crate_gold.png"
+}
+images {
+  image: "/main/assets/ui/crate_gold_lid.png"
+}
+images {
+  image: "/main/assets/ui/crate_steel.png"
+}
+images {
+  image: "/main/assets/ui/crate_steel_lid.png"
+}
+images {
+  image: "/main/assets/ui/crate_wood.png"
+}
+images {
+  image: "/main/assets/ui/crate_wood_lid.png"
+}
+images {
+  image: "/main/assets/ui/dim.png"
+}
+images {
+  image: "/main/assets/ui/glow.png"
+}
+images {
+  image: "/main/assets/ui/header.png"
+}
+images {
+  image: "/main/assets/ui/ic_ad.png"
+}
+images {
+  image: "/main/assets/ui/ic_ammo.png"
+}
+images {
+  image: "/main/assets/ui/ic_arsenal.png"
+}
+images {
+  image: "/main/assets/ui/ic_battle.png"
+}
+images {
+  image: "/main/assets/ui/ic_blueprint.png"
+}
+images {
+  image: "/main/assets/ui/ic_check.png"
+}
+images {
+  image: "/main/assets/ui/ic_close.png"
+}
+images {
+  image: "/main/assets/ui/ic_coin.png"
+}
+images {
+  image: "/main/assets/ui/ic_damage.png"
+}
+images {
+  image: "/main/assets/ui/ic_flag.png"
+}
+images {
+  image: "/main/assets/ui/ic_gear.png"
+}
+images {
+  image: "/main/assets/ui/ic_globe.png"
+}
+images {
+  image: "/main/assets/ui/ic_hat.png"
+}
+images {
+  image: "/main/assets/ui/ic_heart.png"
+}
+images {
+  image: "/main/assets/ui/ic_home.png"
+}
+images {
+  image: "/main/assets/ui/ic_left.png"
+}
+images {
+  image: "/main/assets/ui/ic_level.png"
+}
+images {
+  image: "/main/assets/ui/ic_lock.png"
+}
+images {
+  image: "/main/assets/ui/ic_map.png"
+}
+images {
+  image: "/main/assets/ui/ic_minus.png"
+}
+images {
+  image: "/main/assets/ui/ic_music.png"
+}
+images {
+  image: "/main/assets/ui/ic_mute.png"
+}
+images {
+  image: "/main/assets/ui/ic_plus.png"
+}
+images {
+  image: "/main/assets/ui/ic_radius.png"
+}
+images {
+  image: "/main/assets/ui/ic_retry.png"
+}
+images {
+  image: "/main/assets/ui/ic_right.png"
+}
+images {
+  image: "/main/assets/ui/ic_skull.png"
+}
+images {
+  image: "/main/assets/ui/ic_sound.png"
+}
+images {
+  image: "/main/assets/ui/ic_squad.png"
+}
+images {
+  image: "/main/assets/ui/ic_star.png"
+}
+images {
+  image: "/main/assets/ui/ic_trophy.png"
+}
+images {
+  image: "/main/assets/ui/ic_up.png"
+}
+images {
+  image: "/main/assets/ui/ic_xp.png"
+}
+images {
+  image: "/main/assets/ui/knob.png"
+}
+images {
+  image: "/main/assets/ui/panel.png"
+}
+images {
+  image: "/main/assets/ui/panel_inset.png"
+}
+images {
+  image: "/main/assets/ui/pill.png"
+}
+images {
+  image: "/main/assets/ui/rank_1.png"
+}
+images {
+  image: "/main/assets/ui/rank_10.png"
+}
+images {
+  image: "/main/assets/ui/rank_2.png"
+}
+images {
+  image: "/main/assets/ui/rank_3.png"
+}
+images {
+  image: "/main/assets/ui/rank_4.png"
+}
+images {
+  image: "/main/assets/ui/rank_5.png"
+}
+images {
+  image: "/main/assets/ui/rank_6.png"
+}
+images {
+  image: "/main/assets/ui/rank_7.png"
+}
+images {
+  image: "/main/assets/ui/rank_8.png"
+}
+images {
+  image: "/main/assets/ui/rank_9.png"
+}
+images {
+  image: "/main/assets/ui/rays.png"
+}
+images {
+  image: "/main/assets/ui/round.png"
+}
+images {
+  image: "/main/assets/ui/round_gold.png"
+}
+images {
+  image: "/main/assets/ui/vignette.png"
+}
+images {
+  image: "/main/assets/ui/white.png"
+}
+margin: 2
+extrude_borders: 2

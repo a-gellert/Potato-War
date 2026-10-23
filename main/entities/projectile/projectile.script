@@ -9,11 +9,26 @@ local camera_controller = require("lua_modules.camera_controller")
 local game_state = require("lua_modules.game_state")
 local achievements = require("lua_modules.achievements")
 local i18n = require("lua_modules.i18n")
+local sound_manager = require("lua_modules.sound_manager")
+local progression = require("lua_modules.progression")
 
 go.property("vel_x", 0)
 go.property("vel_y", 0)
 go.property("weapon_type", hash("grenade"))
 go.property("owner_id", 0)
+go.property("target_id", 0)
+
+local FUSE_SOUND_EVERY = 0.55
+local BLINK_LAST = 1.2 -- fused bombs blink red in their last seconds
+
+local function find_potato(id)
+	for _, p in ipairs(game_state.potatoes) do
+		if p.id == id then
+			return p
+		end
+	end
+	return nil
+end
 
 function init(self)
 	local WEAPON_HASHES = {}
@@ -24,6 +39,18 @@ function init(self)
 	local w_id = WEAPON_HASHES[self.weapon_type] or "grenade"
 
 	self.weapon = weapons.get(w_id)
+
+	-- Weapon levels (progression): a per-shot view of the weapon with boosted damage and radius
+	self.owner = find_potato(self.owner_id)
+	local level = self.owner and progression.battle_weapon_level(w_id, self.owner.team, game_state.battle) or 1
+	if level > 1 then
+		local base = self.weapon
+		local bonus = progression.level_bonus(level)
+		self.weapon = setmetatable({
+			blast_radius = base.blast_radius * bonus.radius,
+			max_damage = math.floor(base.max_damage * bonus.damage + 0.5),
+		}, { __index = base })
+	end
 	self.pos = go.get_position()
 	self.origin_x = self.pos.x
 	self.origin_y = self.pos.y
@@ -31,49 +58,25 @@ function init(self)
 	self.fuse_timer = self.weapon.fuse_time
 	self.bounces = 0
 	self.is_active = true
+	self.age = 0
+	self.fuse_sound_timer = 0
+	self.rot_angle = math.atan2(self.vel.y, self.vel.x) - math.rad(self.weapon.art_angle or 0)
 
-	-- Hit-Stop and Bullet-Time state
-	self.hit_stop_done = false
-	self.hit_stop_pending = nil
-	self.pending_detonate = nil
-	self.bullet_time_eligible = false
-	self.potential_last_enemy = nil
-	self.bullet_time_active = false
-
-	-- Bullet Time eligibility check:
-	-- Identify whether enemy team has exactly 1 surviving potato and is across the map
-	local shooter_team = nil
-	for _, p in ipairs(game_state.potatoes) do
-		if p.id == self.owner_id then
-			shooter_team = p.team
-			break
-		end
-	end
-	if not shooter_team then
-		shooter_team = game_state.active_team
-	end
-
-	local living_enemies = {}
-	for _, p in ipairs(game_state.potatoes) do
-		if p.is_alive and p.team ~= shooter_team then
-			table.insert(living_enemies, p)
-		end
-	end
-
-	if #living_enemies == 1 then
-		local enemy = living_enemies[1]
-		local total_dx = math.abs(enemy.pos.x - self.origin_x)
-		if total_dx > 250 and (self.weapon.max_damage >= enemy.hp) then
-			self.bullet_time_eligible = true
-			self.potential_last_enemy = enemy
+	-- Homing missiles lock on the potato chosen by weapon_fire
+	if self.target_id ~= 0 then
+		for _, p in ipairs(game_state.potatoes) do
+			if p.id == self.target_id then
+				self.target = p
+				break
+			end
 		end
 	end
 
 	-- Set sprite according to weapon
 	sprite.play_flipbook("#sprite", hash(self.weapon.projectile_sprite))
 
-	-- Set scale (2x larger projectile with vivid visibility)
-	local s = (self.weapon.projectile_scale or 1.0) * 1.10
+	-- Set scale (0.55 = half of the previous 1.10)
+	local s = (self.weapon.projectile_scale or 1.0) * 0.55
 	go.set("#sprite", "scale", vmath.vector3(s, s, 1.0))
 
 	-- Set tint
@@ -82,19 +85,21 @@ function init(self)
 		go.set("#sprite", "tint", vmath.vector4(t[1], t[2], t[3], t[4]))
 	end
 
-	-- Projectile smoke & spark trail initialization (blazing fire + billowing smoke)
+	-- Projectile smoke & spark trail initialization (expanded and juicier)
 	self.trail_timer = 0
 	pcall(function()
-		go.set("#trail1", "tint", vmath.vector4(2.0, 1.8, 0.5, 0.95)) -- Glowing hot flame core
-		go.set("#trail2", "tint", vmath.vector4(2.0, 0.75, 0.15, 0.90)) -- Fiery orange jet
-		go.set("#trail3", "tint", vmath.vector4(1.4, 0.45, 0.15, 0.85)) -- Expanding fire-smoke puff
-		go.set("#trail4", "tint", vmath.vector4(0.40, 0.38, 0.36, 0.80)) -- Dense charcoal smoke
-		go.set("#trail5", "tint", vmath.vector4(0.55, 0.52, 0.50, 0.65)) -- Lingering contrail smoke
-		go.set("#trail1", "scale", vmath.vector3(1.2, 1.2, 1.0))
-		go.set("#trail2", "scale", vmath.vector3(1.5, 1.5, 1.0))
-		go.set("#trail3", "scale", vmath.vector3(1.8, 1.8, 1.0))
-		go.set("#trail4", "scale", vmath.vector3(2.2, 2.2, 1.0))
-		go.set("#trail5", "scale", vmath.vector3(2.6, 2.6, 1.0))
+		go.set("#trail1", "tint", vmath.vector4(1.0, 0.95, 0.7, 0.0))
+		go.set("#trail2", "tint", vmath.vector4(1.6, 0.95, 0.3, 0.0))
+		go.set("#trail3", "tint", vmath.vector4(0.9, 0.9, 0.9, 0.0))
+		go.set("#trail4", "tint", vmath.vector4(2.0, 0.6, 0.2, 0.0))
+		go.set("#trail5", "tint", vmath.vector4(2.0, 0.8, 0.25, 0.0))
+		go.set("#trail6", "tint", vmath.vector4(0.7, 0.7, 0.7, 0.0))
+		go.set("#trail1", "scale", vmath.vector3(1.0, 1.0, 1.0))
+		go.set("#trail2", "scale", vmath.vector3(0.8, 0.8, 1.0))
+		go.set("#trail3", "scale", vmath.vector3(1.2, 1.2, 1.0))
+		go.set("#trail4", "scale", vmath.vector3(0.9, 0.9, 1.0))
+		go.set("#trail5", "scale", vmath.vector3(0.9, 0.9, 1.0))
+		go.set("#trail6", "scale", vmath.vector3(1.4, 1.4, 1.0))
 	end)
 end
 
@@ -106,6 +111,15 @@ local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 
 		msg.post(p.url, "apply_damage", { damage = dmg })
 		msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
+
+		-- Credit the shooter for battle XP (hits on the own team do not count)
+		local owner = self.owner
+		if owner and owner.stats and owner.team ~= p.team then
+			owner.stats.damage = owner.stats.damage + dmg
+			if p.hp <= 0 then
+				owner.stats.kills = owner.stats.kills + 1
+			end
+		end
 		msg.post("/main#main", "potato_damaged", { x = p.pos.x, y = p.pos.y, damage = dmg, potato_id = p.id })
 
 		if self.weapon.status_effect and p.is_alive then
@@ -141,20 +155,13 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 	constants.log(">>> PROJECTILE DETONATING AT:", hit_x, hit_y, "weapon:", self.weapon.id, "direct_hit:", direct_hit_potato and direct_hit_potato.id)
 	self.is_active = false
 
-	if self.bullet_time_active then
-		msg.post("/main#main", "end_bullet_time")
-		self.bullet_time_active = false
-	end
-
-	local direct_impact_shake = direct_hit_potato and 14 or 0
-
 	if self.weapon.on_hit == "napalm" or self.weapon.on_hit == "pepper" then
 		local is_pepper = (self.weapon.on_hit == "pepper")
 		-- Initial explosion and crater
 		local crater_r = self.weapon.crater_radius or self.weapon.blast_radius
 		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = crater_r })
 		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = self.weapon.blast_radius })
-		camera_controller.shake(self.weapon.blast_radius * 0.25 + direct_impact_shake, direct_hit_potato and 0.40 or 0.2)
+		camera_controller.shake(self.weapon.blast_radius * 0.25, 0.2)
 		
 		-- Apply direct hit or blast damage
 		for _, p in ipairs(game_state.potatoes) do
@@ -189,7 +196,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		-- Jar cracks open: small crater, visual explosion, and release 3 beetles!
 		msg.post("/terrain#terrain", "carve_crater", { x = hit_x, y = hit_y, radius = 16 })
 		msg.post("/main#main", "spawn_explosion", { x = hit_x, y = hit_y, radius = 20 })
-		camera_controller.shake(5 + direct_impact_shake, direct_hit_potato and 0.35 or 0.2)
+		camera_controller.shake(5, 0.2)
 
 		-- Spawn 3 beetle minions scattering in arcs
 		msg.post("/main#main", "spawn_beetles", {
@@ -212,23 +219,27 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		msg.post("/main#main", "spawn_explosion", {
 			x = hit_x,
 			y = hit_y,
-			radius = self.weapon.blast_radius
+			radius = self.weapon.blast_radius,
+			sfx = self.weapon.explode_sfx
 		})
 
-		-- Screen shake proportional to weapon blast (boosted on forehead direct hits)
-		camera_controller.shake(self.weapon.blast_radius * 0.35 + direct_impact_shake, direct_hit_potato and 0.45 or 0.35)
+		-- Screen shake proportional to weapon blast
+		camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
 
 		-- Apply damage and impulse to all living potatoes
 		for _, p in ipairs(game_state.potatoes) do
 			if p.is_alive then
 				local dmg = 0
 				local max_dmg = self.weapon.max_damage
-				-- Tutorial fail-safe: enemy deals half damage to the player
-				if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
-					max_dmg = math.floor(max_dmg * 0.5)
-				end
+				-- Tutorial fail-safe: the player cannot hurt themselves on the training ground
+				local is_invulnerable = (game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE)
 
-				if direct_hit_potato and p.id == direct_hit_potato.id then
+				if is_invulnerable then
+					local hp_before = p.hp
+					physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
+					p.hp = hp_before
+					p.is_alive = true
+				elseif direct_hit_potato and p.id == direct_hit_potato.id then
 					dmg = max_dmg
 					p.hp = math.max(0, p.hp - dmg)
 					if p.hp <= 0 then p.is_alive = false end
@@ -244,136 +255,104 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		end
 	end
 
-	go.delete()
-end
-
-function final(self)
-	if self.bullet_time_active then
-		msg.post("/main#main", "end_bullet_time")
-		self.bullet_time_active = false
+	-- Cluster bombs scatter their bomblets
+	local cl = self.weapon.cluster
+	if cl then
+		msg.post("/main#main", "spawn_cluster", { x = hit_x, y = hit_y, count = cl.count, weapon_id = cl.weapon, owner_id = self.owner_id })
 	end
+
+	go.delete()
 end
 
 function update(self, dt)
 	if not self.is_active then
-		if self.hit_stop_pending and self.hit_stop_pending > 0 then
-			self.hit_stop_pending = self.hit_stop_pending - dt
-			if self.hit_stop_pending <= 0 then
-				self.hit_stop_pending = nil
-				local pdata = self.pending_detonate
-				self.pending_detonate = nil
-				detonate(self, pdata.hx, pdata.hy, pdata.potato)
-			end
-		end
 		return
 	end
 
-	-- Bullet Time: slow-mo when fatal cross-map shot approaches the last surviving enemy
-	if self.bullet_time_eligible and not self.bullet_time_active and self.potential_last_enemy and self.potential_last_enemy.is_alive then
-		local dx = self.potential_last_enemy.pos.x - self.pos.x
-		local dy = self.potential_last_enemy.pos.y - self.pos.y
-		local dist = math.sqrt(dx * dx + dy * dy)
-		local dist_from_origin = math.abs(self.pos.x - self.origin_x)
-		if dist_from_origin > 120 and dist < 160 then
-			local dot = self.vel.x * dx + self.vel.y * dy
-			if dot > 0 then
-				self.bullet_time_active = true
-				msg.post("/main#main", "start_bullet_time", {
-					duration = 2.0,
-					scale = 0.22,
-					zoom = 1.68,
-					focus_x = (self.pos.x + self.potential_last_enemy.pos.x) * 0.5,
-					focus_y = (self.pos.y + self.potential_last_enemy.pos.y) * 0.5
-				})
-				msg.post("/gui_hud#gui", "show_achievement_toast", {
-					icon = "🎬",
-					title = i18n.t("combat_fatal_strike"),
-					points = 0
-				})
-			end
+	-- Lit fuse: hissing and a red blink before the blast
+	if self.weapon.fuse_fx then
+		self.fuse_sound_timer = self.fuse_sound_timer - dt
+		if self.fuse_sound_timer <= 0 then
+			self.fuse_sound_timer = FUSE_SOUND_EVERY
+			sound_manager.play("fuse", { vary = 0.1 })
 		end
 	end
+	if (self.weapon.bounciness or 0) > 0.1 and self.fuse_timer < BLINK_LAST then
+		local on = math.floor(self.fuse_timer * 10) % 2 == 0
+		go.set("#sprite", "tint", on and vmath.vector4(1, 0.45, 0.45, 1) or vmath.vector4(1, 1, 1, 1))
+	end
 
-	local time_scale = game_state.time_scale or 1.0
-	local sim_dt = dt * time_scale
-
-	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, sim_dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
+	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
 
 	-- Update camera tracking to follow this projectile
 	camera_controller.follow(self.pos.x, self.pos.y)
 
+	if status == "bounce" then
+		sound_manager.play("bounce", { vary = 0.15 })
+	end
+
 	if status == "explode" then
-		if hit_potato and not self.hit_stop_done then
-			self.hit_stop_done = true
-			self.is_active = false
-			self.pos.x = hx
-			self.pos.y = hy
-			go.set_position(self.pos)
-
-			msg.post("/main#main", "hit_stop", { duration = 0.05 })
-			if hit_potato.url then
-				msg.post(hit_potato.url, "hit_stop_shock")
-			end
-
-			self.hit_stop_pending = 0.05
-			self.pending_detonate = { hx = hx, hy = hy, potato = hit_potato }
-			return
-		else
-			detonate(self, hx, hy, hit_potato)
-		end
+		detonate(self, hx, hy, hit_potato)
 	elseif status == "water" then
-		if self.bullet_time_active then
-			msg.post("/main#main", "end_bullet_time")
-			self.bullet_time_active = false
-		end
 		self.is_active = false
+		sound_manager.play((game_state.current_biome == "volcano") and "sizzle" or "splash", { vary = 0.1 })
 		camera_controller.shake(6, 0.25)
 		msg.post("/main#main", "spawn_explosion", {
 			x = self.pos.x,
 			y = constants.WATER_LEVEL + 4,
-			radius = 18
+			radius = 18,
+			silent = true
 		})
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = self.pos.x,
 			y = constants.WATER_LEVEL + 16,
 			amount = 0,
-			label = "💦 БУЛЬК!"
+			label = i18n.pick({ ru = "💦 БУЛЬК!", en = "💦 BLOOP!", pt = "💦 PLOFT!", fr = "💦 BLOUP !", es = "💦 ¡PLOF!", tr = "💦 BLUP!" })
 		})
 		go.delete()
 	else
 		-- Update game object transform
 		go.set_position(self.pos)
 		local speed = math.sqrt(self.vel.x * self.vel.x + self.vel.y * self.vel.y)
-		if speed > 10.0 then
-			self.rot_angle = math.atan2(self.vel.y, self.vel.x)
+		if self.weapon.spin then
+			if not self.is_resting then
+				self.rot_angle = (self.rot_angle or 0) - self.vel.x * dt * 0.05
+			end
+		elseif speed > 10.0 then
+			self.rot_angle = math.atan2(self.vel.y, self.vel.x) - math.rad(self.weapon.art_angle or 0)
 		end
 		go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
 
-		-- Animate vivid blazing flame and smoke plume trail behind projectile
-		self.trail_timer = (self.trail_timer or 0) + sim_dt * 16.0
+		-- Animate juicy trailing smoke/spark particles behind projectile (enhanced effects)
+		self.trail_timer = (self.trail_timer or 0) + dt * 16.0
 		pcall(function()
-			local t1_a = math.min(1.0, 0.4 + (speed / 100.0) * 0.6) * (0.8 + 0.2 * math.sin(self.trail_timer))
-			local t2_a = math.min(0.95, 0.35 + (speed / 110.0) * 0.65) * (0.8 + 0.2 * math.sin(self.trail_timer + 1.8))
-			local t3_a = math.min(0.90, 0.30 + (speed / 130.0) * 0.60) * (0.75 + 0.25 * math.sin(self.trail_timer + 3.2))
-			local t4_a = math.min(0.80, 0.25 + (speed / 150.0) * 0.55) * (0.7 + 0.3 * math.sin(self.trail_timer + 4.5))
-			local t5_a = math.min(0.65, 0.20 + (speed / 160.0) * 0.45) * (0.65 + 0.35 * math.sin(self.trail_timer + 5.8))
+			local t1_a = math.min(0.90, (speed / 100.0)) * (0.7 + 0.3 * math.sin(self.trail_timer))
+			local t2_a = math.min(1.0, (speed / 80.0)) * (0.7 + 0.3 * math.sin(self.trail_timer + 2.0))
+			local t3_a = math.min(0.85, (speed / 120.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 4.0))
+			local t4_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.cos(self.trail_timer * 1.3))
+			local t5_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.sin(self.trail_timer * 1.3))
+			local t6_a = math.min(0.75, (speed / 140.0)) * (0.5 + 0.5 * math.sin(self.trail_timer + 1.5))
 
 			go.set("#trail1", "tint.w", t1_a)
 			go.set("#trail2", "tint.w", t2_a)
 			go.set("#trail3", "tint.w", t3_a)
 			go.set("#trail4", "tint.w", t4_a)
 			go.set("#trail5", "tint.w", t5_a)
+			go.set("#trail6", "tint.w", t6_a)
 
-			local s1 = 1.20 + 0.35 * math.sin(self.trail_timer)
-			local s2 = 1.50 + 0.40 * math.cos(self.trail_timer * 1.4)
-			local s3 = 1.90 + 0.50 * math.sin(self.trail_timer * 1.1)
-			local s4 = 2.30 + 0.60 * math.cos(self.trail_timer * 0.9)
-			local s5 = 2.80 + 0.70 * math.sin(self.trail_timer * 0.7)
+			local s1 = 0.9 + 0.4 * math.sin(self.trail_timer)
+			local s2 = 0.7 + 0.35 * math.cos(self.trail_timer * 1.5)
+			local s3 = 1.2 + 0.5 * math.sin(self.trail_timer * 0.8)
+			local s4 = 0.8 + 0.3 * math.sin(self.trail_timer * 1.4)
+			local s5 = 0.8 + 0.3 * math.cos(self.trail_timer * 1.4)
+			local s6 = 1.4 + 0.6 * math.sin(self.trail_timer * 0.6)
+
 			go.set("#trail1", "scale", vmath.vector3(s1, s1, 1.0))
 			go.set("#trail2", "scale", vmath.vector3(s2, s2, 1.0))
 			go.set("#trail3", "scale", vmath.vector3(s3, s3, 1.0))
 			go.set("#trail4", "scale", vmath.vector3(s4, s4, 1.0))
 			go.set("#trail5", "scale", vmath.vector3(s5, s5, 1.0))
+			go.set("#trail6", "scale", vmath.vector3(s6, s6, 1.0))
 		end)
 	end
 end

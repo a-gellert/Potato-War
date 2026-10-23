@@ -2,6 +2,10 @@ components {
   id: "potato"
   component: "/main/entities/potato/potato.script"
 }
+components {
+  id: "rig_factory"
+  component: "/main/entities/weapon_rig/weapon_rig.factory"
+}
 embedded_components {
   id: "sprite"
   type: "sprite"
@@ -37,26 +41,6 @@ embedded_components {
   }
 }
 embedded_components {
-  id: "weapon_sprite"
-  type: "sprite"
-  data: "default_animation: \"grenade\"\n"
-  "material: \"/builtins/materials/sprite.material\"\n"
-  "textures {\n"
-  "  sampler: \"texture_sampler\"\n"
-  "  texture: \"/main/assets/game.atlas\"\n"
-  "}\n"
-  ""
-  position {
-    x: 5.0
-    y: -3.75
-    z: 0.05
-  }
-  scale {
-    x: 0.69
-    y: 0.69
-  }
-}
-embedded_components {
   id: "hat_sprite"
   type: "sprite"
   data: "default_animation: \"hat_beret\"\n"
@@ -67,12 +51,12 @@ embedded_components {
   "}\n"
   ""
   position {
-    y: 22.5
+    y: 20.5
     z: 0.06
   }
   scale {
-    x: 0.875
-    y: 0.875
+    x: 0.29
+    y: 0.29
   }
 }
 embedded_components {
@@ -90,8 +74,8 @@ embedded_components {
     z: 0.08
   }
   scale {
-    x: 0.925
-    y: 0.875
+    x: 0.74
+    y: 0.70
   }
 }
 embedded_components {
@@ -109,8 +93,8 @@ embedded_components {
     z: 0.09
   }
   scale {
-    x: 2.56
-    y: 0.475
+    x: 2.05
+    y: 0.38
   }
 }
 embedded_components {
@@ -133,8 +117,8 @@ embedded_components {
     z: 0.10
   }
   scale {
-    x: 0.275
-    y: 0.275
+    x: 0.22
+    y: 0.22
   }
 }
 embedded_components {

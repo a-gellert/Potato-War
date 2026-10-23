@@ -1,0 +1,55 @@
+-- main/entities/plane/plane.script
+-- Airstrike plane: flies across the map and drops a row of bombs centred on target_x.
+-- Bombs are spawned by main.script ("airstrike_drop") so they are tracked like any projectile.
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+local sound_manager = require("lua_modules.sound_manager")
+
+go.property("target_x", 960)
+go.property("dir", 1)
+go.property("owner_id", 0)
+go.property("bombs", 5)
+go.property("spacing", 34)
+
+local SPEED = 430
+local BOMB_VX = 40
+
+function init(self)
+	local pos = go.get_position()
+	-- Release each bomb early enough that its forward drift carries it onto its mark
+	local ground = math.max(constants.WATER_LEVEL, terrain_grid.get_smooth_ground_y(self.target_x, 4.0))
+	local fall_time = math.sqrt(2 * math.max(40, pos.y - ground) / constants.GRAVITY)
+	self.drops = {}
+	for i = 1, self.bombs do
+		local x = self.target_x + (i - (self.bombs + 1) / 2) * self.spacing
+		table.insert(self.drops, x - self.dir * BOMB_VX * fall_time)
+	end
+	if self.dir < 0 then
+		table.sort(self.drops, function(a, b) return a > b end)
+	else
+		table.sort(self.drops)
+	end
+	sprite.set_hflip("#sprite", self.dir < 0)
+	self.time = 0
+	self.base_y = pos.y
+	sound_manager.play("plane")
+end
+
+function update(self, dt)
+	self.time = self.time + dt
+	local p = go.get_position()
+	p.x = p.x + SPEED * self.dir * dt
+	p.y = self.base_y + math.sin(self.time * 2.4) * 4
+	go.set_position(p)
+
+	local next_drop = self.drops[1]
+	if next_drop and ((self.dir > 0 and p.x >= next_drop) or (self.dir < 0 and p.x <= next_drop)) then
+		table.remove(self.drops, 1)
+		msg.post("/main#main", "airstrike_drop", { x = p.x, y = p.y - 14, vx = BOMB_VX * self.dir, owner_id = self.owner_id })
+	end
+
+	if p.x < -260 or p.x > constants.WORLD_WIDTH + 260 then
+		go.delete()
+	end
+end

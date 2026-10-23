@@ -46,6 +46,14 @@ M.TEAM_NAMES = {
 	[M.TEAM_RED] = "Картошка (Красные)",
 }
 
+-- Localized team name (TEAM_NAMES above holds the Russian defaults)
+function M.get_team_name(team)
+	local blue = team == M.TEAM_BLUE
+	return require("lua_modules.i18n").pick(blue
+		and { ru = "Картошка (Синие)", en = "Potato (Blue)", pt = "Batata (Azuis)", fr = "Patate (Bleus)", es = "Patata (Azules)", tr = "Patates (Mavi)" }
+		or { ru = "Картошка (Красные)", en = "Potato (Red)", pt = "Batata (Vermelhos)", fr = "Patate (Rouges)", es = "Patata (Rojos)", tr = "Patates (Kırmızı)" })
+end
+
 M.TEAM_COLORS = {
 	[M.TEAM_BLUE] = vmath.vector4(0.18, 0.55, 0.90, 1.0),
 	[M.TEAM_RED] = vmath.vector4(0.95, 0.25, 0.20, 1.0),

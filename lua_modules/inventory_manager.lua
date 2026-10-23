@@ -4,6 +4,7 @@
 
 local classes = require("lua_modules.classes")
 local weapons = require("lua_modules.weapons")
+local i18n = require("lua_modules.i18n")
 
 local M = {}
 
@@ -22,7 +23,7 @@ function M.create_inventory(class_id, initial_ammo_overrides)
 		active_weapon_id = "grenade",
 		skill = {
 			id = c.active_skill and c.active_skill.id or "sprint",
-			name = c.active_skill and c.active_skill.name or "Навык",
+			name = c.active_skill and i18n.field(c.active_skill, "name") or i18n.pick({ ru = "Навык", en = "Skill", pt = "Habilidade", fr = "Compétence", es = "Habilidad", tr = "Yetenek" }),
 			cooldown = 0,
 			max_cooldown = c.active_skill and c.active_skill.cooldown_turns or 2,
 			ready = true,

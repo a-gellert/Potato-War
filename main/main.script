@@ -1,219 +1,114 @@
 -- main/main.script
--- Central game orchestrator, factory spawner, physics loop, and AI driver for Potato War
+-- Central game orchestrator for Potato War: match lifecycle, message routing and the per-frame loop.
+-- Gameplay pieces live in lua_modules: match_spawner, player_control, potato_updater,
+-- weapon_fire, bot_turn, battle_camera, world_events, match_results, tutorial.
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local terrain_grid = require("lua_modules.terrain_grid")
-local physics_sim = require("lua_modules.physics_sim")
-local bot_ai = require("lua_modules.bot_ai")
 local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
 local achievements = require("lua_modules.achievements")
 local level_config = require("lua_modules.level_config")
-local i18n = require("lua_modules.i18n")
-local classes = require("lua_modules.classes")
-local inventory_manager = require("lua_modules.inventory_manager")
 local strategic_campaign = require("lua_modules.strategic_campaign")
-local sdk = require("main.sdk")
+local tutorial = require("lua_modules.tutorial")
+local match_spawner = require("lua_modules.match_spawner")
+local player_control = require("lua_modules.player_control")
+local potato_updater = require("lua_modules.potato_updater")
+local weapon_fire = require("lua_modules.weapon_fire")
+local bot_turn = require("lua_modules.bot_turn")
+local battle_camera = require("lua_modules.battle_camera")
+local world_events = require("lua_modules.world_events")
+local match_results = require("lua_modules.match_results")
+local progression = require("lua_modules.progression")
 
 -- Control Mode Flag: "auto" (Mobile=slingshot, PC=direct), "direct", or "slingshot"
 go.property("aim_control_mode", hash("auto")) -- options: hash("auto"), hash("direct"), or hash("slingshot")
-local AIM_CONTROL_MODE = "auto" -- "auto", "direct", or "slingshot"
 
-local function is_mobile_platform()
-	local s_info = sys.get_sys_info()
-	local name = s_info.system_name or ""
-	if name == "Android" or name == "iPhone OS" then
-		return true
+local SEAMLESS_BATTLE_2 = {
+	opponent_type = "bot",
+	potato_count = 2,
+	blue_count = 2,
+	red_count = 2,
+	terrain_type = "floating_islands",
+	terrain_preset = "floating_islands",
+	biome = "desert",
+	is_seamless_battle = true,
+	seamless_stage = 2,
+	hat_blue = "hat_cap",
+	blue_classes = { "assault", "sniper" },
+	red_hats = { "hat_viking", "hat_beret" },
+	red_classes = { "medic", "tank" },
+	enemy_skill = "normal",
+	bot_difficulty = "normal",
+}
+
+local function resolve_aim_control_mode(self)
+	local cfg_mode = "auto"
+	if self.aim_control_mode == hash("slingshot") then
+		cfg_mode = "slingshot"
+	elseif self.aim_control_mode == hash("direct") then
+		cfg_mode = "direct"
 	end
-	-- Check for HTML5 touch device detection (Mobile Web)
-	if html5 and html5.run then
-		local has_touch = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'")
-		if has_touch == "1" then
-			return true
-		end
+	local is_mobile = match_spawner.is_mobile_platform()
+	local effective_mode = cfg_mode
+	if effective_mode == "auto" then
+		effective_mode = is_mobile and "slingshot" or "direct"
 	end
-	return false
+	constants.log(">>> AIM CONTROL MODE:", effective_mode, "(configured:", cfg_mode, "mobile:", is_mobile, ")")
+	return effective_mode
 end
 
-local function check_match_interstitial(self, callback)
-	if (self.matches_completed or 0) >= 2 then
-		self.matches_completed = 0
-		constants.log(">>> EVERY 2 MATCHES: Triggering interstitial ad")
-		sdk.commercial_break(callback, "every_2_matches")
+local function show_screen(gui_name)
+	for _, name in ipairs({ "/gui_menu", "/gui_campaign_map", "/gui_game_over", "/gui_hud", "/gui_arsenal", "/gui_squad" }) do
+		msg.post(name, (name == gui_name) and "enable" or "disable")
+	end
+	if gui_name == "/gui_menu" then
+		msg.post("/gui_menu#gui", "show")
+	end
+	if gui_name ~= "/gui_hud" then
+		sound_manager.music("music_menu")
+	end
+end
+
+-- Final region of the island and enemy counter-attacks get the boss theme
+local function battle_music(config, is_defense)
+	local sector = strategic_campaign.active_battle_sector_id
+	local s = sector and require("lua_modules.territory_map").get_sector(sector)
+	if is_defense or (s and s.region == 4) or (config and config.is_boss) then
+		return "music_boss"
+	end
+	return "music_battle"
+end
+
+-- What progression needs to know about the match (see progression.battle_weapon_level / finish_battle)
+local function describe_battle(lobby_config, is_tutorial)
+	local pvp = (game_state.mode == constants.MODE_QUICK_PVP)
+	local sector_level = lobby_config and lobby_config.sector_id
+	local enemy_level
+	if sector_level then
+		enemy_level = 1 + math.floor((sector_level - 1) / 6)
 	else
-		if callback then callback() end
+		local commander = progression.commander_level()
+		enemy_level = math.min(progression.MAX_WEAPON_LEVEL, 1 + math.floor((commander - 1) / 4))
 	end
-end
-
-local function clear_match_entities(self)
-	for _, p in ipairs(self.spawned_potatoes) do
-		pcall(function()
-			go.delete(p.url)
-		end)
-	end
-	self.spawned_potatoes = {}
-	game_state.potatoes = {}
-	self.active_projectiles = {}
-
-	for _, b in ipairs(self.spawned_barrels or {}) do
-		pcall(function()
-			go.delete(b.url)
-		end)
-	end
-	self.spawned_barrels = {}
-
-	if self.airship_url then
-		pcall(function()
-			go.delete(self.airship_url)
-		end)
-		self.airship_url = nil
-	end
-	self.airship_timer = 55.0
-
-	for _, c in ipairs(self.spawned_crates or {}) do
-		pcall(function()
-			go.delete(c.url)
-		end)
-	end
-	self.spawned_crates = {}
-	self.crate_timer = 60.0
-	self.hit_stop_timer = 0
-	self.bullet_time_timer = 0
-	self.bullet_time_scale = 1.0
-	game_state.time_scale = 1.0
-	camera_controller.set_zoom(1.0)
-end
-
-local function spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy, class_id, unit_level)
-	local gy = terrain_grid.get_smooth_ground_y(x, 6.0, from_wy)
-	-- If initial x falls into water gap/chasm, find nearest solid ground
-	if gy < constants.WATER_LEVEL + 20 then
-		for offset = 15, 220, 15 do
-			local test_l = math.max(constants.POTATO_RADIUS + 20, x - offset)
-			local test_r = math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20, x + offset)
-			local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0, from_wy)
-			local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0, from_wy)
-			if gy_l > constants.WATER_LEVEL + 20 then
-				x = test_l
-				gy = gy_l
-				break
-			elseif gy_r > constants.WATER_LEVEL + 20 then
-				x = test_r
-				gy = gy_r
-				break
-			end
-		end
-	end
-
-	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
-	constants.log(">>> SPAWNING POTATO:", potato_id, "team:", team, "x:", x, "y:", spawn_y, "hp:", initial_hp, "class:", class_id, "lvl:", unit_level)
-
-	-- Resolve class archetype and initialize its inventory
-	class_id = class_id or "recruit"
-	local c_def = classes.get(class_id)
-	inventory_manager.register_potato(potato_id, c_def.id)
-
-	local initial_facing = (team == constants.TEAM_BLUE) and 1 or -1
-	local potato_hp = initial_hp or c_def.stats.base_hp or 100
-	local potato_max_hp = max_hp or c_def.stats.max_hp or potato_hp
-	local pos = vmath.vector3(x, spawn_y, 0.1)
-
-	local url = factory.create("#potato_factory", pos, nil, {
-		team = team,
-		potato_id = potato_id,
-		hp = potato_hp,
-		max_hp = potato_max_hp,
-		facing = initial_facing
-	})
-
-	local c_name = classes.get_class_name(c_def.id, i18n.current_lang)
-
-	local record = {
-		id = potato_id,
-		team = team,
-		class_id = c_def.id,
-		class_name = c_name,
-		unit_level = unit_level or 1,
-		mass = c_def.stats.mass or 1.0,
-		walk_speed_mult = c_def.stats.walk_speed_mult or 1.0,
-		jump_mult = c_def.stats.jump_mult or 1.0,
-		statuses = {},
-		pos = vmath.vector3(x, spawn_y, 0.1),
-		vel = vmath.vector3(0, 0, 0),
-		hp = potato_hp,
-		max_hp = potato_max_hp,
-		radius = constants.POTATO_RADIUS,
-		facing = initial_facing,
-		is_alive = true,
-		is_grounded = false,
-		url = url
+	return {
+		player_team = constants.TEAM_BLUE,
+		pvp = pvp,
+		is_tutorial = is_tutorial,
+		uses_squad = (lobby_config and lobby_config.use_squad) or false,
+		sector_level = sector_level,
+		enemy_weapon_level = enemy_level,
 	}
-
-	msg.post(url, "set_facing", { facing = initial_facing })
-	msg.post(url, "set_class", { class_id = c_def.id })
-	msg.post(url, "set_weapon", { weapon_id = "grenade" })
-
-	-- Apply skin & hat from lobby match configuration or player profile
-	local match_cfg = game_state.match_config
-	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
-	if team == constants.TEAM_BLUE then
-		local hat_to_wear = (match_cfg and match_cfg.hat_blue)
-		if not hat_to_wear then
-			local s_id = match_cfg and match_cfg.skin_blue
-			if s_id and player_profile.SKINS_BY_ID[s_id] then
-				hat_to_wear = player_profile.SKINS_BY_ID[s_id].hat
-			end
-		end
-		if not hat_to_wear or hat_to_wear == "" or hat_to_wear == "none" then
-			if not is_tutorial then
-				local skin = player_profile.get_equipped_skin()
-				hat_to_wear = skin and skin.hat or "hat_cap"
-			else
-				hat_to_wear = "none"
-			end
-		end
-		msg.post(url, "set_hat", { hat = hat_to_wear })
-	else
-		-- Red enemy team: wear distinct other hats
-		local red_idx = potato_id - (match_cfg and (match_cfg.blue_count or match_cfg.player_count) or 2)
-		red_idx = math.max(1, red_idx)
-		local enemy_hat = (match_cfg and match_cfg.red_hats and match_cfg.red_hats[red_idx])
-		if not enemy_hat then
-			local s_id = match_cfg and match_cfg.skin_red
-			if s_id and player_profile.SKINS_BY_ID[s_id] and player_profile.SKINS_BY_ID[s_id].hat ~= "none" then
-				enemy_hat = player_profile.SKINS_BY_ID[s_id].hat
-			end
-		end
-		if not enemy_hat or enemy_hat == "none" then
-			if not is_tutorial then
-				local pool = { "hat_viking", "hat_beret", "hat_bandana", "hat_tophat", "hat_crown" }
-				local my_hat = (match_cfg and match_cfg.hat_blue) or (player_profile.get_equipped_skin() and player_profile.get_equipped_skin().hat)
-				local filtered = {}
-				for _, h in ipairs(pool) do
-					if h ~= my_hat then table.insert(filtered, h) end
-				end
-				enemy_hat = (#filtered > 0) and filtered[((red_idx - 1) % #filtered) + 1] or "hat_viking"
-			else
-				enemy_hat = "none"
-			end
-		end
-		msg.post(url, "set_hat", { hat = enemy_hat })
-	end
-
-	table.insert(self.spawned_potatoes, record)
-	table.insert(game_state.potatoes, record)
-	return record
 end
 
 local function start_game_match(self, mode, level, lobby_config)
-	sdk.in_game_loading_started()
-	clear_match_entities(self)
-	self.victory_celebration = false
-	self.pending_game_over_data = nil
+	match_spawner.clear(self)
+	battle_camera.cancel_victory(self)
 	achievements.reset_match()
+	tutorial.reset()
 
 	if lobby_config then
 		game_state.start_battle(lobby_config)
@@ -221,9 +116,10 @@ local function start_game_match(self, mode, level, lobby_config)
 		game_state.start_match(mode, level)
 	end
 
-	local is_tutorial = (mode == constants.MODE_TUTORIAL) or (game_state.mode == constants.MODE_TUTORIAL)
-
+	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
+	local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN)
 	local config = game_state.get_current_config()
+	game_state.battle = describe_battle(lobby_config, is_tutorial)
 	local terrain_preset = config.terrain_type or config.terrain_preset or "hills"
 	local biome = config.biome or level_config.deduce_biome(terrain_preset)
 	if is_tutorial then
@@ -232,13 +128,12 @@ local function start_game_match(self, mode, level, lobby_config)
 	end
 	self.current_terrain_preset = terrain_preset
 
-	local is_campaign = (mode == constants.MODE_CAMPAIGN) or (game_state.mode == constants.MODE_CAMPAIGN)
-	local world_w = is_campaign and constants.WORLD_WIDTH or constants.PVP_WORLD_WIDTH
-	local grid_w = is_campaign and constants.TERRAIN_WIDTH or constants.PVP_TERRAIN_WIDTH
-
-	local is_defense = (config and config.battle_type == "defense")
+	-- The campaign battle type only applies to an active sector battle: resolve_battle clears the
+	-- sector id but keeps the type, so a stale "defense" would add fortifications to other matches
+	local in_sector_battle = strategic_campaign and strategic_campaign.active_battle_sector_id ~= nil
+	local is_defense = not is_tutorial and ((config and config.battle_type == "defense")
 		or (lobby_config and lobby_config.battle_type == "defense")
-		or (strategic_campaign and strategic_campaign.active_battle_type == "defense")
+		or (in_sector_battle and strategic_campaign.active_battle_type == "defense"))
 
 	local active_level = (lobby_config and (lobby_config.sector_id or lobby_config.level))
 		or (config and (config.sector_id or config.level))
@@ -246,7 +141,8 @@ local function start_game_match(self, mode, level, lobby_config)
 		or game_state.campaign_level
 		or 1
 
-	-- Generate terrain grid synchronously first so spawn_potato uses the new level's terrain
+	-- Generate terrain grid synchronously first so spawning uses the new level's terrain
+	local grid_w = is_campaign and constants.TERRAIN_WIDTH or constants.PVP_TERRAIN_WIDTH
 	terrain_grid.init(grid_w, constants.TERRAIN_HEIGHT, constants.TERRAIN_SCALE)
 	terrain_grid.generate(terrain_preset, active_level, is_defense)
 	msg.post("/terrain#terrain", "generate_terrain", {
@@ -257,177 +153,121 @@ local function start_game_match(self, mode, level, lobby_config)
 	})
 
 	if is_tutorial then
-		-- TUTORIAL 30-SECOND TRAINING SANDBOX:
-		-- Step 1 (Movement & Jump): Player starts on flat surface at x: 260
-		local p1 = spawn_potato(self, 260, constants.TEAM_BLUE, 1, 100, 100, nil, "recruit", 1)
-
-		-- Step 3 (Weapon Crate): Bazooka weapon crate sitting on the plateau at x: 590
-		local crate_gy = terrain_grid.get_smooth_ground_y(590, 4.0)
-		local c_pos = vmath.vector3(590, crate_gy + 14, 0.15)
-		local crate_url = factory.create("#crate_factory", c_pos, nil, {
-			crate_type = hash("weapon"),
-			amount = 99,
-			weapon_id = hash("bazooka")
-		})
-		table.insert(self.spawned_crates, { id = crate_url, url = crate_url, x = 590, y = c_pos.y })
-
-		-- Step 4 (Target Enemy): Immobile target potato across the pit at x: 760
-		local target_p = spawn_potato(self, 760, constants.TEAM_RED, 2, 50, 50, nil, "recruit", 1)
-		target_p.is_target = true
+		match_spawner.spawn_tutorial(self)
 	else
-		-- Determine squad counts for both teams
-		local player_squad = is_campaign and player_profile.get_squad() or nil
-		local blue_count = (lobby_config and (lobby_config.blue_count or lobby_config.potato_count))
-			or (config and (config.player_count or config.blue_count))
-			or (player_squad and #player_squad) or 1
-		local red_count = (lobby_config and (lobby_config.red_count or lobby_config.potato_count))
-			or (config and (config.enemy_count or config.red_count))
-			or level_config.get_enemy_count(active_level) or 1
-		local total_potatoes = blue_count + red_count
+		match_spawner.spawn_battle(self, {
+			config = config,
+			lobby_config = lobby_config,
+			is_campaign = is_campaign,
+			is_defense = is_defense,
+			active_level = active_level,
+			terrain_preset = terrain_preset,
+		})
+	end
 
-		local player_max_hp = constants.PLAYER_HP
-		local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
-		local from_wy = (terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55)
-			or ((terrain_preset == "floating_islands") and (constants.WORLD_HEIGHT * 0.85))
-			or nil
+	-- Point active_potato to first blue potato so weapon selection equips the new instance
+	game_state.active_potato = game_state.potatoes[1]
+	if is_tutorial then
+		game_state.select_weapon("bazooka")
+	end
 
-		-- Generate random, well-separated spawn positions scattered across the map
-		local spawn_slots = {}
-		local slot_w = (1720 - 200) / math.max(1, total_potatoes)
-		local slot_order = {}
-		for i = 1, total_potatoes do
-			table.insert(slot_order, i)
-		end
-		for i = #slot_order, 2, -1 do
-			local j = math.random(1, i)
-			slot_order[i], slot_order[j] = slot_order[j], slot_order[i]
-		end
+	battle_camera.start_flyover(self)
 
-		for i = 1, total_potatoes do
-			local s_idx = slot_order[i]
-			local x_cand = 200 + (s_idx - 0.5) * slot_w + (math.random() - 0.5) * (slot_w * 0.55)
-			x_cand = math.max(160, math.min(1760, x_cand))
-			local gy = terrain_grid.get_smooth_ground_y(x_cand, 6.0, from_wy)
-			if gy < constants.WATER_LEVEL + 25 then
-				for offset = 20, 180, 20 do
-					local left_test = math.max(160, x_cand - offset)
-					local right_test = math.min(1760, x_cand + offset)
-					if terrain_grid.get_smooth_ground_y(left_test, 6.0, from_wy) > constants.WATER_LEVEL + 25 then
-						x_cand = left_test
-						break
-					elseif terrain_grid.get_smooth_ground_y(right_test, 6.0, from_wy) > constants.WATER_LEVEL + 25 then
-						x_cand = right_test
-						break
-					end
-				end
-			end
-			table.insert(spawn_slots, x_cand)
-		end
+	show_screen("/gui_hud")
+	msg.post("/gui_hud#gui", "match_started")
+	sound_manager.music(is_tutorial and "music_menu" or battle_music(config, is_defense))
+end
 
-		-- Spawn Blue Potatoes at random positions across the map
-		for i = 1, blue_count do
-			local x = spawn_slots[i] or (220 + i * 160)
-			local c_id = (lobby_config and lobby_config.blue_classes and lobby_config.blue_classes[i])
-				or (config and config.blue_classes and config.blue_classes[i])
-				or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
-				or classes.get_random_specialized_class()
-			local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
-			local cur_hp = is_campaign and player_hp or nil
-			local cur_max = is_campaign and player_max_hp or nil
-			spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
-		end
+local function leave_match(self)
+	game_state.poki_gameplay_stop()
+	battle_camera.cancel_victory(self)
+	match_spawner.clear(self)
+	player_control.reset(self)
+	tutorial.reset()
+	camera_controller.reset(480, 270)
+	msg.post("/aim_guide#aim_guide", "hide_aim")
+	msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+	game_state.set_state(constants.STATE_MENU)
+end
 
-		-- Spawn Red Potatoes at random positions across the map
-		for i = 1, red_count do
-			local x = spawn_slots[blue_count + i] or (1600 - i * 160)
-			local enemy_class = (lobby_config and lobby_config.red_classes and lobby_config.red_classes[i])
-				or (config and config.red_classes and config.red_classes[i])
-				or (is_campaign and ((config.enemy_classes and config.enemy_classes[i]) or level_config.get_enemy_class(active_level, i)))
-				or classes.get_random_specialized_class()
-			local enemy_lvl = is_campaign and ((config.enemy_levels and config.enemy_levels[i]) or level_config.get_enemy_level(active_level, i)) or math.random(1, 2)
-			local enemy_hp = is_campaign and level_config.get_enemy_hp(active_level, i) or nil
-			spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl)
-		end
-
-		-- Defensive Fortifications: Sandbag & Crate Barricades on the defensive rampart
-		if is_defense then
-			local parapet_x = 350
-			local p_gy = terrain_grid.get_smooth_ground_y(parapet_x, 4.0, from_wy)
-			if p_gy > constants.WATER_LEVEL + 20 then
-				local crate_pos = vmath.vector3(parapet_x, p_gy + 16, 0.15)
-				local c_url = factory.create("#crate_factory", crate_pos, nil, { weapon_id = hash("grenade"), ammo_count = 2 })
-				table.insert(self.spawned_crates, { id = c_url, url = c_url, x = parapet_x, y = crate_pos.y })
-			end
-		end
-
-		-- Spawn TNT Barrels on the battlefield (1-2 barrels in neutral center)
-		local barrel_count = (math.random() < 0.75) and 2 or 1
-		for b = 1, barrel_count do
-			local bx = 960 + (b - 1.5) * 140 + math.random(-40, 40)
-			local bgy = terrain_grid.get_smooth_ground_y(bx, 4.0, from_wy)
-			if bgy > constants.WATER_LEVEL + 25 then
-				local bpos = vmath.vector3(bx, bgy + 17, 0.15)
-				local b_url = factory.create("#barrel_factory", bpos)
-				table.insert(self.spawned_barrels, { id = b_url, url = b_url, x = bx, y = bpos.y })
+local function on_turn_changed(self, active_team, active_potato)
+	player_control.reset(self)
+	achievements.on_turn_start(active_team)
+	tutorial.on_turn_start()
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive and p.url then
+			local is_act = (p == active_potato)
+			msg.post(p.url, "set_active", { active = is_act })
+			if is_act then
+				msg.post(p.url, "set_weapon", { weapon_id = game_state.selected_weapon_id })
+				msg.post(p.url, "set_facing", { facing = p.facing or 1 })
 			end
 		end
 	end
+end
 
-	-- Point active_potato to first blue potato so weapon card selection equips the new instance
-	game_state.active_potato = game_state.potatoes[1]
+local function on_game_over(self, winner_team, points_earned, hp_healed, current_hp, next_hp)
+	msg.post("/aim_guide#aim_guide", "hide_aim")
+	local data = match_results.build(self.seamless_stage, winner_team, points_earned, hp_healed, current_hp, next_hp)
 
-	-- Camera Flyover: 2-second pan from right to left across the level to showcase the whole battlefield
-	local dest_x = (game_state.active_potato and game_state.active_potato.pos.x) or 350
-	local dest_y = (game_state.active_potato and game_state.active_potato.pos.y) or 270
-	local start_x = math.min(constants.WORLD_WIDTH - 240, 1620)
-	local start_y = math.max(270, math.min(constants.WORLD_HEIGHT - 200, terrain_grid.get_smooth_ground_y(start_x, 4.0) + 90))
+	sound_manager.music(nil)
+	if winner_team == constants.TEAM_BLUE then
+		-- Victory celebration: camera zoom on the winner & background fireworks salute
+		battle_camera.start_victory(self, data)
+		msg.post("/terrain#terrain", "victory_salute")
+		sound_manager.play("win")
+	else
+		sound_manager.play("lose")
+		battle_camera.cancel_victory(self)
+		msg.post("/gui_game_over", "enable")
+		msg.post("/gui_game_over#gui", "show_result") -- payload in match_results.last
+	end
+end
 
-	self.intro_flyover = true
-	self.intro_flyover_timer = 2.0
-	self.intro_flyover_duration = 2.0
-	self.intro_cam_start_x = start_x
-	self.intro_cam_start_y = start_y
-	self.intro_cam_dest_x = dest_x
-	self.intro_cam_dest_y = dest_y
+local function revive_player(self)
+	local pot = nil
+	for _, p in ipairs(game_state.potatoes) do
+		if p.team == constants.TEAM_BLUE then
+			pot = p
+			break
+		end
+	end
+	if not pot then
+		return
+	end
 
-	-- Start camera immediately on the far right at wide zoom (0.82)
-	camera_controller.reset(start_x, start_y)
-	camera_controller.set_zoom(0.82)
+	local new_url = match_spawner.revive_potato(self, pot, 50)
+	if game_state.mode == constants.MODE_CAMPAIGN then
+		player_profile.set_campaign_hp(50)
+	end
 
-	-- Update GUI visibility
-	msg.post("/gui_menu", "disable")
-	msg.post("/gui_campaign_map", "disable")
+	game_state.winner_team = nil
+	game_state.active_potato = pot
+	game_state.active_team = constants.TEAM_BLUE
+	game_state.turn_timer = constants.TURN_DURATION
+	game_state.set_state(constants.STATE_TURN_ACTIVE)
+	if game_state.on_turn_changed then
+		game_state.on_turn_changed(constants.TEAM_BLUE, pot)
+	end
+	msg.post(new_url, "set_active", { active = true })
+
+	camera_controller.follow(pot.pos.x, pot.pos.y, true)
+	camera_controller.shake(8, 0.3)
+	sound_manager.play_heal()
+
 	msg.post("/gui_game_over", "disable")
 	msg.post("/gui_hud", "enable")
-	msg.post("/gui_hud#gui", "match_started", {
-		battle_type = is_defense and "defense" or "assault",
-		sector_name_ru = config.sector_name_ru or config.name,
-		sector_name_en = config.sector_name_en or config.name_en,
-	})
-	sdk.in_game_loading_stopped()
-	sdk.round_start(active_level)
+	msg.post("/gui_hud#gui", "match_started")
+	msg.post("/gui_hud#gui", "show_damage", { x = pot.pos.x, y = pot.pos.y, amount = 50, is_heal = true })
+	sound_manager.music("music_battle")
+	game_state.poki_gameplay_start()
 end
 
 function init(self)
 	constants.log(">>> MAIN SCRIPT INIT STARTED")
-	sdk.init()
 	msg.post(".", "acquire_input_focus")
-
-	local cfg_mode = AIM_CONTROL_MODE
-	if self.aim_control_mode and self.aim_control_mode ~= hash("auto") then
-		if self.aim_control_mode == hash("slingshot") or self.aim_control_mode == "slingshot" then
-			cfg_mode = "slingshot"
-		elseif self.aim_control_mode == hash("direct") or self.aim_control_mode == "direct" then
-			cfg_mode = "direct"
-		end
-	end
-
-	local effective_mode = cfg_mode
-	if effective_mode == "auto" then
-		effective_mode = is_mobile_platform() and "slingshot" or "direct"
-	end
-	game_state.aim_control_mode = effective_mode
-	constants.log(">>> AIM CONTROL MODE:", effective_mode, "(configured:", cfg_mode, "mobile:", is_mobile_platform(), ")")
+	sound_manager.init()
+	game_state.aim_control_mode = resolve_aim_control_mode(self)
 
 	self.spawned_potatoes = {}
 	self.spawned_barrels = {}
@@ -437,214 +277,34 @@ function init(self)
 	self.airship_timer = 40.0
 	self.airship_url = nil
 	self.active_projectiles = {}
-	self.bot_thinking = false
-	self.bot_timer = 0
-	self.bot_plan = nil
 	self.burst_queue = {} -- { weapon_id, origin_x, origin_y, vel_x, vel_y, owner_id, shots_left, delay_timer }
-	self.touch_move_dir = 0
-	self.touch_move_timer = 0
-	self.key_left_held = false
-	self.key_right_held = false
-	self.victory_celebration = false
-	self.victory_timer = 0
-	self.victory_jump_timer = 0
-	self.victory_potato = nil
-	self.pending_game_over_data = nil
-	self.damage_focus = nil
 	self.seamless_stage = 0
-	self.matches_completed = 0
-	self.intro_flyover = false
-	self.intro_flyover_timer = 0
-	self.intro_flyover_duration = 2.0
-	self.intro_cam_start_x = 1620
-	self.intro_cam_start_y = 350
-	self.intro_cam_dest_x = 350
-	self.intro_cam_dest_y = 270
-	self.hit_stop_timer = 0
-	self.bullet_time_timer = 0
-	self.bullet_time_scale = 1.0
+	player_control.reset(self)
+	bot_turn.reset(self)
+	battle_camera.init(self)
 
 	-- Delay settling until damage zoom-in camera focus finishes (1.5 seconds)
 	game_state.can_settle = function()
-		return (self.damage_focus == nil)
+		return battle_camera.is_settled(self)
 	end
-
-	-- Hook turn changed callback
 	game_state.on_turn_changed = function(active_team, active_potato)
-		self.touch_move_dir = 0
-		self.touch_move_timer = 0
-		self.key_left_held = false
-		self.key_right_held = false
-		achievements.on_turn_start(active_team)
-		pcall(function()
-			msg.post("/gui_hud#gui", "turn_changed", { active_team = active_team, active_potato = active_potato })
-			msg.post("/gui_hud#gui", "update_inventory")
-		end)
-		for _, p in ipairs(game_state.potatoes) do
-			if p.is_alive and p.url then
-				local is_act = (p == active_potato)
-				msg.post(p.url, "set_active", { active = is_act })
-				if is_act then
-					msg.post(p.url, "set_weapon", { weapon_id = game_state.selected_weapon_id })
-					msg.post(p.url, "set_facing", { facing = p.facing or 1 })
-				end
-			end
-		end
+		on_turn_changed(self, active_team, active_potato)
 	end
-
-	-- Hook card choice offered callback
 	game_state.on_cards_offered = function(card1, card2)
 		msg.post("/gui_hud#gui", "show_cards", { card1 = card1, card2 = card2 })
 	end
-
-	-- Hook weapon changed callback
 	game_state.on_weapon_changed = function(weapon_id)
 		local target = game_state.active_potato
 		if target and target.is_alive and target.url then
 			msg.post(target.url, "set_weapon", { weapon_id = weapon_id })
 		end
 	end
-
-	-- Hook game over callback
-	game_state.on_game_over = function(winner_team, points_earned, hp_healed, current_hp, next_hp)
-		msg.post("/aim_guide#aim_guide", "hide_aim")
-
-		local player_hp = current_hp or (game_state.potatoes[1] and game_state.potatoes[1].hp) or 100
-		local ach_list, ach_bonus = achievements.evaluate_match_end(winner_team, player_hp)
-		local total_pts = points_earned + ach_bonus
-
-		if ach_bonus > 0 then
-			player_profile.add_points(ach_bonus)
-		end
-
-		local campaign_outcome = nil
-		local stars_earned = 0
-		local flawless_survival = false
-		local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN) or (strategic_campaign and strategic_campaign.active_battle_sector_id ~= nil)
-
-		if winner_team == constants.TEAM_BLUE and is_campaign then
-			-- Calculate blue squad survival
-			local blue_total = 0
-			local blue_alive = 0
-			for _, p in ipairs(game_state.potatoes or {}) do
-				if p.team == constants.TEAM_BLUE then
-					blue_total = blue_total + 1
-					if p.is_alive and p.hp > 0 then
-						blue_alive = blue_alive + 1
-					end
-				end
-			end
-			-- 1 star for victory + 1 star for keeping all units alive
-			flawless_survival = (blue_total > 0 and blue_alive == blue_total)
-			stars_earned = 1 + (flawless_survival and 1 or 0)
-			player_profile.add_stars(stars_earned)
-		end
-
-		if strategic_campaign and strategic_campaign.active_battle_sector_id then
-			campaign_outcome = strategic_campaign.resolve_battle(winner_team, total_pts)
-			if campaign_outcome then
-				campaign_outcome.stars_earned = stars_earned
-				campaign_outcome.flawless_survival = flawless_survival
-			end
-		end
-
-		local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL) or (self.seamless_stage == 1)
-		local is_seamless_1 = is_tutorial or (self.seamless_stage == 1) or (player_profile.get_onboarding_stage() == 0)
-		local is_seamless_2 = (self.seamless_stage == 2) or (game_state.match_config and game_state.match_config.is_seamless_battle)
-
-		local game_over_data = {
-			winner = winner_team,
-			points = total_pts,
-			base_points = points_earned,
-			achieve_bonus = ach_bonus,
-			achievements = ach_list,
-			hp_healed = hp_healed,
-			current_hp = current_hp,
-			next_hp = next_hp,
-			campaign_outcome = campaign_outcome,
-			stars_earned = stars_earned,
-			flawless_survival = flawless_survival,
-			is_tutorial = is_tutorial,
-		}
-
-		if is_seamless_1 then
-			-- Seamless Stage 1: First victory reward
-			player_profile.unlock_hat("cap")
-			player_profile.equip_hat("cap")
-			player_profile.add_points(100)
-			player_profile.set_onboarding_stage(1)
-
-			game_over_data.seamless = true
-			game_over_data.seamless_stage = 1
-			game_over_data.unlocked_hat_id = "cap"
-			game_over_data.unlocked_hat_name = player_profile.get_skin_name(player_profile.SKINS_BY_ID["cap"], i18n.current_lang)
-			game_over_data.unlocked_hat_sprite = "hat_cap"
-			game_over_data.coins_awarded = 100
-			game_over_data.total_coins = player_profile.get_points()
-
-		elseif is_seamless_2 then
-			-- Seamless Stage 2: Second battle reward
-			player_profile.unlock_hat("bandana")
-			player_profile.add_points(150)
-			player_profile.set_tutorial_completed(true)
-			player_profile.set_onboarding_stage(2)
-
-			game_over_data.seamless = true
-			game_over_data.seamless_stage = 2
-			game_over_data.unlocked_hat_id = "bandana"
-			game_over_data.unlocked_hat_name = player_profile.get_skin_name(player_profile.SKINS_BY_ID["bandana"], i18n.current_lang)
-			game_over_data.unlocked_hat_sprite = "hat_bandana"
-			game_over_data.coins_awarded = 150
-			game_over_data.total_coins = player_profile.get_points()
-		end
-
-		local is_win = (winner_team == constants.TEAM_BLUE)
-		sdk.round_end(is_win, game_state.campaign_level or 1)
-		if is_win then
-			sdk.happy_time(1.0)
-		end
-
-		if not game_over_data.seamless then
-			self.matches_completed = (self.matches_completed or 0) + 1
-			constants.log(">>> MATCH COMPLETE: matches_completed = " .. tostring(self.matches_completed))
-		end
-
-		if winner_team == constants.TEAM_BLUE then
-			-- Victory Celebration: Camera Zoom on victorious potato & background fireworks salute!
-			local winning_potato = nil
-			for _, p in ipairs(game_state.potatoes) do
-				if p.team == constants.TEAM_BLUE and p.is_alive then
-					winning_potato = p
-					break
-				end
-			end
-
-			self.victory_celebration = true
-			self.victory_timer = (game_over_data.seamless) and 0.8 or 2.4
-			self.victory_jump_timer = 0.55
-			self.victory_potato = winning_potato
-			self.pending_game_over_data = game_over_data
-
-			if winning_potato then
-				camera_controller.follow(winning_potato.pos.x, winning_potato.pos.y)
-				camera_controller.set_zoom(1.42)
-				if winning_potato.url then
-					msg.post(winning_potato.url, "on_jump")
-				end
-			end
-
-			-- Trigger fireworks salute in background
-			msg.post("/terrain#terrain", "victory_salute")
-			sound_manager.play_heal()
-		else
-			self.victory_celebration = false
-			msg.post("/gui_game_over", "enable")
-			msg.post("/gui_game_over#gui", "show_result", game_over_data)
-		end
+	game_state.on_game_over = function(...)
+		on_game_over(self, ...)
 	end
 
 	-- Launch sequence: Auto-start tutorial on first start, otherwise show main menu
-	clear_match_entities(self)
+	match_spawner.clear(self)
 	camera_controller.reset(480, 270)
 	if not player_profile.is_tutorial_completed() then
 		if player_profile.get_onboarding_stage() == 1 then
@@ -653,749 +313,73 @@ function init(self)
 		else
 			self.seamless_stage = 1
 			constants.log(">>> FIRST START: AUTO-LAUNCHING TUTORIAL SANDBOX")
-			start_game_match(self, constants.MODE_TUTORIAL, 1)
+			-- Deferred: terrain.script init generates its default "hills" grid after this init,
+			-- starting right here would let it overwrite the flat training ground
+			msg.post(".", "start_match", { mode = constants.MODE_TUTORIAL, level = 1 })
 		end
 	else
-		msg.post("/gui_hud", "disable")
-		msg.post("/gui_game_over", "disable")
-		msg.post("/gui_campaign_map", "disable")
-		msg.post("/gui_menu", "enable")
+		show_screen("/gui_menu")
 		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 	end
-
-	sdk.send_game_ready()
 end
 
 function update(self, dt)
-	-- Hit-stop / Freeze Frame: freeze game simulation for 3 frames (0.05s) on forehead impact
-	if self.hit_stop_timer and self.hit_stop_timer > 0 then
-		self.hit_stop_timer = self.hit_stop_timer - dt
-		return
-	end
-
-	-- Bullet Time slow-mo timer management
-	if self.bullet_time_timer and self.bullet_time_timer > 0 then
-		self.bullet_time_timer = self.bullet_time_timer - dt
-		if self.bullet_time_timer <= 0 then
-			self.bullet_time_timer = 0
-			self.bullet_time_scale = 1.0
-			game_state.time_scale = 1.0
-			camera_controller.set_zoom(1.0)
-		end
-	end
-
-	local effective_dt = dt * (game_state.time_scale or 1.0)
-
-	-- 0. Airship flyby timer (first at 10s, then every 60s during battle, outdoor only)
-	local is_battle_running = (game_state.state == constants.STATE_TURN_ACTIVE or game_state.state == constants.STATE_ACTION or game_state.state == constants.STATE_SETTLING)
-	if is_battle_running and self.current_terrain_preset ~= "cavern" then
-		if not self.airship_url then
-			self.airship_timer = self.airship_timer - dt
-			if self.airship_timer <= 0 then
-				self.airship_timer = 30.0
-				constants.log(">>> SPAWNING AIRSHIP FLYBY!")
-				msg.post("/gui_hud#gui", "show_achievement_toast", {
-					icon = "⚠️",
-					title = i18n.t("air_raid_warn"),
-					points = 0
-				})
-				local airship_pos = vmath.vector3(-140, constants.WORLD_HEIGHT * 0.88, 0.35)
-				self.airship_url = factory.create("#airship_factory", airship_pos)
-			end
-		end
-	end
-
-	-- 0.5 Airdrop crate timer (every 60s drops medkit or weapon crate with parachute)
-	if is_battle_running and self.current_terrain_preset ~= "cavern" then
-		self.crate_timer = (self.crate_timer or 60.0) - dt
-		if self.crate_timer <= 0 then
-			self.crate_timer = 60.0
-			local drop_x = math.random(200, constants.WORLD_WIDTH - 200)
-			local crate_type = (math.random() < 0.5) and hash("medkit") or hash("weapon")
-			local pickup = weapons.get_random_arena_pickup()
-			local pick_wpn = hash(pickup and pickup.id or "molotov")
-			local amt = (crate_type == hash("medkit")) and math.random(20, 50) or math.random(1, 3)
-
-			local c_pos = vmath.vector3(drop_x, constants.WORLD_HEIGHT - 25, 0.2)
-			local crate_url = factory.create("#crate_factory", c_pos, nil, {
-				crate_type = crate_type,
-				amount = amt,
-				weapon_id = pick_wpn
-			})
-			table.insert(self.spawned_crates, { url = crate_url })
-<<<<<<< Updated upstream
-
-			-- Airdrop crate spawned without toast banner (visual falling event replaces text)
-=======
-			sound_manager.play_airdrop_whistle()
->>>>>>> Stashed changes
-		end
-	end
-
-	-- 1. Camera update
+	world_events.update(self, dt)
 	camera_controller.update(dt)
-
-	-- 1.5 Continuous player movement (smooth per-frame walking for touch & keyboard)
-	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-		if self.touch_move_timer > 0 then
-			self.touch_move_timer = self.touch_move_timer - dt
-			if self.touch_move_timer <= 0 then
-				self.touch_move_dir = 0
-			end
-		end
-
-		local move_dir = self.touch_move_dir
-		if move_dir == 0 then
-			if self.key_left_held and not self.key_right_held then
-				move_dir = -1
-			elseif self.key_right_held and not self.key_left_held then
-				move_dir = 1
-			end
-		end
-
-		local active_p = game_state.active_potato
-		if move_dir ~= 0 and active_p and active_p.is_alive then
-			physics_sim.walk_potato(active_p, move_dir, effective_dt, terrain_grid)
-			if active_p.facing ~= move_dir then
-				active_p.facing = move_dir
-			end
-			if active_p.url then
-				msg.post(active_p.url, "set_facing", { facing = move_dir })
-				if active_p.walk_step_time then
-					local hop = math.abs(math.sin(active_p.walk_step_time))
-					msg.post(active_p.url, "on_step", { hop = hop })
-				end
-			end
-		end
-	else
-		self.touch_move_dir = 0
-		self.touch_move_timer = 0
-		self.key_left_held = false
-		self.key_right_held = false
-	end
-
-	-- 2. Potato physics & animation update
-	for _, p in ipairs(game_state.potatoes) do
-		if p.is_alive then
-			local was_grounded = p.is_grounded
-			local result = physics_sim.update_potato(p, effective_dt, terrain_grid, game_state.wind_vector)
-			if result == "tutorial_rescue" and p.url then
-				go.set_position(p.pos, p.url)
-				camera_controller.follow(p.pos.x, p.pos.y, true)
-				sound_manager.play_jump()
-			elseif result == "water_splash" and p.url then
-				camera_controller.shake(8, 0.25)
-				msg.post("/main#main", "spawn_explosion", {
-					x = p.pos.x,
-					y = constants.WATER_LEVEL + 4,
-					radius = 24
-				})
-				msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
-				msg.post("/gui_hud#gui", "show_damage", {
-					x = p.pos.x,
-					y = p.pos.y + 12,
-					amount = 30,
-					label = "💦 ВОДА!"
-				})
-			elseif result == "bounce" and p.url then
-				msg.post(p.url, "on_bounce", { impact_speed = p.last_impact_speed or 100 })
-			elseif result == "land" and p.url then
-				msg.post(p.url, "on_land", { impact_speed = p.last_impact_speed or 50 })
-			elseif result == "drowned" and p.url then
-				camera_controller.shake(14, 0.40)
-				sound_manager.play_fry_sizzle()
-				p.pos.y = constants.WATER_LEVEL - 5
-				pcall(function() go.set_position(p.pos, p.url) end)
-				camera_controller.follow(p.pos.x, constants.WATER_LEVEL + 25)
-				msg.post("/main#main", "spawn_explosion", {
-					x = p.pos.x,
-					y = constants.WATER_LEVEL + 6,
-					radius = 36
-				})
-				msg.post(p.url, "drowned")
-				p.url = nil
-				if p.team == constants.TEAM_RED and game_state.active_team == constants.TEAM_BLUE then
-					local ach = achievements.on_drown(p, game_state.active_team)
-					if ach then
-						msg.post("/gui_hud#gui", "show_achievement_toast", {
-							icon = ach.icon,
-							title = ach.title,
-							points = ach.points
-						})
-					end
-				end
-			else
-				if not was_grounded and p.is_grounded and p.url then
-					msg.post(p.url, "on_land", { impact_speed = p.last_impact_speed or 40 })
-				end
-				-- Update facing in direction of horizontal motion/velocity
-				if not p.is_grounded and math.abs(p.vel.x) > 15.0 then
-					local air_facing = (p.vel.x > 0) and 1 or -1
-					if p.facing ~= air_facing then
-						p.facing = air_facing
-						if p.url then
-							msg.post(p.url, "set_facing", { facing = air_facing })
-						end
-					end
-				end
-				if p.url then
-					go.set_position(p.pos, p.url)
-				end
-			end
-		end
-	end
-
-	-- 3. Filter finished projectiles & Worms panic flinch for nearby potatoes
-	local alive_projectiles = {}
-	for _, proj_url in ipairs(self.active_projectiles) do
-		local ok, ppos = pcall(function() return go.get_position(proj_url) end)
-		if ok and ppos then
-			table.insert(alive_projectiles, proj_url)
-			-- Game juice: potatoes near falling projectile panic/flinch
-			for _, p in ipairs(game_state.potatoes) do
-				if p.is_alive and p.url then
-					local dx = p.pos.x - ppos.x
-					local dy = p.pos.y - ppos.y
-					if (dx * dx + dy * dy) < 2304 then -- < 48 px
-						msg.post(p.url, "alert_aimed")
-					end
-				end
-			end
-		end
-	end
-	self.active_projectiles = alive_projectiles
-
-	-- 3.5 Process burst fire queue
-	if #self.burst_queue > 0 then
-		local bq = self.burst_queue[1]
-		bq.delay_timer = bq.delay_timer - dt
-		if bq.delay_timer <= 0 then
-			-- Fire next shot with slight random spread
-			local weapon = weapons.get(bq.weapon_id)
-			local spread = weapon.shot_spread or 0.06
-			local angle = math.atan2(bq.vel_y, bq.vel_x) + (math.random() - 0.5) * spread
-			local speed = math.sqrt(bq.vel_x * bq.vel_x + bq.vel_y * bq.vel_y)
-			local svx = math.cos(angle) * speed
-			local svy = math.sin(angle) * speed
-			
-			local pos = vmath.vector3(bq.origin_x, bq.origin_y, 0.2)
-			local proj_url = factory.create("#projectile_factory", pos, nil, {
-				vel_x = svx,
-				vel_y = svy,
-				weapon_type = hash(bq.weapon_id),
-				owner_id = bq.owner_id
-			})
-			table.insert(self.active_projectiles, proj_url)
-			
-			bq.shots_left = bq.shots_left - 1
-			if bq.shots_left <= 0 then
-				table.remove(self.burst_queue, 1)
-			else
-				bq.delay_timer = weapon.shot_delay or 0.12
-			end
-		end
-	end
-
-	-- 4. Bot AI execution (Worms-style State Machine)
-	-- States:
-	-- "survey": looks around, pauses, assesses surrounding threats & footing
-	-- "move": walks towards target/cover, dynamically climbing or jumping over obstacles
-	-- "assess": deliberate pause after moving to evaluate the chosen vantage point
-	-- "aim": equips weapon, stepped aiming (overshoots and corrects back) with reticle preview
-	-- "shoot": fires weapon with recoil
-	-- "retreat": tactical retreat into bunker/depression away from explosion/water
-	if game_state.state == constants.STATE_TURN_ACTIVE and game_state.is_bot_turn() then
-		local bot = game_state.active_potato
-		if bot and bot.is_alive then
-			if not self.bot_thinking then
-				-- Initialize bot turn & survey surroundings
-				self.bot_thinking = true
-				local config = game_state.get_current_config()
-				local bot_skill = config.enemy_skill or config.bot_difficulty or "normal"
-				if game_state.mode == constants.MODE_TUTORIAL then
-					-- Tutorial Enemy: Accurately solve ballistic parabola to land a direct hit on the player
-					local player_p = game_state.potatoes[1]
-					local target_x = player_p and player_p.pos.x or 260
-					local target_y = player_p and player_p.pos.y or 160
-					local origin_x = bot.pos.x
-					local origin_y = bot.pos.y + 8
-
-					local wpn = weapons.get("bazooka")
-					local grav = constants.GRAVITY * (wpn and wpn.gravity_mult or 0.4)
-					local sim_dt = 0.035
-					local dx = target_x - origin_x
-					local dy = target_y - origin_y
-					local dir = dx > 0 and 1 or -1
-
-					local best_aim_dx = dir * 0.707
-					local best_aim_dy = 0.707
-					local best_power = 320
-					local min_err = 999999
-
-					local min_deg = dir > 0 and 20 or 120
-					local max_deg = dir > 0 and 65 or 155
-
-					for deg = min_deg, max_deg, 1 do
-						local rad = deg * 3.14159 / 180
-						local cos_a = math.cos(rad)
-						local sin_a = math.sin(rad)
-						for pwr = 200, 520, 10 do
-							local cur_vx = cos_a * pwr
-							local cur_vy = sin_a * pwr
-							local cx = origin_x
-							local cy = origin_y
-							local best_track_err = 999999
-							for _ = 1, 160 do
-								cur_vy = cur_vy - grav * sim_dt
-								cx = cx + cur_vx * sim_dt
-								cy = cy + cur_vy * sim_dt
-								local dist = math.sqrt((cx - target_x)^2 + (cy - target_y)^2)
-								if dist < best_track_err then
-									best_track_err = dist
-								end
-								-- Check collision with terrain or water
-								if terrain_grid.is_solid(cx, cy) or cy <= (constants.WATER_LEVEL + 5) then
-									break
-								end
-							end
-							if best_track_err < min_err then
-								min_err = best_track_err
-								best_aim_dx = cos_a
-								best_aim_dy = sin_a
-								best_power = pwr
-							end
-						end
-					end
-
-					self.bot_plan = {
-						weapon_id = "bazooka",
-						aim_dx = best_aim_dx,
-						aim_dy = best_aim_dy,
-						power = best_power,
-						movement = { steps = 0, dir = 0, should_jump = false },
-						retreat = { steps = 0, dir = 0 },
-						aim_delay = 0.7,
-						think_delay = 0.5,
-					}
-				elseif game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP or bot_skill == "hard" then
-					self.bot_plan = bot_ai.plan_pvp_turn(bot, game_state.potatoes, terrain_grid, bot_skill, game_state.wind_vector)
-				else
-					self.bot_plan = bot_ai.plan_turn(bot, game_state.potatoes, terrain_grid, bot_skill, game_state.wind_vector)
-				end
-
-				-- Start in SURVEY state (Worms style: looking left and right, checking position)
-				self.bot_state = "survey"
-				self.bot_survey_timer = 0.55 + math.random() * 0.35
-				self.bot_survey_flips = 0
-				self.bot_survey_flip_timer = 0.22
-				self.bot_move_steps_done = 0
-				self.bot_move_timer = 0
-				self.bot_move_jumped = false
-				self.bot_aim_timer = 0
-				self.bot_aim_total = 0
-				self.bot_overshoot_angle = (math.random() > 0.5 and 0.08 or -0.08)
-				self.bot_retreat_steps = 0
-				self.bot_retreat_done = 0
-
-				if self.bot_plan and bot.url then
-					msg.post(bot.url, "set_facing", { facing = bot.facing or -1 })
-				end
-
-			elseif self.bot_plan then
-				if self.bot_state == "survey" then
-					-- Survey surroundings: bot turns left/right inquisitively before committing to action
-					self.bot_survey_timer = self.bot_survey_timer - dt
-					self.bot_survey_flip_timer = self.bot_survey_flip_timer - dt
-
-					if self.bot_survey_flip_timer <= 0 and self.bot_survey_flips < 2 then
-						self.bot_survey_flip_timer = 0.25
-						self.bot_survey_flips = self.bot_survey_flips + 1
-						bot.facing = -bot.facing
-						if bot.url then
-							msg.post(bot.url, "set_facing", { facing = bot.facing })
-						end
-					end
-
-					if self.bot_survey_timer <= 0 then
-						-- Done looking around; transition to MOVE or directly to AIM
-						local move = self.bot_plan.movement
-						if move and move.steps and move.steps > 0 then
-							self.bot_state = "move"
-							self.bot_move_steps_done = 0
-							self.bot_move_timer = 0
-							bot.facing = move.dir
-							if bot.url then
-								msg.post(bot.url, "set_facing", { facing = bot.facing })
-							end
-						else
-							self.bot_state = "aim"
-							self.bot_aim_total = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or (self.bot_plan.think_delay or 0.70)
-							self.bot_aim_timer = self.bot_aim_total
-							self.bot_overshoot_angle = (math.random() > 0.5 and 0.09 or -0.09)
-							game_state.select_weapon(self.bot_plan.weapon_id)
-							bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
-							if bot.url then
-								msg.post(bot.url, "set_facing", { facing = bot.facing })
-								msg.post(bot.url, "set_weapon", { weapon_id = self.bot_plan.weapon_id })
-							end
-						end
-					end
-
-				elseif self.bot_state == "move" then
-					-- Tactical Movement phase: walk towards desired spot, climb slopes and jump rims
-					local move = self.bot_plan.movement
-					if move and move.steps > 0 and self.bot_move_steps_done < move.steps then
-						self.bot_move_timer = self.bot_move_timer + dt
-
-						if move.dir ~= 0 then
-							physics_sim.walk_potato(bot, move.dir, dt, terrain_grid)
-							bot.facing = move.dir
-							if bot.url then
-								msg.post(bot.url, "set_facing", { facing = move.dir })
-								if bot.walk_step_time then
-									local hop = math.abs(math.sin(bot.walk_step_time))
-									msg.post(bot.url, "on_step", { hop = hop })
-								end
-							end
-
-							-- Dynamic step climbing / obstacle clearing
-							local check_ahead_x = bot.pos.x + move.dir * 12.0
-							local ground_ahead_y = terrain_grid.get_smooth_ground_y(check_ahead_x, 4.0)
-							local step_diff = ground_ahead_y - bot.pos.y
-							if step_diff > 7.0 and step_diff <= 36.0 and bot.is_grounded then
-								if physics_sim.jump_potato(bot) and bot.url then
-									msg.post(bot.url, "on_jump")
-								end
-								self.bot_move_jumped = true
-							end
-						end
-
-						-- Step duration ~0.08s
-						if self.bot_move_timer >= 0.08 then
-							self.bot_move_timer = self.bot_move_timer - 0.08
-							self.bot_move_steps_done = self.bot_move_steps_done + 1
-						end
-
-						-- Mid-movement jump if obstacle or planned
-						if move.should_jump and not self.bot_move_jumped and bot.is_grounded and self.bot_move_steps_done >= math.floor(move.steps * 0.3) then
-							if physics_sim.jump_potato(bot) and bot.url then
-								msg.post(bot.url, "on_jump")
-							end
-							self.bot_move_jumped = true
-						end
-
-						if bot.url then
-							go.set_position(bot.pos, bot.url)
-						end
-					else
-						-- Movement completed: brief tactical assessment pause before pulling out weapon
-						self.bot_state = "assess"
-						self.bot_timer = self.bot_plan.is_pvp_bot and (self.bot_plan.assess_delay or 0.75) or 0.40
-						bot.facing = (self.bot_plan.aim_dx >= 0) and 1 or -1
-						if bot.url then
-							msg.post(bot.url, "set_facing", { facing = bot.facing })
-						end
-					end
-
-				elseif self.bot_state == "assess" then
-					-- Brief deliberation after movement to evaluate stance
-					self.bot_timer = self.bot_timer - dt
-					if self.bot_timer <= 0 then
-						self.bot_state = "aim"
-						self.bot_aim_total = self.bot_plan.is_pvp_bot and (self.bot_plan.aim_delay or 0.85) or 0.70
-						self.bot_aim_timer = self.bot_aim_total
-						self.bot_overshoot_angle = (math.random() > 0.5 and 0.09 or -0.09)
-						game_state.select_weapon(self.bot_plan.weapon_id)
-						if bot.url then
-							msg.post(bot.url, "set_facing", { facing = (self.bot_plan.aim_dx >= 0) and 1 or -1 })
-							msg.post(bot.url, "set_weapon", { weapon_id = self.bot_plan.weapon_id })
-						end
-					end
-
-				elseif self.bot_state == "aim" then
-					-- Stepped Aiming phase: overshoots slightly, then corrects back to target angle
-					self.bot_aim_timer = self.bot_aim_timer - dt
-					local total_t = math.max(0.1, self.bot_aim_total or 0.70)
-					local aim_progress = math.max(0, math.min(1.0, 1.0 - (self.bot_aim_timer / total_t)))
-
-					-- Stepped angle interpolation: early overshoot, late fine-tuned correction
-					local base_angle = math.atan2(self.bot_plan.aim_dy, self.bot_plan.aim_dx)
-					local angle_offset = 0
-					if aim_progress < 0.65 then
-						-- Sweeping towards target and slightly overshooting
-						local sweep = aim_progress / 0.65
-						angle_offset = self.bot_overshoot_angle * (1.0 - sweep) + self.bot_overshoot_angle * 0.4 * sweep
-					else
-						-- Fine-tuning adjustment back to true angle
-						local adjust = (aim_progress - 0.65) / 0.35
-						angle_offset = (self.bot_overshoot_angle * 0.4) * (1.0 - adjust)
-					end
-
-					local cur_angle = base_angle + angle_offset
-					local cur_vx = math.cos(cur_angle) * self.bot_plan.power
-					local cur_vy = math.sin(cur_angle) * self.bot_plan.power
-
-					bot.facing = (cur_vx >= 0) and 1 or -1
-					if bot.url then
-						msg.post(bot.url, "set_facing", { facing = bot.facing })
-					end
-
-					msg.post("/aim_guide#aim_guide", "bot_aim_preview", {
-						vx = cur_vx,
-						vy = cur_vy,
-						weapon_id = self.bot_plan.weapon_id
-					})
-
-					-- Fire!
-					if self.bot_aim_timer <= 0 then
-						self.bot_state = "shoot"
-						msg.post("/aim_guide#aim_guide", "hide_aim")
-
-						local final_vx = self.bot_plan.aim_dx * self.bot_plan.power
-						local final_vy = self.bot_plan.aim_dy * self.bot_plan.power
-
-						msg.post(".", "fire_weapon", {
-							origin_x = bot.pos.x,
-							origin_y = bot.pos.y + 8,
-							vel_x = final_vx,
-							vel_y = final_vy,
-							weapon_id = self.bot_plan.weapon_id,
-							owner_id = bot.id
-						})
-
-						-- Plan retreat: seek nearest depression or step back from blast/water
-						local retreat_needed = false
-						local wpn = weapons.get(self.bot_plan.weapon_id)
-						local arch = bot.bot_archetype or (self.bot_plan and self.bot_plan.archetype) or "coward"
-						if arch == "coward" or (wpn and (wpn.blast_radius or 0) > 20) or arch == "sniper" then
-							retreat_needed = true
-						end
-
-						if retreat_needed and bot.is_grounded then
-							-- Evaluate left vs right: prefer safe ground away from water
-							local left_x = bot.pos.x - 24
-							local right_x = bot.pos.x + 24
-							local left_y = terrain_grid.get_smooth_ground_y(left_x, 4.0)
-							local right_y = terrain_grid.get_smooth_ground_y(right_x, 4.0)
-							local water_y = constants.WATER_LEVEL or 20
-
-							local retreat_dir = (self.bot_plan.aim_dx >= 0) and -1 or 1
-							if retreat_dir == -1 and left_y <= water_y + 10 then
-								retreat_dir = 1
-							elseif retreat_dir == 1 and right_y <= water_y + 10 then
-								retreat_dir = -1
-							end
-
-							self.bot_state = "retreat"
-							self.bot_retreat_steps = (arch == "coward") and math.random(5, 9) or math.random(3, 6)
-							self.bot_retreat_done = 0
-							self.bot_retreat_timer = 0
-							self.bot_retreat_dir = retreat_dir
-						else
-							self.bot_thinking = false
-							self.bot_plan = nil
-							self.bot_state = nil
-						end
-					end
-
-				elseif self.bot_state == "retreat" then
-					-- Tactical retreat: bot crawls into cover/away from danger before turn ends
-					if self.bot_retreat_done < self.bot_retreat_steps then
-						self.bot_retreat_timer = self.bot_retreat_timer + dt
-						if self.bot_retreat_dir ~= 0 then
-							physics_sim.walk_potato(bot, self.bot_retreat_dir, dt, terrain_grid)
-							bot.facing = self.bot_retreat_dir
-							if bot.url then
-								msg.post(bot.url, "set_facing", { facing = self.bot_retreat_dir })
-								go.set_position(bot.pos, bot.url)
-							end
-						end
-						if self.bot_retreat_timer >= 0.08 then
-							self.bot_retreat_timer = self.bot_retreat_timer - 0.08
-							self.bot_retreat_done = self.bot_retreat_done + 1
-						end
-					else
-						self.bot_thinking = false
-						self.bot_plan = nil
-						self.bot_state = nil
-					end
-				end
-			else
-				-- No valid plan, skip turn
-				self.bot_thinking = false
-				game_state.on_action_fired()
-			end
-		end
-	else
-		self.bot_thinking = false
-		self.bot_plan = nil
-		self.bot_state = nil
-	end
-
-	-- 5. Camera follow: Projectile flight, Worms-style damage camera linger & zoom, or next active potato
-	if self.victory_celebration then
-		self.victory_timer = self.victory_timer - dt
-		self.victory_jump_timer = (self.victory_jump_timer or 0.55) - dt
-		if self.victory_jump_timer <= 0 then
-			self.victory_jump_timer = 0.55
-			if self.victory_potato and self.victory_potato.url then
-				msg.post(self.victory_potato.url, "on_jump")
-			end
-		end
-
-		if self.victory_potato and self.victory_potato.is_alive then
-			camera_controller.follow(self.victory_potato.pos.x, self.victory_potato.pos.y)
-			camera_controller.set_zoom(1.42)
-		end
-
-		if self.victory_timer <= 0 then
-			self.victory_celebration = false
-			local pdata = self.pending_game_over_data
-			self.pending_game_over_data = nil
-			if pdata and pdata.seamless and pdata.seamless_stage == 1 then
-				-- Seamless flow: After Battle 1, immediately launch Battle 2 without any window with buttons!
-				msg.post(".", "start_seamless_battle_2")
-			else
-				msg.post("/gui_game_over", "enable")
-				if pdata then
-					msg.post("/gui_game_over#gui", "show_result", pdata)
-				end
-			end
-		end
-	else
-		-- Camera Flyover at battle launch (Right to Left across the whole level in 2 seconds)
-		if self.intro_flyover then
-			self.intro_flyover_timer = self.intro_flyover_timer - dt
-			local t = 1.0 - math.max(0, self.intro_flyover_timer / (self.intro_flyover_duration or 2.0))
-			local ease = t * t * (3.0 - 2.0 * t) -- Smoothstep easing
-			local cur_x = self.intro_cam_start_x + (self.intro_cam_dest_x - self.intro_cam_start_x) * ease
-			local cur_y = self.intro_cam_start_y + (self.intro_cam_dest_y - self.intro_cam_start_y) * ease
-			local cur_zoom = 0.82 + (1.0 - 0.82) * ease
-
-			camera_controller.follow(cur_x, cur_y, true)
-			camera_controller.set_zoom(cur_zoom)
-
-			if self.intro_flyover_timer <= 0 then
-				self.intro_flyover = false
-				if game_state.active_potato and game_state.active_potato.is_alive then
-					camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
-				end
-				camera_controller.set_zoom(1.0)
-			end
-
-		-- Worms-style Damage Camera & Battle Tracking
-		elseif self.damage_focus and self.damage_focus.timer > 0 then
-			-- 1) After projectile explosion / attack deals damage: linger at damage location for 1.5s with zoom-in
-			self.damage_focus.timer = self.damage_focus.timer - dt
-
-			-- Track potato position if it moves due to blast impulse
-			local focus_x = self.damage_focus.x
-			local focus_y = self.damage_focus.y
-			if self.damage_focus.potato_id then
-				for _, p in ipairs(game_state.potatoes) do
-					if p.id == self.damage_focus.potato_id then
-						focus_x = p.pos.x
-						focus_y = p.pos.y
-						break
-					end
-				end
-			end
-
-			camera_controller.follow(focus_x, focus_y)
-			camera_controller.set_zoom(1.38)
-
-			if self.damage_focus.timer <= 0 then
-				self.damage_focus = nil
-			end
-
-		elseif (game_state.state == constants.STATE_ACTION or game_state.state == constants.STATE_SETTLING) and #self.active_projectiles > 0 then
-			-- 2) Flying projectile tracking
-			local lead_proj = self.active_projectiles[#self.active_projectiles]
-			local ok, ppos = pcall(go.get_position, lead_proj)
-			if ok and ppos then
-				camera_controller.follow(ppos.x, ppos.y)
-				camera_controller.set_zoom(1.05)
-			end
-
-		elseif (game_state.state == constants.STATE_ACTION or game_state.state == constants.STATE_SETTLING) and self.damage_focus == nil then
-			-- 3) Projectiles exploded and settling, no damage focus: hold camera at current position until next turn starts
-			-- Do NOT snap back to the shooter!
-
-		elseif game_state.state == constants.STATE_TURN_ACTIVE and game_state.active_potato and game_state.active_potato.is_alive then
-			-- 4) Turn active:
-			if game_state.is_aiming and not game_state.is_bot_turn() then
-				-- When player is aiming: zoom out to 0.78 to show more of the battlefield,
-				-- and lead the camera slightly towards the aim direction / crosshair!
-				local aim_target_x = game_state.active_potato.pos.x
-				local aim_target_y = game_state.active_potato.pos.y
-				if game_state.aim_target_x and game_state.aim_target_y then
-					-- Blend 60% potato + 40% aim target point
-					aim_target_x = game_state.active_potato.pos.x * 0.60 + game_state.aim_target_x * 0.40
-					aim_target_y = (game_state.active_potato.pos.y + 12) * 0.60 + game_state.aim_target_y * 0.40
-				end
-				camera_controller.follow(aim_target_x, aim_target_y)
-				camera_controller.set_zoom(0.78)
-			else
-				-- Standard focus on active potato
-				camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y)
-				camera_controller.set_zoom(1.0)
-			end
-		else
-			camera_controller.set_zoom(1.0)
-		end
-	end
-
-	-- 6. Update match timer and turn progression
+	player_control.update(self, dt)
+	potato_updater.update(dt)
+	tutorial.update(dt, game_state.potatoes)
+	weapon_fire.track_projectiles(self)
+	weapon_fire.update_bursts(self, dt)
+	bot_turn.update(self, dt)
+	battle_camera.update(self, dt)
 	game_state.update(dt, #self.active_projectiles)
+end
+
+-- Test builds only (editor runs, or a build made with potato_war.cheats = 1):
+-- F9 fills the active potato's arsenal, F10 wins the battle on the spot
+local CHEATS = sys.get_engine_info().is_debug or sys.get_config_int("potato_war.cheats", 0) == 1
+
+local function debug_cheat(action_id)
+	if game_state.state ~= constants.STATE_TURN_ACTIVE then
+		return false
+	end
+	if action_id == hash("debug_arsenal") then
+		for _, w in ipairs(weapons.PLAYER_LIST) do
+			game_state.add_ammo(w.id, 9)
+		end
+		return true
+	elseif action_id == hash("debug_win") then
+		for _, p in ipairs(game_state.potatoes) do
+			if p.is_alive and p.team == constants.TEAM_RED and p.url then
+				msg.post(p.url, "apply_damage", { damage = p.hp })
+				p.hp = 0
+				p.is_alive = false
+			end
+		end
+		game_state.on_action_fired()
+		return true
+	end
+	return false
 end
 
 function on_input(self, action_id, action)
 	-- Skip flyover on any press
-	if self.intro_flyover and (action.pressed or (action_id == hash("touch") and action.pressed)) then
-		self.intro_flyover = false
-		if game_state.active_potato and game_state.active_potato.is_alive then
-			camera_controller.follow(game_state.active_potato.pos.x, game_state.active_potato.pos.y, true)
-		end
-		camera_controller.set_zoom(1.0)
+	if action.pressed and battle_camera.skip_flyover(self) then
 		game_state.skip_intro()
 	end
 
-	-- Trigger gameplay_start ONLY on player's first active gameplay input
-	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-		if action.pressed or (action_id == hash("touch") and action.pressed) then
-			game_state.gameplay_start()
-		end
+	-- Trigger poki gameplay_start ONLY on player's first active gameplay input
+	if action.pressed and player_control.is_player_turn() then
+		game_state.poki_gameplay_start()
 	end
 
-	if action_id == hash("left") then
-		self.key_left_held = not action.released
-	elseif action_id == hash("right") then
-		self.key_right_held = not action.released
+	if player_control.on_input(self, action_id, action) then
+		return true
 	end
 
-	-- Keyboard controls for active potato
-	if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-		local potato = game_state.active_potato
-		if potato and potato.is_alive then
-			if action_id == hash("left") or action_id == hash("right") then
-				return true
-			elseif action_id == hash("jump") and action.pressed then
-				if physics_sim.jump_potato(potato, 1) and potato.url then
-					msg.post(potato.url, "on_jump")
-				end
-				return true
-			end
-			-- Weapon selection via slot keys 1..5 (only in non-PvP modes; in PvP weapons are selected exclusively via inventory)
-			local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
-			if not is_pvp then
-				for i = 1, 5 do
-					if action_id == hash("weapon_" .. i) and action.pressed then
-						game_state.select_slot(i)
-						return true
-					end
-				end
-			end
-		end
+	if CHEATS and action.pressed and debug_cheat(action_id) then
+		return true
 	end
 
 	if (action_id == hash("inventory") or action_id == hash("key_q")) and action.pressed then
@@ -1413,467 +397,118 @@ function on_input(self, action_id, action)
 	return false
 end
 
+local function remove_by_url(list, target)
+	if not target then
+		return
+	end
+	local target_path = msg.url(target).path
+	for i = #list, 1, -1 do
+		local item = list[i]
+		if item.url == target or item.id == target or msg.url(item.url).path == target_path then
+			table.remove(list, i)
+		end
+	end
+end
+
 function on_message(self, message_id, message, sender)
 	if message_id == hash("start_battle") then
 		start_game_match(self, nil, 1, message)
 
 	elseif message_id == hash("start_seamless_battle_2") then
 		self.seamless_stage = 2
-		local battle_cfg = {
-			opponent_type = "bot",
-			potato_count = 2,
-			blue_count = 2,
-			red_count = 2,
-			terrain_type = "floating_islands",
-			terrain_preset = "floating_islands",
-			biome = "desert",
-			is_seamless_battle = true,
-			seamless_stage = 2,
-			hat_blue = "hat_cap",
-			blue_classes = { "assault", "sniper" },
-			red_hats = { "hat_viking", "hat_beret" },
-			red_classes = { "medic", "tank" },
-			enemy_skill = "normal",
-			bot_difficulty = "normal",
-		}
-		start_game_match(self, constants.MODE_QUICK_BOT, 1, battle_cfg)
+		start_game_match(self, constants.MODE_QUICK_BOT, 1, SEAMLESS_BATTLE_2)
 
 	elseif message_id == hash("start_match") then
-		check_match_interstitial(self, function()
-			start_game_match(self, message.mode, message.level)
-		end)
+		start_game_match(self, message.mode, message.level)
 
 	elseif message_id == hash("select_card") then
 		game_state.select_card(message.card_index)
 
 	elseif message_id == hash("show_menu") then
-		game_state.gameplay_stop()
-		check_match_interstitial(self, function()
-			self.victory_celebration = false
-			self.pending_game_over_data = nil
-			clear_match_entities(self)
-			self.touch_move_dir = 0
-			self.touch_move_timer = 0
-			self.key_left_held = false
-			self.key_right_held = false
-			camera_controller.reset(480, 270)
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			msg.post("/gui_hud", "disable")
-			msg.post("/gui_game_over", "disable")
-			msg.post("/gui_campaign_map", "disable")
-			msg.post("/gui_menu", "enable")
-			msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
-			game_state.set_state(constants.STATE_MENU)
-		end)
+		leave_match(self)
+		show_screen("/gui_menu")
 
 	elseif message_id == hash("show_campaign_map") then
-		game_state.gameplay_stop()
-		check_match_interstitial(self, function()
-			self.victory_celebration = false
-			self.pending_game_over_data = nil
-			clear_match_entities(self)
-			self.touch_move_dir = 0
-			self.touch_move_timer = 0
-			self.key_left_held = false
-			self.key_right_held = false
-			camera_controller.reset(480, 270)
-			msg.post("/aim_guide#aim_guide", "hide_aim")
-			msg.post("/gui_hud", "disable")
-			msg.post("/gui_game_over", "disable")
-			msg.post("/gui_menu", "disable")
-			msg.post("/gui_campaign_map", "enable")
-			msg.post("/gui_campaign_map#gui", "show")
-			msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
-			game_state.set_state(constants.STATE_MENU)
-		end)
+		leave_match(self)
+		show_screen("/gui_campaign_map")
+		msg.post("/gui_campaign_map#gui", "show")
 
-	elseif message_id == hash("player_move_state") then
-		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-			game_state.gameplay_start()
-		end
-		self.touch_move_dir = message.dir or 0
-		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
-
-	elseif message_id == hash("player_move") then
-		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-			game_state.gameplay_start()
-		end
-		self.touch_move_dir = message.dir or 0
-		self.touch_move_timer = (self.touch_move_dir ~= 0) and 0.25 or 0
+	elseif message_id == hash("player_move_state") or message_id == hash("player_move") then
+		player_control.set_touch_dir(self, message.dir)
 
 	elseif message_id == hash("player_jump") then
-		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-			game_state.gameplay_start()
+		if player_control.is_player_turn() then
+			game_state.poki_gameplay_start()
 		end
-		if game_state.state == constants.STATE_TURN_ACTIVE and not game_state.is_bot_turn() then
-			local potato = game_state.active_potato
-			if potato and potato.is_alive then
-				if physics_sim.jump_potato(potato, 1) and potato.url then
-					msg.post(potato.url, "on_jump")
-				end
-			end
-		end
+		player_control.jump()
 
 	elseif message_id == hash("fire_weapon") then
-		local weapon = weapons.get(message.weapon_id or "grenade")
-		sound_manager.play_shot()
-
-		-- Weapon recoil animation on firing potato
-		if message.owner_id then
-			for _, p in ipairs(game_state.potatoes) do
-				if p.id == message.owner_id and p.url then
-					msg.post(p.url, "on_recoil")
-					if p.team == constants.TEAM_BLUE then
-						game_state.consume_ammo(message.weapon_id or "grenade")
-					end
-					break
-				end
-			end
+		if game_state.mode == constants.MODE_TUTORIAL then
+			tutorial.on_shot()
 		end
-		
-		if weapon.fire_mode == "melee" then
-			-- Instant melee damage — no projectile
-			local potato = game_state.active_potato
-			if potato then
-				local facing = potato.facing or 1
-				local hit_x = potato.pos.x + facing * 20
-				local hit_y = potato.pos.y + 4
-				
-				-- Visual slash effect
-				msg.post(".", "spawn_explosion", { x = hit_x, y = hit_y, radius = 12 })
-				camera_controller.shake(8, 0.15)
-				
-				-- Apply damage to potatoes in melee range
-				for _, p in ipairs(game_state.potatoes) do
-					if p.is_alive and p.id ~= potato.id then
-						local dx = p.pos.x - hit_x
-						local dy = p.pos.y - hit_y
-						local dist = math.sqrt(dx * dx + dy * dy)
-						if dist < (weapon.melee_range or 42) then
-							local dmg = physics_sim.apply_blast(p, hit_x, hit_y, weapon.blast_radius, weapon.blast_force, weapon.max_damage)
-							if dmg == 0 then
-								dmg = weapon.max_damage
-								p.hp = math.max(0, p.hp - dmg)
-								if p.hp <= 0 then p.is_alive = false end
-								p.vel.x = p.vel.x + facing * (weapon.blast_force or 400) * 0.7
-								p.vel.y = p.vel.y + (weapon.blast_force or 400) * 0.5
-								p.is_grounded = false
-							end
-							if dmg > 0 and p.url then
-								msg.post(p.url, "apply_damage", { damage = dmg })
-								msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y, amount = dmg })
-								msg.post(".", "potato_damaged", { x = p.pos.x, y = p.pos.y, damage = dmg, potato_id = p.id })
-							end
-						end
-					end
-				end
-			end
-			game_state.on_action_fired()
-			
-		elseif weapon.fire_mode == "spread" then
-			-- Spread: multiple projectiles simultaneously in a fan
-			local count = weapon.shot_count or 5
-			local total_spread = weapon.spread_angle or 0.35
-			local base_angle = math.atan2(message.vel_y, message.vel_x)
-			local speed = math.sqrt(message.vel_x * message.vel_x + message.vel_y * message.vel_y)
-			
-			for i = 1, count do
-				local frac = (i - 1) / math.max(1, count - 1) -- 0..1
-				local angle = base_angle + (frac - 0.5) * total_spread
-				local vx = math.cos(angle) * speed
-				local vy = math.sin(angle) * speed
-				local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
-				local proj_url = factory.create("#projectile_factory", pos, nil, {
-					vel_x = vx,
-					vel_y = vy,
-					weapon_type = hash(weapon.id),
-					owner_id = message.owner_id or 0
-				})
-				table.insert(self.active_projectiles, proj_url)
-			end
-			game_state.on_action_fired()
-			
-		elseif weapon.fire_mode == "multi_shot" then
-			-- Multi-shot burst: fire first shot immediately, queue the rest
-			local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
-			local proj_url = factory.create("#projectile_factory", pos, nil, {
-				vel_x = message.vel_x,
-				vel_y = message.vel_y,
-				weapon_type = hash(weapon.id),
-				owner_id = message.owner_id or 0
-			})
-			table.insert(self.active_projectiles, proj_url)
-			
-			-- Queue remaining shots
-			local remaining = (weapon.shot_count or 3) - 1
-			if remaining > 0 then
-				table.insert(self.burst_queue, {
-					weapon_id = weapon.id,
-					origin_x = message.origin_x,
-					origin_y = message.origin_y,
-					vel_x = message.vel_x,
-					vel_y = message.vel_y,
-					owner_id = message.owner_id or 0,
-					shots_left = remaining,
-					delay_timer = weapon.shot_delay or 0.12,
-				})
-			end
-			game_state.on_action_fired()
-			
-		else
-			-- Single projectile (default: grenade, rifle, molotov, bazooka, holy_grenade)
-			local pos = vmath.vector3(message.origin_x, message.origin_y, 0.2)
-			local proj_url = factory.create("#projectile_factory", pos, nil, {
-				vel_x = message.vel_x,
-				vel_y = message.vel_y,
-				weapon_type = hash(weapon.id),
-				owner_id = message.owner_id or 0
-			})
-			table.insert(self.active_projectiles, proj_url)
-			game_state.on_action_fired()
-		end
+		weapon_fire.fire(self, message)
 
 	elseif message_id == hash("spawn_explosion") then
-		sound_manager.play_explosion()
-		local pos = vmath.vector3(message.x, message.y, 0.5)
-		factory.create("#explosion_factory", pos, nil, {
+		if not message.silent then
+			sound_manager.play_explosion(message.radius)
+		end
+		if message.sfx then
+			sound_manager.play(message.sfx)
+		end
+		factory.create("#explosion_factory", vmath.vector3(message.x, message.y, 0.5), nil, {
 			radius = message.radius or 30
 		})
+		tutorial.on_impact(message.x)
 		-- Check impact on barrels and crates
+		local blast = { x = message.x, y = message.y, radius = message.radius or 30 }
 		for _, b in ipairs(self.spawned_barrels or {}) do
-			pcall(function()
-				msg.post(b.url, "check_blast", { x = message.x, y = message.y, radius = message.radius or 30 })
-			end)
+			pcall(msg.post, b.url, "check_blast", blast)
 		end
 		for _, c in ipairs(self.spawned_crates or {}) do
-			pcall(function()
-				msg.post(c.url, "check_blast", { x = message.x, y = message.y, radius = message.radius or 30 })
-			end)
+			pcall(msg.post, c.url, "check_blast", blast)
 		end
+
 	elseif message_id == hash("spawn_napalm") then
-		sound_manager.play_explosion()
-		local cx = message.x
-		local cy = message.y
-		local count = message.count or 6
-		local spread = message.spread or 40
-		for i = 1, count do
-			local ox = (math.random() - 0.5) * spread * 2
-			local oy = (math.random() - 0.5) * spread * 0.5 + 10
-			local pos = vmath.vector3(cx + ox, cy + oy, 0.4)
-			local np = factory.create("#napalm_factory", pos, nil, {
-				burn_time = message.burn_time or 2.5,
-				radius = message.radius or 8,
-				dps = message.dps or 10,
-				is_pepper = (message.is_pepper == true),
-			})
-			table.insert(self.active_projectiles, np) -- track for settling
-		end
+		weapon_fire.spawn_napalm(self, message)
+
 	elseif message_id == hash("spawn_beetles") then
-		local cx = message.x
-		local cy = message.y
-		local count = message.count or 3
-		local owner = message.owner_id or 0
-		local vx_offsets = { -110, 0, 110 }
-		for i = 1, count do
-			local base_vx = vx_offsets[i] or ((math.random() - 0.5) * 200)
-			local svx = base_vx + (math.random() - 0.5) * 35
-			local svy = 150 + (math.random() * 50)
-			local pos = vmath.vector3(cx, cy + 6, 0.3)
-			local b_proj = factory.create("#projectile_factory", pos, nil, {
-				vel_x = svx,
-				vel_y = svy,
-				weapon_type = hash("beetle_minion"),
-				owner_id = owner
-			})
-			table.insert(self.active_projectiles, b_proj)
-		end
+		weapon_fire.spawn_beetles(self, message)
+
+	elseif message_id == hash("spawn_cluster") then
+		weapon_fire.spawn_cluster(self, message)
+
+	elseif message_id == hash("airstrike_drop") then
+		weapon_fire.drop_airstrike_bomb(self, message)
 
 	elseif message_id == hash("potato_damaged") then
 		if message.damage and message.damage > 0 and message.x and message.y then
 			-- Worms-style damage camera: linger at hit point and zoom in slightly for 1.5s
-			self.damage_focus = {
-				x = message.x,
-				y = message.y,
-				timer = 1.5,
-				potato_id = message.potato_id
-			}
+			battle_camera.focus_damage(self, message.x, message.y, message.potato_id)
+			for _, p in ipairs(game_state.potatoes) do
+				if p.id == message.potato_id and p.team == constants.TEAM_RED then
+					tutorial.on_enemy_hit()
+					break
+				end
+			end
 		end
 
 	elseif message_id == hash("barrel_destroyed") or message_id == hash("barrel_detonated") then
-		local target = message.id or message.barrel_url or message.barrel_id
-		for i = #self.spawned_barrels, 1, -1 do
-			local b = self.spawned_barrels[i]
-			if b.url == target or b.id == target or (target and msg.url(b.url).path == msg.url(target).path) then
-				table.remove(self.spawned_barrels, i)
-			end
-		end
+		remove_by_url(self.spawned_barrels, message.id or message.barrel_url or message.barrel_id)
 
 	elseif message_id == hash("crate_collected") or message_id == hash("crate_destroyed") then
-		local target = message.url
-		for i = #self.spawned_crates, 1, -1 do
-			local c = self.spawned_crates[i]
-			if c.url == target or (target and msg.url(c.url).path == msg.url(target).path) then
-				table.remove(self.spawned_crates, i)
-			end
-		end
+		remove_by_url(self.spawned_crates, message.url)
 
 	elseif message_id == hash("airship_drop_bomb") then
-		local pos = vmath.vector3(message.x, message.y, 0.2)
-		local proj_url = factory.create("#projectile_factory", pos, nil, {
-			vel_x = (math.random() - 0.5) * 40,
-			vel_y = -340,
-			weapon_type = hash("air_bomb"),
-			owner_id = 999
-		})
-		table.insert(self.active_projectiles, proj_url)
-		sound_manager.play_shot()
+		weapon_fire.drop_air_bomb(self, message)
 
 	elseif message_id == hash("airship_finished") then
-		self.airship_url = nil
-		self.airship_timer = 30.0
+		world_events.on_airship_finished(self)
 
 	elseif message_id == hash("revive_player") then
-		game_state.rewarded_break(function(success)
-			if not success then
-				msg.post("/gui_game_over", "enable")
-				return
-			end
-
-			local pot = nil
-			-- 1. Try finding specific requested potato
-			if message and message.potato_id then
-				for _, p in ipairs(game_state.potatoes) do
-					if p.id == message.potato_id and p.team == constants.TEAM_BLUE then
-						pot = p
-						break
-					end
-				end
-			end
-			-- 2. Try finding first dead blue fighter
-			if not pot then
-				for _, p in ipairs(game_state.potatoes) do
-					if p.team == constants.TEAM_BLUE and not p.is_alive then
-						pot = p
-						break
-					end
-				end
-			end
-			-- 3. Fallback to any blue potato
-			if not pot then
-				for _, p in ipairs(game_state.potatoes) do
-					if p.team == constants.TEAM_BLUE then
-						pot = p
-						break
-					end
-				end
-			end
-
-			if pot then
-				if pot.url then
-					pcall(function() go.delete(pot.url) end)
-				end
-
-				local from_wy = (self.current_terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55) or nil
-				local rx = math.max(constants.POTATO_RADIUS + 20, math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20, pot.pos.x))
-				local gy = terrain_grid.get_smooth_ground_y(rx, 6.0, from_wy)
-				if gy < constants.WATER_LEVEL + 20 then
-					for offset = 15, 120, 12 do
-						local test_l = math.max(constants.POTATO_RADIUS + 20, rx - offset)
-						local test_r = math.min(constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20, rx + offset)
-						local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0, from_wy)
-						local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0, from_wy)
-						if gy_l > constants.WATER_LEVEL + 20 then
-							rx = test_l
-							gy = gy_l
-							break
-						elseif gy_r > constants.WATER_LEVEL + 20 then
-							rx = test_r
-							gy = gy_r
-							break
-						end
-					end
-				end
-
-				local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
-				pot.pos = vmath.vector3(rx, spawn_y, 0.1)
-				pot.vel = vmath.vector3(0, 0, 0)
-				pot.hp = math.max(50, math.floor((pot.max_hp or 100) * 0.5))
-				pot.is_alive = true
-				pot.is_grounded = false
-
-				local new_url = factory.create("#potato_factory", pot.pos, nil, {
-					team = constants.TEAM_BLUE,
-					potato_id = pot.id,
-					hp = pot.hp,
-					max_hp = pot.max_hp or 100,
-					facing = 1
-				})
-				pot.url = new_url
-				msg.post(new_url, "set_facing", { facing = 1 })
-				msg.post(new_url, "set_weapon", { weapon_id = game_state.selected_weapon_id or "grenade" })
-
-				local skin = player_profile.get_equipped_skin()
-				if skin then
-					msg.post(new_url, "set_skin", { tint = skin.tint, hat = skin.hat, skin_id = skin.id })
-				end
-
-				if game_state.mode == constants.MODE_CAMPAIGN then
-					player_profile.set_campaign_hp(pot.hp)
-				end
-
-				local was_game_over = (game_state.state == constants.STATE_GAME_OVER)
-				if was_game_over then
-					game_state.winner_team = nil
-					game_state.active_potato = pot
-					game_state.active_team = constants.TEAM_BLUE
-					game_state.turn_timer = constants.TURN_DURATION
-					game_state.set_state(constants.STATE_TURN_ACTIVE)
-
-					if game_state.on_turn_changed then
-						game_state.on_turn_changed(constants.TEAM_BLUE, pot)
-					end
-
-					msg.post(new_url, "set_active", { active = true })
-					msg.post("/gui_game_over", "disable")
-					msg.post("/gui_hud", "enable")
-					msg.post("/gui_hud#gui", "match_started")
-				else
-					local is_act = (pot == game_state.active_potato)
-					msg.post(new_url, "set_active", { active = is_act })
-					msg.post("/gui_hud#gui", "turn_changed")
-					msg.post("/gui_hud#gui", "update_inventory")
-				end
-
-				camera_controller.follow(pot.pos.x, pot.pos.y, true)
-				camera_controller.shake(8, 0.3)
-				sound_manager.play_heal()
-
-				msg.post("/gui_hud#gui", "show_damage", {
-					x = pot.pos.x,
-					y = pot.pos.y,
-					amount = pot.hp,
-					is_heal = true
-				})
-				game_state.gameplay_start()
+		game_state.poki_rewarded_break(function(success)
+			if success then
+				revive_player(self)
 			end
 		end)
-
-	elseif message_id == hash("hit_stop") then
-		self.hit_stop_timer = message.duration or 0.05
-
-	elseif message_id == hash("start_bullet_time") then
-		self.bullet_time_timer = message.duration or 2.0
-		self.bullet_time_scale = message.scale or 0.22
-		game_state.time_scale = self.bullet_time_scale
-		camera_controller.set_zoom(message.zoom or 1.68)
-		if message.focus_x and message.focus_y then
-			camera_controller.follow(message.focus_x, message.focus_y)
-		end
-
-	elseif message_id == hash("end_bullet_time") then
-		self.bullet_time_timer = 0
-		self.bullet_time_scale = 1.0
-		game_state.time_scale = 1.0
-		camera_controller.set_zoom(1.0)
 	end
 end

@@ -1,505 +1,74 @@
 -- gui/campaign_map/campaign_map.gui_script
--- Global Campaign Map Controller for Potato War (Island Campaign)
+-- War map: pick a sector, attack it with the squad, defend sectors under attack, fortify with
+-- coins; the squad and arsenal screens open on top. Built in code with lua_modules/ui_kit.lua;
+-- the board lives in camp_view.lua, the side panel in camp_inspector.lua.
 
+local kit = require("lua_modules.ui_kit")
 local ui_manager = require("lua_modules.ui_manager")
+local i18n = require("lua_modules.i18n")
 local territory_map = require("lua_modules.territory_map")
 local strategic_campaign = require("lua_modules.strategic_campaign")
-local player_profile = require("lua_modules.player_profile")
-local classes = require("lua_modules.classes")
+local progression = require("lua_modules.progression")
 local sound_manager = require("lua_modules.sound_manager")
-local i18n = require("lua_modules.i18n")
-local level_config = require("lua_modules.level_config")
+local camp_view = require("gui.campaign_map.camp_view")
+local camp_inspector = require("gui.campaign_map.camp_inspector")
 
-local DEF_STARS = {
-	[1] = "[1/3]",
-	[2] = "[2/3]",
-	[3] = "[3/3]",
-}
+local function refresh(self)
+	camp_view.refresh(self)
+	camp_inspector.refresh(self)
+	camp_view.set_badges(self, progression.squad_can_improve(), progression.any_weapon_upgrade())
 
-local function get_defense_name(lvl)
-	if lvl == 1 then
-		return i18n.t("camp_def_1")
-	elseif lvl == 2 then
-		return i18n.t("camp_def_2")
+	-- Campaign over: the whole island is ours (or lost)
+	local won = territory_map.is_victory("blue")
+	local lost = territory_map.is_defeat("blue")
+	gui.set_enabled(self.final.root, won or lost)
+	if won or lost then
+		kit.set_text(self.final.text, won and i18n.t("ui_campaign_won") or i18n.t("debrief_campaign_lost"), 440, 22, "title")
+		self.final.button.set_label(i18n.t("ui_new_campaign"))
+	end
+end
+
+local function open_overlay(path)
+	sound_manager.play("whoosh")
+	msg.post(path, "enable")
+	msg.post(path .. "#gui", "show", { from = "/gui_campaign_map#gui" })
+end
+
+local function start_sector_battle(self)
+	local sid = self.selected_sector_id
+	local cfg = sid and strategic_campaign.prepare_battle(sid)
+	if cfg then
+		sound_manager.play("radio")
+		msg.post(".", "disable")
+		msg.post("/main#main", "start_battle", cfg)
+	end
+end
+
+local function fortify(self)
+	local sid = self.selected_sector_id
+	if sid and strategic_campaign.fortify(sid) then
+		sound_manager.play("crate")
+		kit.pop_in(self.view.sectors[sid].root)
 	else
-		return i18n.t("camp_def_3")
+		sound_manager.play("tick")
 	end
+	refresh(self)
 end
 
-local TERRAIN_NAMES = {
-	hills            = { ru = "Холмы",            en = "Hills",            tr = "Tepeler",            es = "Colinas",            pt = "Colinas",            fr = "Collines" },
-	flat             = { ru = "Равнина",          en = "Plains",           tr = "Düzlük",             es = "Llanuras",           pt = "Planícies",          fr = "Plaines" },
-	canyon_bridge    = { ru = "Каньон и Мост",    en = "Canyon Bridge",    tr = "Kanyon Köprüsü",    es = "Puente del Cañón",   pt = "Ponte do Cânion",    fr = "Pont du Canyon" },
-	swiss_cheese     = { ru = "Сырный Каньон",    en = "Swiss Cheese",    tr = "İsviçre Peyniri",   es = "Queso Suizo",        pt = "Queijo Suíço",       fr = "Gruyère" },
-	floating_islands = { ru = "Парящие Острова",  en = "Floating Islands", tr = "Uçan Adalar",       es = "Islas Flotantes",    pt = "Ilhas Flutuantes",   fr = "Îles Flottantes" },
-	cavern           = { ru = "Пещеры",           en = "Caverns",          tr = "Mağaralar",         es = "Cavernas",           pt = "Cavernas",           fr = "Cavernes" },
-	bunkers          = { ru = "Бункеры",          en = "Bunkers",          tr = "Sığınaklar",        es = "Búnkeres",           pt = "Bunkers",            fr = "Bunkers" },
-	islands          = { ru = "Острова",           en = "Islands",          tr = "Adalar",            es = "Islas",              pt = "Ilhas",              fr = "Îles" },
-}
-
-local function get_terrain_display_name(preset)
-	local lang = i18n.current_lang or "en"
-	local entry = TERRAIN_NAMES[preset]
-	if entry then
-		return entry[lang] or entry.en or preset
-	end
-	return preset or ""
-end
-
-local function update_inspector(self)
-	local is_ru = (i18n.current_lang == "ru")
-	local s = territory_map.get_sector(self.selected_sector_id)
-	if not s then
-		pcall(function()
-			gui.set_enabled(gui.get_node("panel_inspector"), false)
-		end)
-		return
-	end
-
-	pcall(function()
-		gui.set_enabled(gui.get_node("panel_inspector"), true)
-
-		-- Badge & Title
-		gui.set_text(gui.get_node("insp_badge_txt"), i18n.t("camp_recon_dossier"))
-		local s_name = territory_map.get_sector_name(s, i18n.current_lang)
-		local id_prefix = string.format("[#%02d] ", s.id)
-		gui.set_text(gui.get_node("insp_title"), id_prefix .. s_name)
-
-		-- Region
-		local reg_name = territory_map.get_region_name(s.region, i18n.current_lang)
-		local reg_icon = (s.region == 1 and "🌿 ") or (s.region == 2 and "🏜️ ") or (s.region == 3 and "❄️ ") or "🌋 "
-		gui.set_text(gui.get_node("insp_region"), reg_icon .. reg_name)
-
-		-- Owner
-		local is_blue = (s.owner == "blue")
-		local owner_text = is_blue and i18n.t("camp_owner_blue") or i18n.t("camp_owner_red")
-		gui.set_text(gui.get_node("insp_owner_txt"), owner_text)
-		local owner_card = gui.get_node("insp_owner_card")
-		if is_blue then
-			gui.set_color(owner_card, vmath.vector4(0.12, 0.32, 0.65, 1.0))
-		else
-			gui.set_color(owner_card, vmath.vector4(0.65, 0.16, 0.18, 1.0))
-		end
-
-		-- Defense & Garrison
-		local def_lvl = s.defense_level or 1
-		local stars = DEF_STARS[def_lvl] or "★☆☆"
-		local def_name = get_defense_name(def_lvl)
-		local def_str = string.format(i18n.t("camp_def_fmt"), stars, def_name)
-		gui.set_text(gui.get_node("insp_def_txt"), def_str)
-
-		local lvl_cfg = level_config.get(s.id)
-		local gar_count = (not is_blue and lvl_cfg.enemy_count) or s.garrison or 2
-		local gar_str = string.format(i18n.t("camp_garrison_fmt"), gar_count)
-		if not is_blue and lvl_cfg.enemy_classes and #lvl_cfg.enemy_classes > 0 then
-			local cls_names = {}
-			for idx, cid in ipairs(lvl_cfg.enemy_classes) do
-				local cname = classes.get_class_name(cid, i18n.current_lang)
-				local clvl = (lvl_cfg.enemy_levels and lvl_cfg.enemy_levels[idx]) or 1
-				if clvl > 1 then
-					cname = cname .. "★"
-				end
-				table.insert(cls_names, cname)
-			end
-			gar_str = gar_str .. " (" .. table.concat(cls_names, ", ") .. ")"
-		end
-		gui.set_text(gui.get_node("insp_gar_txt"), gar_str)
-
-		-- Income
-		gui.set_text(gui.get_node("insp_inc_txt"), string.format(i18n.t("camp_income_fmt"), s.income or 25))
-
-		-- Terrain
-		local ter_name = get_terrain_display_name(s.terrain_preset)
-		gui.set_text(gui.get_node("insp_ter_txt"), string.format(i18n.t("camp_terrain_fmt"), ter_name))
-
-		-- Tactical status & Buttons
-		local can_atk = territory_map.can_attack(s.id)
-		local can_fort = territory_map.can_fortify(s.id)
-		local supplies = strategic_campaign.get_supplies()
-		local fort_cost = territory_map.get_fortify_cost(s.id)
-
-		local status_txt_node = gui.get_node("insp_stat_txt")
-		local status_card_node = gui.get_node("insp_stat_card")
-
-		if s.under_attack then
-			gui.set_text(status_txt_node, i18n.t("camp_status_under_attack"))
-			gui.set_color(status_txt_node, vmath.vector4(1.0, 0.25, 0.25, 1.0))
-			gui.set_color(status_card_node, vmath.vector4(0.40, 0.10, 0.10, 1.0))
-		elseif is_blue then
-			gui.set_text(status_txt_node, i18n.t("camp_status_defend"))
-			gui.set_color(status_txt_node, vmath.vector4(0.35, 0.85, 0.95, 1.0))
-			gui.set_color(status_card_node, vmath.vector4(0.10, 0.22, 0.35, 1.0))
-		elseif can_atk then
-			gui.set_text(status_txt_node, i18n.t("camp_status_ready"))
-			gui.set_color(status_txt_node, vmath.vector4(0.95, 0.85, 0.20, 1.0))
-			gui.set_color(status_card_node, vmath.vector4(0.35, 0.28, 0.10, 1.0))
-		else
-			gui.set_text(status_txt_node, i18n.t("camp_status_deep"))
-			gui.set_color(status_txt_node, vmath.vector4(0.65, 0.68, 0.75, 1.0))
-			gui.set_color(status_card_node, vmath.vector4(0.15, 0.18, 0.22, 1.0))
-		end
-
-		-- ATTACK Button
-		local btn_atk = gui.get_node("btn_insp_attack")
-		local txt_atk = gui.get_node("txt_insp_attack")
-		if can_atk then
-			gui.set_enabled(btn_atk, true)
-			gui.set_color(btn_atk, vmath.vector4(0.18, 0.74, 0.35, 1.0)) -- Vibrant Combat Green
-			gui.set_text(txt_atk, i18n.t("camp_btn_attack"))
-		elseif s.under_attack and is_blue then
-			gui.set_enabled(btn_atk, true)
-			gui.set_color(btn_atk, vmath.vector4(0.85, 0.25, 0.20, 1.0)) -- Defense Red
-			gui.set_text(txt_atk, i18n.t("camp_btn_repel"))
-		else
-			gui.set_enabled(btn_atk, false)
-			gui.set_color(btn_atk, vmath.vector4(0.25, 0.28, 0.32, 1.0))
-			gui.set_text(txt_atk, i18n.t("camp_btn_attack"))
-		end
-
-		-- FORTIFY Button
-		local btn_fort = gui.get_node("btn_insp_fortify")
-		local txt_fort = gui.get_node("txt_insp_fortify")
-		if is_blue then
-			gui.set_enabled(btn_fort, true)
-			if def_lvl >= 3 then
-				gui.set_color(btn_fort, vmath.vector4(0.25, 0.35, 0.45, 1.0))
-				gui.set_text(txt_fort, i18n.t("camp_btn_max_fort"))
-			else
-				local has_enough = (supplies >= fort_cost)
-				if has_enough then
-					gui.set_color(btn_fort, vmath.vector4(0.88, 0.62, 0.15, 1.0))
-				else
-					gui.set_color(btn_fort, vmath.vector4(0.35, 0.38, 0.42, 1.0))
-				end
-				gui.set_text(txt_fort, string.format(i18n.t("camp_btn_fortify"), fort_cost))
-			end
-		else
-			gui.set_enabled(btn_fort, false)
-			gui.set_color(btn_fort, vmath.vector4(0.22, 0.25, 0.28, 1.0))
-			gui.set_text(txt_fort, i18n.t("camp_enemy_base"))
-		end
-	end)
-end
-
-local CLASS_AVATARS = {
-	recruit     = "recruit",
-	assault     = "assault",
-	assault_2   = "assault",
-	sniper      = "sniper",
-	sapper      = "sapper",
-	sapper_2    = "sapper",
-	commando    = "sapper",
-	artillery   = "tank",
-	artillery_2 = "tank",
-	rocketeer   = "tank",
-	medic       = "medic",
-	surgeon     = "medic",
-	engineer    = "sapper",
-	tank        = "tank",
-}
-
-local function update_barracks_ui(self)
-	if not self.is_barracks_open then
-		pcall(function()
-			gui.set_enabled(gui.get_node("barracks_overlay"), false)
-		end)
-		return
-	end
-
-	pcall(function()
-		gui.set_enabled(gui.get_node("barracks_overlay"), true)
-		local is_ru = (i18n.current_lang == "ru")
-		local stars = player_profile.get_stars()
-		local pts = player_profile.get_points()
-
-		gui.set_text(gui.get_node("barracks_title"), i18n.t("barracks_title"))
-		gui.set_text(gui.get_node("barracks_stars_txt"), string.format(i18n.t("barracks_stars_fmt"), stars))
-		gui.set_text(gui.get_node("barracks_points_txt"), string.format(i18n.t("barracks_points_fmt"), pts))
-		gui.set_text(gui.get_node("txt_barracks_buy_star"), i18n.t("barracks_buy_star"))
-
-		local buy_btn = gui.get_node("btn_barracks_buy_star")
-		if pts >= 1000 then
-			gui.set_color(buy_btn, vmath.vector4(0.18, 0.65, 0.35, 1.0))
-		else
-			gui.set_color(buy_btn, vmath.vector4(0.35, 0.38, 0.42, 0.8))
-		end
-
-		local squad = player_profile.get_squad()
-		self.barracks_upgrades = {} -- store upgrade metadata per slot [i][upg_idx] = { class_id, cost }
-
-		for i = 1, 4 do
-			self.barracks_upgrades[i] = {}
-			local card = gui.get_node("b_slot_card_" .. i)
-			local title_node = gui.get_node("b_slot_title_" .. i)
-			local avatar = gui.get_node("b_slot_avatar_" .. i)
-			local class_node = gui.get_node("b_slot_class_" .. i)
-			local stats_node = gui.get_node("b_slot_stats_" .. i)
-			local max_node = gui.get_node("b_slot_max_txt_" .. i)
-			local unlock_btn = gui.get_node("b_slot_unlock_btn_" .. i)
-			local unlock_txt = gui.get_node("b_slot_unlock_txt_" .. i)
-
-			local btn1 = gui.get_node("b_slot_upg1_btn_" .. i)
-			local txt1 = gui.get_node("b_slot_upg1_txt_" .. i)
-			local btn2 = gui.get_node("b_slot_upg2_btn_" .. i)
-			local txt2 = gui.get_node("b_slot_upg2_txt_" .. i)
-			local btn3 = gui.get_node("b_slot_upg3_btn_" .. i)
-			local txt3 = gui.get_node("b_slot_upg3_txt_" .. i)
-
-			gui.set_text(title_node, string.format(i18n.t("barracks_slot_fmt"), i))
-
-			local member = squad[i]
-			if member then
-				-- UNLOCKED POTATO MEMBER
-				gui.set_enabled(unlock_btn, false)
-				gui.set_enabled(avatar, true)
-				gui.set_enabled(class_node, true)
-				gui.set_enabled(stats_node, true)
-
-				local c_def = classes.get(member.class_id)
-				local c_name = classes.get_class_name(member.class_id, i18n.current_lang)
-				gui.set_text(class_node, c_name)
-
-				local hp_val = c_def.stats and c_def.stats.base_hp or 100
-				local spd_val = math.floor((c_def.stats and c_def.stats.walk_speed_mult or 1.0) * 100)
-				gui.set_text(stats_node, string.format(i18n.t("barracks_stats_fmt"), hp_val, spd_val))
-
-				local tex_name = CLASS_AVATARS[member.class_id] or "recruit"
-				gui.play_flipbook(avatar, hash(tex_name))
-
-				-- Available promotions along branch
-				local promos = classes.get_promotions(member.class_id)
-				if #promos == 0 then
-					gui.set_enabled(btn1, false)
-					gui.set_enabled(btn2, false)
-					gui.set_enabled(btn3, false)
-					gui.set_enabled(max_node, true)
-					gui.set_text(max_node, i18n.t("barracks_max_class"))
-				else
-					gui.set_enabled(max_node, false)
-					local upg_btns = { { btn = btn1, txt = txt1 }, { btn = btn2, txt = txt2 }, { btn = btn3, txt = txt3 } }
-
-					for u = 1, 3 do
-						local p_class = promos[u]
-						local b_pair = upg_btns[u]
-						if p_class then
-							gui.set_enabled(b_pair.btn, true)
-							local p_name = classes.get_class_name(p_class.id, i18n.current_lang)
-							local cost = p_class.star_cost or 2
-							gui.set_text(b_pair.txt, string.format(i18n.t("barracks_cost_stars"), p_name, cost))
-							self.barracks_upgrades[i][u] = { class_id = p_class.id, cost = cost }
-
-							if stars >= cost then
-								gui.set_color(b_pair.btn, vmath.vector4(0.18, 0.50, 0.85, 1.0))
-							else
-								gui.set_color(b_pair.btn, vmath.vector4(0.32, 0.35, 0.40, 0.7))
-							end
-						else
-							gui.set_enabled(b_pair.btn, false)
-						end
-					end
-				end
-			else
-				-- LOCKED POTATO SLOT
-				gui.set_enabled(avatar, false)
-				gui.set_enabled(class_node, true)
-				gui.set_enabled(stats_node, false)
-				gui.set_enabled(max_node, false)
-				gui.set_enabled(btn1, false)
-				gui.set_enabled(btn2, false)
-				gui.set_enabled(btn3, false)
-				gui.set_enabled(unlock_btn, true)
-
-				gui.set_text(class_node, i18n.t("barracks_slot_locked"))
-
-				-- Determine unlock cost: 3rd potato = 3 stars, 4th potato = 7 stars
-				local unlock_cost = (i == 3) and 3 or 7
-				local can_unlock_now = (i == (#squad + 1))
-
-				if can_unlock_now then
-					gui.set_text(unlock_txt, string.format(i18n.t("barracks_unlock_btn"), unlock_cost))
-					if stars >= unlock_cost then
-						gui.set_color(unlock_btn, vmath.vector4(0.88, 0.62, 0.15, 1.0))
-					else
-						gui.set_color(unlock_btn, vmath.vector4(0.35, 0.38, 0.42, 0.7))
-					end
-				else
-					-- Prerequisite needed (e.g. slot 4 requires slot 3 first)
-					gui.set_text(unlock_txt, i18n.t("barracks_unlock_req"))
-					gui.set_color(unlock_btn, vmath.vector4(0.25, 0.28, 0.32, 0.5))
-				end
-			end
-		end
-	end)
-end
-
-local function select_sector(self, sector_id)
-	sound_manager.play_click()
-	self.selected_sector_id = sector_id
-
-	-- Bounce animation on clicked node
-	pcall(function()
-		local btn = gui.get_node("sec_btn_" .. sector_id)
-		gui.cancel_animation(btn, "scale")
-		gui.set_scale(btn, vmath.vector3(1.15, 1.15, 1.0))
-		gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.25)
-	end)
-
-	self:update_visuals()
-end
-
-function M_update_visuals(self)
-	local is_ru = (i18n.current_lang == "ru")
-	local stats = territory_map.get_stats()
-	local supplies = strategic_campaign.get_supplies()
-	local turn = strategic_campaign.get_turn()
-
-	-- 1. Top Bar
-	pcall(function()
-		gui.set_text(gui.get_node("txt_top_title"), i18n.t("camp_title"))
-		gui.set_text(gui.get_node("txt_top_sectors"), string.format(i18n.t("camp_sectors_fmt"), stats.blue_count, stats.total_count, stats.progress_pct))
-		gui.set_text(gui.get_node("txt_top_supplies"), string.format(i18n.t("camp_supplies_fmt"), supplies))
-		gui.set_text(gui.get_node("txt_top_turn"), string.format(i18n.t("camp_turn_fmt"), turn))
-		gui.set_text(gui.get_node("txt_top_barracks"), i18n.t("barracks_btn"))
-		gui.set_text(gui.get_node("txt_top_menu"), i18n.t("camp_btn_back"))
-		gui.set_text(gui.get_node("txt_bot_hint"), i18n.t("camp_hint_bottom"))
-
-		-- Regional zone labels
-		local cur_lang = i18n.current_lang or "en"
-		gui.set_text(gui.get_node("lbl_reg_1"), string.upper(territory_map.get_region_name(1, cur_lang)))
-		gui.set_text(gui.get_node("lbl_reg_2"), string.upper(territory_map.get_region_name(2, cur_lang)))
-		gui.set_text(gui.get_node("lbl_reg_3"), string.upper(territory_map.get_region_name(3, cur_lang)))
-		gui.set_text(gui.get_node("lbl_reg_4"), string.upper(territory_map.get_region_name(4, cur_lang)))
-	end)
-
-	-- Update Barracks UI if open
-	update_barracks_ui(self)
-
-	-- 2. Connecting Lines Visuals
-	local secs = territory_map.get_sectors()
-	for _, l in ipairs(self.lines or {}) do
-		local sa = secs[l.from]
-		local sb = secs[l.to]
-		if sa and sb then
-			local is_frontline = (sa.owner ~= sb.owner)
-			l.is_frontline = is_frontline
-			if is_frontline then
-				-- Frontline: Gold / Orange pulsating line
-				gui.set_color(l.node, vmath.vector4(0.96, 0.72, 0.16, 0.95))
-				gui.set_size(l.node, vmath.vector3(l.len, 4.5, 0))
-			elseif sa.owner == "blue" then
-				-- Friendly route: Calm blue
-				gui.set_color(l.node, vmath.vector4(0.18, 0.45, 0.75, 0.55))
-				gui.set_size(l.node, vmath.vector3(l.len, 2.5, 0))
-			else
-				-- Enemy route: Dark burgundy
-				gui.set_color(l.node, vmath.vector4(0.48, 0.18, 0.22, 0.45))
-				gui.set_size(l.node, vmath.vector3(l.len, 2.0, 0))
-			end
-		end
-	end
-
-	-- 3. Sector Nodes 1..18
-	local attacked_sector = nil
-	for i = 1, 18 do
-		local s = secs[i]
-		if s then
-			local is_blue = (s.owner == "blue")
-			local is_selected = (self.selected_sector_id == i)
-			local can_atk = territory_map.can_attack(i)
-
-			if s.under_attack then
-				attacked_sector = s
-			end
-
-			pcall(function()
-				local btn = gui.get_node("sec_btn_" .. i)
-				local glow = gui.get_node("sec_glow_" .. i)
-				local potato = gui.get_node("sec_potato_" .. i)
-				local stars = gui.get_node("sec_stars_" .. i)
-				local alert = gui.get_node("sec_alert_" .. i)
-				local lbl = gui.get_node("sec_lbl_" .. i)
-
-				-- Button faction color & potato avatar
-				gui.play_flipbook(potato, hash("recruit"))
-				if is_blue then
-					gui.set_color(btn, vmath.vector4(0.16, 0.44, 0.82, 1.0))
-					gui.set_color(potato, vmath.vector4(0.85, 0.95, 1.0, 1.0))
-				else
-					gui.set_color(btn, vmath.vector4(0.74, 0.18, 0.20, 1.0))
-					gui.set_color(potato, vmath.vector4(1.0, 0.85, 0.85, 1.0))
-				end
-
-				-- Emotion expression on sec_potato
-				if not self.sec_emotions then
-					self.sec_emotions = {}
-				end
-				local emo_node = self.sec_emotions[i]
-				if not emo_node then
-					emo_node = gui.new_box_node(vmath.vector3(0, 5.5, 0), vmath.vector3(14, 14, 0))
-					gui.set_texture(emo_node, "game")
-					gui.set_parent(emo_node, potato)
-					gui.set_inherit_alpha(emo_node, true)
-					self.sec_emotions[i] = emo_node
-				end
-				local emo_anim = "s_bored"
-				if s.under_attack then
-					emo_anim = is_blue and "s_wow" or "s_angry2"
-				elseif is_blue then
-					local blue_emotions = { "s_happy", "s_bored", "s_happy", "s_bored2" }
-					emo_anim = blue_emotions[((i - 1) % #blue_emotions) + 1]
-				else
-					local red_emotions = { "s_angry", "s_angry2", "s_bored", "s_wow" }
-					emo_anim = red_emotions[((i - 1) % #red_emotions) + 1]
-				end
-				gui.play_flipbook(emo_node, hash(emo_anim))
-				gui.set_color(emo_node, vmath.vector4(1, 1, 1, 1))
-
-				-- Defense stars
-				local def_stars = DEF_STARS[s.defense_level or 1] or "★☆☆"
-				gui.set_text(stars, def_stars)
-
-				-- Label text
-				local cur_lang = i18n.current_lang or "en"
-				gui.set_text(lbl, territory_map.get_sector_name(i, cur_lang))
-
-				-- Under attack badge
-				gui.set_enabled(alert, s.under_attack == true)
-
-				-- Glow ring
-				if is_selected then
-					gui.set_enabled(glow, true)
-					gui.set_color(glow, vmath.vector4(0.98, 0.88, 0.25, 0.90))
-					gui.set_size(glow, vmath.vector3(64, 64, 0))
-				elseif s.under_attack then
-					gui.set_enabled(glow, true)
-					gui.set_color(glow, vmath.vector4(0.95, 0.20, 0.20, 0.85))
-					gui.set_size(glow, vmath.vector3(62, 62, 0))
-				elseif can_atk then
-					-- Available target indicator: subtle golden ring
-					gui.set_enabled(glow, true)
-					gui.set_color(glow, vmath.vector4(0.95, 0.75, 0.20, 0.50))
-					gui.set_size(glow, vmath.vector3(58, 58, 0))
-				else
-					gui.set_enabled(glow, false)
-				end
-			end)
-		end
-	end
-
-	-- 4. Alert Banner
-	pcall(function()
-		local banner = gui.get_node("alert_banner")
-		if attacked_sector then
-			gui.set_enabled(banner, true)
-			local msg_str = string.format(i18n.t("camp_alert_siren"), attacked_sector.id)
-			gui.set_text(gui.get_node("txt_alert_banner"), msg_str)
-		else
-			gui.set_enabled(banner, false)
-		end
-	end)
-
-	-- 5. Inspector Panel
-	update_inspector(self)
+local function build_final(self)
+	local root = kit.group(nil, 345, 240, 676, 476)
+	self.final = { root = root }
+	kit.box(root, "dim", 0, 0, 676, 476, vmath.vector4(1, 1, 1, 0.75))
+	local p = kit.panel(root, 0, 0, 480, 220)
+	kit.icon(p, "ic_trophy", 0, 50, 70)
+	self.final.text = kit.text(p, "", 0, -10, 22, { font = "title", color = kit.C.gold, max_w = 440 })
+	self.final.button = kit.button(self.ui, p, "map_new_campaign", 0, -66, 280, 56, { style = "gold", label = "", px = 20, on_click = function()
+		strategic_campaign.start_new_campaign()
+		self.selected_sector_id = 1
+		sound_manager.play("unlock")
+		refresh(self)
+	end })
+	gui.set_enabled(root, false)
 end
 
 function init(self)
@@ -507,230 +76,61 @@ function init(self)
 	gui.set_render_order(6)
 	self.ui = ui_manager.create(self)
 	self.selected_sector_id = 1
-	self.pulse_timer = 0
-	self.update_visuals = M_update_visuals
-
-	-- Build connection line nodes dynamically
-	self.lines = {}
-	local edges = territory_map.get_connections()
-	local container = gui.get_node("lines_container")
-
-	for _, e in ipairs(edges) do
-		local a = e.sector_a
-		local b = e.sector_b
-		if a and b then
-			local mx = (a.x + b.x) * 0.5
-			local my = (a.y + b.y) * 0.5
-			local dx = b.x - a.x
-			local dy = b.y - a.y
-			local len = math.sqrt(dx * dx + dy * dy)
-			local angle_rad = math.atan2(dy, dx)
-
-			local line_node = gui.new_box_node(vmath.vector3(mx, my, 0), vmath.vector3(len, 2.5, 0))
-			gui.set_parent(line_node, container)
-			gui.set_rotation(line_node, vmath.quat_rotation_z(angle_rad))
-			gui.set_color(line_node, vmath.vector4(0.3, 0.38, 0.48, 0.5))
-
-			table.insert(self.lines, {
-				node = line_node,
-				from = a.id,
-				to = b.id,
-				len = len,
-				is_frontline = e.is_frontline,
-			})
-		end
+	self.on_select = function(id)
+		self.selected_sector_id = id
+		sound_manager.play("click")
+		refresh(self)
 	end
-
-	-- Register Sector Node buttons 1..18
-	for i = 1, 18 do
-		local sid = i
-		self.ui:button("sec_btn_" .. sid, function()
-			select_sector(self, sid)
-		end, { slop = 10 })
-	end
-
-	-- Top Bar Menu Button
-	self.ui:button("btn_top_menu", function()
-		sound_manager.play_click()
-		msg.post(".", "disable")
-		msg.post("/main#main", "show_menu")
-	end)
-
-	-- Inspector: Attack Button
-	self.ui:button("btn_insp_attack", function()
-		local sid = self.selected_sector_id
-		local s = sid and territory_map.get_sector(sid)
-		if not s then return end
-
-		local can_atk = territory_map.can_attack(sid)
-		local is_under_atk = s.under_attack and (s.owner == "blue")
-
-		if can_atk or is_under_atk then
-			sound_manager.play_click()
-			local battle_cfg = strategic_campaign.prepare_battle(sid)
-			if battle_cfg then
-				msg.post(".", "disable")
-				msg.post("/main#main", "start_battle", battle_cfg)
-			end
-		end
-	end)
-
-	-- Inspector: Fortify Button
-	self.ui:button("btn_insp_fortify", function()
-		local sid = self.selected_sector_id
-		if not sid then return end
-
-		local ok, err_or_cost = strategic_campaign.fortify(sid)
-		if ok then
-			sound_manager.play_heal()
-			-- Bounce animation on sector node
-			pcall(function()
-				local btn = gui.get_node("sec_btn_" .. sid)
-				gui.cancel_animation(btn, "scale")
-				gui.set_scale(btn, vmath.vector3(1.2, 1.2, 1.0))
-				gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.3)
-			end)
-			self:update_visuals()
-		else
-			-- Shake fortify button on failure
-			pcall(function()
-				local btn = gui.get_node("btn_insp_fortify")
-				gui.cancel_animation(btn, "scale")
-				gui.set_scale(btn, vmath.vector3(1.10, 0.85, 1.0))
-				gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.25)
-			end)
-		end
-	end)
-
-	-- Inspector: Close Button
-	self.ui:button("btn_insp_close", function()
-		sound_manager.play_click()
-		self.selected_sector_id = nil
-		pcall(function()
-			gui.set_enabled(gui.get_node("panel_inspector"), false)
-		end)
-		self:update_visuals()
-	end)
-
-	-- Top Bar Barracks Button
-	self.ui:button("btn_top_barracks", function()
-		sound_manager.play_click()
-		self.is_barracks_open = true
-		update_barracks_ui(self)
-	end)
-
-	-- Barracks: Close Button
-	self.ui:button("btn_barracks_close", function()
-		sound_manager.play_click()
-		self.is_barracks_open = false
-		update_barracks_ui(self)
-	end)
-
-	-- Barracks: Buy 1 Star for 1000 Points (or open IAP store if not enough points)
-	self.ui:button("btn_barracks_buy_star", function()
-		local ok, err_or_stars = player_profile.buy_star_with_points()
-		if ok then
-			sound_manager.play_heal()
-			update_barracks_ui(self)
-		else
-			sound_manager.play_click()
+	camp_view.build(self, {
+		squad = function() open_overlay("/gui_squad") end,
+		arsenal = function() open_overlay("/gui_arsenal") end,
+		menu = function()
+			msg.post(".", "disable")
 			msg.post("/main#main", "show_menu")
-			msg.post("/gui_menu#gui", "open_shop", { mode = "iap" })
-		end
-	end)
-
-	-- Barracks: Unlock Potato #3 and #4
-	for slot_idx = 3, 4 do
-		local s_idx = slot_idx
-		self.ui:button("b_slot_unlock_btn_" .. s_idx, function()
-			local ok, err = player_profile.unlock_next_potato()
-			if ok then
-				sound_manager.play_heal()
-			else
-				sound_manager.play_click()
-			end
-			update_barracks_ui(self)
-		end)
-	end
-
-	-- Barracks: Upgrade Buttons for Slots 1..4 (up to 3 branch options per slot)
-	for slot_idx = 1, 4 do
-		local s_idx = slot_idx
-		for upg_idx = 1, 3 do
-			local u_idx = upg_idx
-			self.ui:button("b_slot_upg" .. u_idx .. "_btn_" .. s_idx, function()
-				local upg_data = self.barracks_upgrades and self.barracks_upgrades[s_idx] and self.barracks_upgrades[s_idx][u_idx]
-				if upg_data then
-					local ok, res = player_profile.promote_potato(s_idx, upg_data.class_id, upg_data.cost)
-					if ok then
-						sound_manager.play_heal()
-					else
-						sound_manager.play_click()
-					end
-					update_barracks_ui(self)
-				end
-			end)
-		end
-	end
-
-	-- Default initial state: hide by default until invoked
-	pcall(function()
-		msg.post(".", "disable")
-	end)
+		end,
+	})
+	camp_inspector.build(self, {
+		action = function() start_sector_battle(self) end,
+		fortify = function() fortify(self) end,
+	})
+	build_final(self)
+	msg.post(".", "disable")
 end
 
 function on_input(self, action_id, action)
-	return self.ui:on_input(action_id, action)
+	self.ui:on_input(action_id, action)
+	return true
 end
 
 function update(self, dt)
 	self.ui:update(dt)
-	self.pulse_timer = (self.pulse_timer or 0) + dt
+end
 
-	-- Pulse animation for frontlines and alerts
-	local alpha_wave = 0.70 + 0.30 * math.sin(self.pulse_timer * 4.0)
-	local gold_pulse = vmath.vector4(0.98, 0.72 + 0.10 * math.sin(self.pulse_timer * 3.0), 0.15, alpha_wave)
-
-	for _, l in ipairs(self.lines or {}) do
-		if l.is_frontline then
-			pcall(gui.set_color, l.node, gold_pulse)
+-- Starts on a sector that needs attention: under attack first, otherwise the first target
+local function pick_default_sector(self)
+	local first_target
+	for id, s in pairs(territory_map.get_sectors()) do
+		if s.under_attack then
+			return id
+		end
+		if territory_map.can_attack(id) and (not first_target or id < first_target) then
+			first_target = id
 		end
 	end
-
-	-- Pulse alert banner if active
-	pcall(function()
-		local banner = gui.get_node("alert_banner")
-		if gui.is_enabled(banner) then
-			local b_alpha = 0.80 + 0.20 * math.sin(self.pulse_timer * 6.0)
-			gui.set_color(banner, vmath.vector4(0.85, 0.12, 0.12, b_alpha))
-		end
-	end)
+	return first_target or self.selected_sector_id or 1
 end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("show") then
 		msg.post(".", "enable")
-		-- If a specific sector is under attack, auto-select it
-		local secs = territory_map.get_sectors()
-		local attacked_id = nil
-		for i = 1, 18 do
-			if secs[i] and secs[i].under_attack then
-				attacked_id = i
-				break
-			end
-		end
-		self.selected_sector_id = attacked_id or self.selected_sector_id or 1
-		self:update_visuals()
-
+		msg.post(".", "acquire_input_focus")
+		self.selected_sector_id = pick_default_sector(self)
+		refresh(self)
+	elseif message_id == hash("overlay_closed") or message_id == hash("refresh") then
+		refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
-
-	elseif message_id == hash("refresh") then
-		self:update_visuals()
-
-	elseif message_id == hash("select_sector") then
-		if message and message.sector_id then
-			select_sector(self, message.sector_id)
-		end
+	elseif message_id == hash("select_sector") and message.sector_id then
+		self.on_select(message.sector_id)
 	end
 end

@@ -9,6 +9,8 @@ M.width = constants.TERRAIN_WIDTH
 M.height = constants.TERRAIN_HEIGHT
 M.scale = constants.TERRAIN_SCALE -- 2.0 world units per cell
 M.grid = {} -- 1D flat array: gy * width + gx + 1 -> 1 (solid) or 0 (air)
+M.carved = {} -- Sparse set of cells blasted away by craters (used for charred rims instead of regrown caps)
+M.seed = 0
 
 -- Initialize or clear the grid
 function M.init(w, h, scale)
@@ -16,6 +18,7 @@ function M.init(w, h, scale)
 	M.height = h or constants.TERRAIN_HEIGHT
 	M.scale = scale or constants.TERRAIN_SCALE
 	local total = M.width * M.height
+	M.carved = {}
 	M.grid = {}
 	for i = 1, total do
 		M.grid[i] = 0
@@ -157,6 +160,7 @@ function M.carve_circle(world_cx, world_cy, world_radius)
 				local idx = row_offset + gx + 1
 				if M.grid[idx] == 1 then
 					M.grid[idx] = 0
+					M.carved[idx] = true
 					cleared = cleared + 1
 				end
 			end
@@ -499,19 +503,21 @@ function M.generate(preset_type, campaign_level, is_defense)
 	end
 
 	local seed = math.random(1, 99999)
+	M.seed = seed
+	M.carved = {}
 
 	if preset_type == "tutorial" or preset_type == "flat" then
-		-- Completely Flat Training Ground (height 160 world px, gy = 80 cells)
-		local base_gy = math.floor(160 / M.scale) -- 80 cells
+		-- Completely Flat Training Ground (height 320 world px, gy = 160 cells), well above the fryer oil
+		local base_gy = math.floor(320 / M.scale) -- 160 cells
 		for gx = 0, w - 1 do
 			local wx = gx * M.scale
 			local height_val = base_gy
 			if wx < 30 then
 				-- Left edge safety bumper
-				height_val = math.floor(200 / M.scale)
+				height_val = math.floor(380 / M.scale)
 			elseif wx > (w * M.scale - 30) then
 				-- Right edge safety bumper
-				height_val = math.floor(200 / M.scale)
+				height_val = math.floor(380 / M.scale)
 			end
 			for gy = 0, height_val do
 				M.grid[gy * w + gx + 1] = 1

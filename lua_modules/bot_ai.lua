@@ -401,6 +401,15 @@ function M.score_weapon_tactical(weapon, bot, target, dist, has_los, wind_vector
 		if has_los and dist >= 80 and dist <= 380 then
 			score = score + 260
 		end
+	elseif w_id == weapons.TYPES.DYNAMITE then
+		-- Short throw, huge blast
+		score = score + ((dist > 90 and dist < 230) and 300 or -250)
+	elseif w_id == weapons.TYPES.HOMING then
+		if dist > 220 then
+			score = score + 290
+		end
+	elseif w_id == weapons.TYPES.CLUSTER then
+		score = score + 140
 	end
 
 	-- 2. Elemental combinations on target
@@ -749,6 +758,9 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	local all_candidate_ids = {
 		weapons.TYPES.GRENADE,
 		weapons.TYPES.BAZOOKA,
+		weapons.TYPES.DYNAMITE,
+		weapons.TYPES.CLUSTER,
+		weapons.TYPES.HOMING,
 		weapons.TYPES.MOLOTOV,
 		weapons.TYPES.PEPPER,
 		weapons.TYPES.GARLIC,
@@ -820,6 +832,33 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	}
 end
 
+-- Airstrike when the bot carries one and no ally stands under the bomb row.
+-- aim_error: random spread of the marked spot (px)
+function M.plan_airstrike(bot, target, all_potatoes, aim_error)
+	if not (bot.id and inventory_manager.inventories[bot.id] and inventory_manager.has_weapon(bot.id, weapons.TYPES.AIRSTRIKE)) then
+		return nil
+	end
+	local w = weapons.get(weapons.TYPES.AIRSTRIKE)
+	local half_row = (w.bombs or 5) * (w.bomb_spacing or 34) * 0.5 + (w.blast_radius or 26)
+	for _, p in ipairs(all_potatoes) do
+		if p.is_alive and p.team == bot.team and math.abs(p.pos.x - target.pos.x) < half_row then
+			return nil
+		end
+	end
+	local dir = (target.pos.x >= bot.pos.x) and 1 or -1
+	return {
+		weapon_id = w.id,
+		aim_dx = dir * 0.6,
+		aim_dy = 0.8,
+		power = 1,
+		target_x = target.pos.x + (math.random() * 2 - 1) * (aim_error or 0),
+		is_breaching = false,
+	}
+end
+
+local AIRSTRIKE_ERROR = { easy = 70, normal = 30, hard = 10 }
+local AIRSTRIKE_CHANCE = 0.55
+
 -- 4. MASTER BOT TURN PLANNER: Coordinates perception, movement, and combat
 function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	difficulty = level_config.normalize_skill(difficulty or "normal")
@@ -844,6 +883,15 @@ function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
 	local move_plan = M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
 
 	-- 3. Attack (accounting for wind, class, and elemental combinations)
+	local strike = (math.random() < AIRSTRIKE_CHANCE) and M.plan_airstrike(bot, target, all_potatoes, AIRSTRIKE_ERROR[difficulty])
+	if strike then
+		strike.think_delay = 1.6 + math.random() * 0.6
+		strike.target_id = target.id
+		strike.movement = { dir = 0, steps = 0, should_jump = false, intent = "airstrike" }
+		strike.situation = situation
+		strike.tactical_intent = "airstrike"
+		return strike
+	end
 	local attack_plan = M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
 
 	-- 4. Controlled Gaussian Noise & Human Error by Archetype & Difficulty
@@ -1042,6 +1090,17 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill, wind_vector)
 		target_x = best_pos_x
 	}
 
+	-- Called-in airstrike instead of a direct shot
+	local strike = (math.random() < AIRSTRIKE_CHANCE) and M.plan_airstrike(bot, target, all_potatoes, AIRSTRIKE_ERROR.hard)
+	if strike then
+		strike.target_id = target.id
+		strike.movement = move_plan
+		strike.assess_delay = 1.0 + math.random() * 0.4
+		strike.aim_delay = 1.2 + math.random() * 0.4
+		strike.is_pvp_bot = true
+		return strike
+	end
+
 	-- 4. Tactical Weapon Evaluation & Ballistic Solver from planned position
 	local eval_x = best_pos_x
 	local eval_y = terrain.get_smooth_ground_y(best_pos_x, 4.0) + 8.0
@@ -1066,6 +1125,9 @@ function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill, wind_vector)
 		weapons.TYPES.PEPPER,
 		weapons.TYPES.DRILL,
 		weapons.TYPES.HOLY_GRENADE,
+		weapons.TYPES.DYNAMITE,
+		weapons.TYPES.CLUSTER,
+		weapons.TYPES.HOMING,
 	}
 
 	local chosen_weapon_id = weapons.TYPES.GRENADE

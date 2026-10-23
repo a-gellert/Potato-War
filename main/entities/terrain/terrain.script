@@ -3,10 +3,11 @@
 -- and ambient background warfare simulation for Potato War.
 
 local constants = require("lua_modules.constants")
+local game_state = require("lua_modules.game_state")
 local terrain_grid = require("lua_modules.terrain_grid")
+local terrain_painter = require("lua_modules.terrain_painter")
 local bg_battle = require("lua_modules.bg_battle")
 local camera_controller = require("lua_modules.camera_controller")
-local game_state = require("lua_modules.game_state")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
@@ -57,265 +58,17 @@ local function clamp(v, min_v, max_v)
 end
 
 ---------------------------------------------------------
--- Ultra-Rich & Natural Landscape Shading per Biome (No Vertical Stripes)
+-- Hybrid-casual terrain shading (see lua_modules/terrain_painter.lua)
 ---------------------------------------------------------
 
-local function write_terrain_pixel(stream, idx, gx, gy, w, h, grid, biome)
-	if idx < 1 or (idx + 3) > (w * h * 4) then
-		return
-	end
-	local row = gy * w
-	local solid = (grid[row + gx + 1] == 1)
-	if not solid then
-		stream[idx] = 0
-		stream[idx + 1] = 0
-		stream[idx + 2] = 0
-		stream[idx + 3] = 0
-		return
-	end
-
-	-- Depth from surface (check up to 20 cells = 40 px for lush turf cap & root strata)
-	local depth = 20
-	for d = 1, 20 do
-		local above_y = gy + d
-		if above_y >= h or grid[above_y * w + gx + 1] == 0 then
-			depth = d - 1
-			break
-		end
-	end
-
-	-- Fast distance to cut/air edge for 6-10 px Inner Shadow & charred crater cuts
-	local min_air_dist = 99
-	if gx > 0 and grid[row + gx] == 0 then
-		min_air_dist = 1
-	elseif gx < w - 1 and grid[row + gx + 2] == 0 then
-		min_air_dist = 1
-	elseif gy > 0 and grid[(gy - 1) * w + gx + 1] == 0 then
-		min_air_dist = 1
-	else
-		for d = 2, 5 do
-			if (gx - d >= 0 and grid[row + gx - d + 1] == 0)
-			   or (gx + d < w and grid[row + gx + d + 1] == 0)
-			   or (gy - d >= 0 and grid[(gy - d) * w + gx + 1] == 0) then
-				min_air_dist = d
-				break
-			end
-		end
-	end
-
-	-- Smooth coherent 2D coordinates for natural organic strata (NO noisy white grain!)
-	local rnd = hash_val2d(gx * 1.31, gy * 1.73)
-	local fold = math.sin(gx * 0.018) * 14 + math.cos(gx * 0.042) * 7
-	local layer_y = gy + fold
-
-	local r, g, b = 44, 34, 26
-
-	if biome == "desert" then
-		-- CANYON & GOLDEN DESERT BIOME
-		if depth <= 2 then
-			r = 246; g = 196; b = 108
-		elseif depth <= 6 then
-			r = 228; g = 156; b = 82
-		elseif depth <= 12 then
-			r = 205; g = 122; b = 68
-		else
-			local strata = math.sin(layer_y * 0.08) * 22
-			r = clamp(185 + strata, 110, 240)
-			g = clamp(108 + strata * 0.6, 60, 165)
-			b = clamp(66 + strata * 0.35, 38, 115)
-		end
-
-	elseif biome == "arctic" then
-		-- FROST & GLACIAL ICE BIOME
-		if depth <= 2 then
-			r = 242; g = 250; b = 255
-		elseif depth <= 6 then
-			r = 195; g = 232; b = 252
-		elseif depth <= 12 then
-			r = 145; g = 198; b = 242
-		else
-			local strata = math.sin(layer_y * 0.08) * 20
-			r = clamp(85 + strata * 0.5, 45, 175)
-			g = clamp(145 + strata * 0.8, 90, 215)
-			b = clamp(215 + strata, 150, 255)
-		end
-
-	elseif biome == "volcano" then
-		-- OBSIDIAN & MOLTEN BASALT BIOME
-		if depth <= 2 then
-			r = 95; g = 52; b = 48
-		elseif depth <= 6 then
-			r = 78; g = 38; b = 42
-		elseif depth <= 12 then
-			r = 62; g = 30; b = 36
-		else
-			local magma = math.sin(layer_y * 0.09 + math.sin(gx * 0.03) * 2)
-			if magma > 0.84 then
-				r = 255; g = 125; b = 25 -- Magma vein
-			else
-				local strata = math.sin(layer_y * 0.07) * 14
-				r = clamp(58 + strata, 38, 95)
-				g = clamp(36 + strata * 0.6, 22, 65)
-				b = clamp(42 + strata * 0.7, 28, 72)
-			end
-		end
-
-	elseif biome == "alien" then
-		-- EXOPLANET BIOLUMINESCENT SPORE BIOME
-		if depth <= 2 then
-			r = 225; g = 75; b = 238
-		elseif depth <= 6 then
-			r = 175; g = 48; b = 198
-		elseif depth <= 12 then
-			r = 128; g = 38; b = 165
-		else
-			local strata = math.sin(layer_y * 0.08) * 20
-			r = clamp(78 + strata * 0.6, 45, 160)
-			g = clamp(38 + strata * 0.4, 22, 115)
-			b = clamp(138 + strata * 0.9, 80, 215)
-		end
-
-	else
-		-- DEFAULT: LUSH SOIL & NATURAL MEADOW
-		-- 30-40 px (15-20 cells) juicy turf cap, roots, dark rich chernozem/clay, pebbles, potato tubers
-		-- Check for sheer slope / crater cut / cliff face to prevent pixel saw teeth of green
-		local is_cliff_side = (gx > 0 and grid[row + gx] == 0) or (gx < w - 1 and grid[row + gx + 2] == 0)
-
-		if is_cliff_side and depth > 0 then
-			-- Sheer vertical cut / pit slope: exposed rich soil and root fibers, no green pixel saw!
-			local is_root = (math.sin(gx * 0.45 + gy * 0.5) > 0.65)
-			if is_root then
-				r = 92; g = 68; b = 46 -- Woody root strand
-			else
-				r = 44; g = 34; b = 26 -- Dark fertile soil
-			end
-		elseif depth == 0 then
-			if is_cliff_side then
-				-- Soft edge transition at corner instead of harsh bright green pixel
-				r = 52; g = 105; b = 32
-			else
-				-- Topmost juicy horizontal grass edge with blades and wildflower clusters
-				local flower_val = math.sin(gx * 0.12)
-				if flower_val > 0.88 then
-					r = 248; g = 215; b = 45 -- Golden dandelion patch
-				elseif flower_val < -0.88 then
-					r = 245; g = 245; b = 240 -- Daisy cluster
-				elseif rnd > 0.68 then
-					r = 75; g = 195; b = 45  -- Grass blade tip
-				else
-					r = 58; g = 168; b = 35  -- Lush meadow crest
-				end
-			end
-		elseif depth <= 4 then
-			if is_cliff_side then
-				r = 46; g = 36; b = 27
-			else
-				-- Thick, juicy upper turf layer (rich natural green)
-				r = 48; g = 145; b = 28
-			end
-		elseif depth <= 8 then
-			if is_cliff_side then
-				r = 44; g = 34; b = 26
-			else
-				-- Dense dark emerald moss & turf core
-				r = 38; g = 112; b = 24
-			end
-		elseif depth <= 14 then
-			-- Humus transition with intertwined root fibers
-			local is_root = (math.sin(gx * 0.38 + gy * 0.45) > 0.62)
-			if is_root then
-				r = 105; g = 78; b = 52 -- Woody root strand
-			else
-				r = 46; g = 62; b = 28  -- Peaty turf base
-			end
-		elseif depth <= 19 then
-			-- Hanging root tips extending into the rich black soil
-			local is_root = (math.sin(gx * 0.45 + gy * 0.6) > 0.75)
-			if is_root then
-				r = 92; g = 70; b = 46
-			else
-				r = 42; g = 33; b = 25
-			end
-		else
-			-- Deep Fertile Black Soil (Чернозем) & Broad Clay Strata (Глина)
-			local clay_strata = math.sin(layer_y * 0.065) * 16 + math.cos(layer_y * 0.13) * 8
-
-			-- Rich noble black earth / dark loam base
-			r = clamp(44 + clay_strata * 0.65, 26, 72)
-			g = clamp(34 + clay_strata * 0.48, 20, 56)
-			b = clamp(26 + clay_strata * 0.35, 15, 42)
-
-			-- Embedded smooth slate pebbles & granite stones
-			local stone_cx = math.floor(gx / 58) * 58 + 29
-			local stone_cy = math.floor(gy / 52) * 52 + 26
-			local stone_dx = gx - stone_cx
-			local stone_dy = gy - stone_cy
-			if (stone_dx * stone_dx + stone_dy * stone_dy * 1.4) < 28 then
-				local st_shade = (stone_dy < 0 and stone_dx < 0) and 28 or -18
-				r = 86 + st_shade; g = 84 + st_shade; b = 82 + st_shade
-			end
-
-			-- Embedded Potato Tubers in the earth! (Картофельные клубни в толще земли)
-			local spud_cx = math.floor((gx + 28) / 96) * 96 + 48
-			local spud_cy = math.floor((gy + 18) / 84) * 84 + 42
-			local sdx = (gx - spud_cx)
-			local sdy = (gy - spud_cy) * 1.35
-			local sdist2 = sdx * sdx + sdy * sdy
-			if sdist2 < 42 then
-				local spud_shade = (sdist2 < 20) and 24 or 0
-				r = 158 + spud_shade; g = 114 + spud_shade * 0.8; b = 58 + spud_shade * 0.5
-				if (sdx == 2 and sdy == 0) or (sdx == -3 and sdy == -1) then
-					r = 88; g = 58; b = 28 -- Potato eye
-				end
-			end
-		end
-	end
-
-	-- Inner Shadow (6-10 px) and Scorched Charred Edges on Crater Cuts
-	if min_air_dist <= 5 and depth > 2 then
-		local mult = 1.0
-		if min_air_dist == 1 then
-			mult = 0.24 -- Charred burnt soot edge!
-		elseif min_air_dist == 2 then
-			mult = 0.42 -- Burnt gradient
-		elseif min_air_dist == 3 then
-			mult = 0.62 -- Inner shadow
-		elseif min_air_dist == 4 then
-			mult = 0.78 -- Ambient occlusion
-		elseif min_air_dist == 5 then
-			mult = 0.90 -- Soft transition
-		end
-		r = r * mult
-		g = g * mult
-		b = b * mult
-	end
-
-	stream[idx] = math.floor(r)
-	stream[idx + 1] = math.floor(g)
-	stream[idx + 2] = math.floor(b)
-	stream[idx + 3] = 255
+local function paint_region(self, x0, y0, x1, y1)
+	terrain_painter.paint(self.stream, terrain_grid.grid, terrain_grid.carved,
+		terrain_grid.width or self.w, self.h, x0, y0, x1, y1)
 end
 
 local function fill_full_stream(self)
-	local w = self.w
-	local h = self.h
-	local stream = self.stream
-	local grid = terrain_grid.grid
-	local biome = self.current_biome or "grass"
-
-	local total = w * h * 4
-	for i = 1, total do
-		stream[i] = 0
-	end
-
-	local grid_w = terrain_grid.width or w
-	local idx = 1
-	for gy = 0, h - 1 do
-		for gx = 0, w - 1 do
-			write_terrain_pixel(stream, idx, gx, gy, grid_w, h, grid, biome)
-			idx = idx + 4
-		end
-	end
+	terrain_painter.reset(self.current_biome or "grass", terrain_grid.seed)
+	paint_region(self, 0, 0, self.w - 1, self.h - 1)
 end
 
 ---------------------------------------------------------
@@ -433,15 +186,14 @@ local function generate_base_background(self, biome)
 				sb = 68 * t + 85 * (1 - t)
 			elseif ny > 0.35 then
 				local t = (ny - 0.35) / 0.30
-				sr = 88 * t + 135 * (1 - t)
-				sg = 62 * t + 160 * (1 - t)
-				sb = 85 * t + 205 * (1 - t)
+				sr = 88 * t + 218 * (1 - t)
+				sg = 62 * t + 115 * (1 - t)
+				sb = 85 * t + 55 * (1 - t)
 			else
 				local t = ny / 0.35
-				-- Cool, lighter atmospheric horizon mist: soft blue-cyan / lavender haze
-				sr = 135 * t + 165 * (1 - t)
-				sg = 160 * t + 195 * (1 - t)
-				sb = 205 * t + 235 * (1 - t)
+				sr = 218 * t + 245 * (1 - t)
+				sg = 115 * t + 175 * (1 - t)
+				sb = 55 * t + 82 * (1 - t)
 			end
 		end
 
@@ -508,10 +260,10 @@ local function generate_base_background(self, biome)
 
 		for gy = 0, max_gy do
 			local idx = (gy * w + gx) * 4 + 1
-			local haze = (biome == "grass") and (0.60 + (1.0 - (gy / math.max(1, max_gy))) * 0.22) or 0.55
-			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 120))
-			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 160))
-			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 210))
+			local haze = 0.55
+			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 95))
+			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 145))
+			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 195))
 
 			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
 			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
@@ -556,11 +308,11 @@ local function generate_base_background(self, biome)
 
 		for gy = 0, max_gy do
 			local idx = (gy * w + gx) * 4 + 1
-			-- Depth-of-field soft atmospheric perspective haze (cooler, lighter mist so dark islands contrast sharply)
-			local haze = (biome == "grass") and 0.74 or 0.82
-			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 105))
-			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 135))
-			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 175))
+			-- Depth-of-field soft atmospheric perspective haze
+			local haze = (biome == "grass") and 0.68 or 0.82
+			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 52))
+			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 42))
+			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 36))
 
 			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
 			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
@@ -580,6 +332,7 @@ end
 
 local function apply_biome_environment(self, biome)
 	self.current_biome = biome or "grass"
+	game_state.current_biome = self.current_biome
 	local theme = BIOME_THEMES[self.current_biome] or BIOME_THEMES.grass
 
 	pcall(function()
@@ -784,31 +537,6 @@ function init(self)
 		})
 	end
 
-	-- Sizzling deep fryer bubbles rising from boiling oil
-	self.fryer_bubbles = {}
-	local init_cy = constants.WORLD_HEIGHT * 0.5
-	for i = 1, 8 do
-		local bx = (math.random() - 0.5) * constants.WORLD_WIDTH * 0.95
-		local by = constants.WATER_LEVEL - init_cy - math.random(5, 45)
-		local b_scale = 0.35 + math.random() * 0.35
-		local b_spd = 28 + math.random() * 40
-		local b_id = "#bubble" .. i
-		pcall(function()
-			go.set(b_id, "tint", vmath.vector4(1.0, 0.95, 0.50, 0.75))
-			go.set(b_id, "scale", vmath.vector3(b_scale, b_scale, 1.0))
-			go.set_position(vmath.vector3(bx, by, 0.42), b_id)
-		end)
-		table.insert(self.fryer_bubbles, {
-			id = b_id,
-			x = bx,
-			y = by,
-			origin_x = bx,
-			speed = b_spd,
-			base_scale = b_scale,
-			wobble = math.random() * 6.28,
-		})
-	end
-
 	-- Initial setup for expanded 1920x960 world
 	local cx = constants.WORLD_WIDTH * 0.5
 	local cy = constants.WORLD_HEIGHT * 0.5
@@ -826,8 +554,7 @@ function init(self)
 		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
 		go.set("#water", "scale.x", 2.5)
 		go.set("#water", "scale.y", 2.5)
-		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.68, go.EASING_INOUTSINE, 0.32)
-		go.animate("#water", "tint", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(1.0, 0.65, 0.16, 0.98), go.EASING_INOUTSINE, 0.45)
+		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
 	end)
 
 	-- Initially disable battle layers for main menu
@@ -896,27 +623,6 @@ function update(self, dt)
 		end
 	end
 
-	-- Sizzling deep fryer bubbles rising through boiling oil
-	if self.fryer_bubbles then
-		local cy = constants.WORLD_HEIGHT * 0.5
-		local surface_y = constants.WATER_LEVEL - cy
-		for _, b in ipairs(self.fryer_bubbles) do
-			b.y = b.y + b.speed * dt
-			b.wobble = b.wobble + dt * 4.5
-			local cur_x = b.origin_x + math.sin(b.wobble) * 6.0
-			if b.y >= surface_y + 4 then
-				b.origin_x = (math.random() - 0.5) * constants.WORLD_WIDTH * 0.95
-				b.x = b.origin_x
-				b.y = surface_y - math.random(20, 50)
-				b.speed = 28 + math.random() * 40
-				b.wobble = math.random() * 6.28
-			end
-			pcall(function()
-				go.set_position(vmath.vector3(cur_x, b.y, 0.42), b.id)
-			end)
-		end
-	end
-
 	-- Update background warfare simulation at smooth 25 FPS rate
 	if self.is_initialized and self.bg_stream and self.bg_base_stream then
 		self.bg_update_timer = (self.bg_update_timer or 0) + dt
@@ -967,7 +673,6 @@ function on_message(self, message_id, message, sender)
 			msg.post("#bg_islands", "enable")
 			for i = 1, 8 do
 				msg.post("#spore" .. i, "enable")
-				msg.post("#bubble" .. i, "enable")
 			end
 		end)
 
@@ -986,8 +691,7 @@ function on_message(self, message_id, message, sender)
 			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
 			go.set("#water", "scale.x", 2.5)
 			go.set("#water", "scale.y", 2.5)
-			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.68, go.EASING_INOUTSINE, 0.32)
-		go.animate("#water", "tint", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(1.0, 0.65, 0.16, 0.98), go.EASING_INOUTSINE, 0.45)
+			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
 		end)
 
 		self.current_preset = preset
@@ -1055,51 +759,17 @@ function on_message(self, message_id, message, sender)
 
 		local min_gx, min_gy, max_gx, max_gy, cleared = terrain_grid.carve_circle(cx, cy, r)
 		if cleared > 0 and self.is_initialized and self.stream then
-			local gcx = math.floor(cx / terrain_grid.scale)
-			local gcy = math.floor(cy / terrain_grid.scale)
-			local gr = math.ceil(r / terrain_grid.scale)
-			local gr2 = gr * gr
-
-			local scorch_pad = 4
-			local scorch_r = gr + scorch_pad
-			local scorch_r2 = scorch_r * scorch_r
-
-			local upd_min_gx = math.max(0, gcx - scorch_r)
-			local upd_max_gx = math.min(self.w - 1, gcx + scorch_r)
-			local upd_min_gy = math.max(0, gcy - scorch_r)
-			local upd_max_gy = math.min(self.h - 1, gcy + scorch_r)
+			-- Repaint the blast area plus padding: charred rims, fresh outlines, and props
+			-- that lost their ground (tufts above, vines below) disappear with it
+			local upd_min_gx = math.max(0, min_gx - terrain_painter.PAD_X)
+			local upd_max_gx = math.min(self.w - 1, max_gx + terrain_painter.PAD_X)
+			local upd_min_gy = math.max(0, min_gy - terrain_painter.PAD_Y)
+			local upd_max_gy = math.min(self.h - 1, max_gy + terrain_painter.PAD_Y)
 
 			local sub_w = upd_max_gx - upd_min_gx + 1
 			local sub_h = upd_max_gy - upd_min_gy + 1
 
-			for gy = upd_min_gy, upd_max_gy do
-				local dy = gy - gcy
-				local dy2 = dy * dy
-				local row_offset = (gy * self.w) * 4
-				for gx = upd_min_gx, upd_max_gx do
-					local dx = gx - gcx
-					local dist2 = dx * dx + dy2
-					local p_idx = row_offset + gx * 4 + 1
-
-					if dist2 <= gr2 then
-						-- Vaporized by blast -> Transparent air (0, 0, 0, 0)
-						self.stream[p_idx + 0] = 0
-						self.stream[p_idx + 1] = 0
-						self.stream[p_idx + 2] = 0
-						self.stream[p_idx + 3] = 0
-					elseif dist2 <= scorch_r2 then
-						-- Scorched / charred blast rim on remaining solid terrain
-						if self.stream[p_idx + 3] > 0 then
-							local edge_dist = math.sqrt(dist2) - gr
-							local scorch = 0.20 + (edge_dist / scorch_pad) * 0.80
-							if scorch > 1.0 then scorch = 1.0 end
-							self.stream[p_idx + 0] = math.floor(self.stream[p_idx + 0] * scorch)
-							self.stream[p_idx + 1] = math.floor(self.stream[p_idx + 1] * scorch)
-							self.stream[p_idx + 2] = math.floor(self.stream[p_idx + 2] * scorch)
-						end
-					end
-				end
-			end
+			paint_region(self, upd_min_gx, upd_min_gy, upd_max_gx, upd_max_gy)
 
 			local sub_buf = buffer.create(sub_w * sub_h, {
 				{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }

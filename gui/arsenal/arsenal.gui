@@ -1,0 +1,24 @@
+script: "/gui/arsenal/arsenal.gui_script"
+fonts {
+  name: "title"
+  font: "/main/assets/fonts/title.font"
+}
+fonts {
+  name: "label"
+  font: "/main/assets/fonts/label.font"
+}
+fonts {
+  name: "body"
+  font: "/main/assets/fonts/body.font"
+}
+textures {
+  name: "ui"
+  texture: "/main/assets/ui.atlas"
+}
+textures {
+  name: "game"
+  texture: "/main/assets/game.atlas"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 1024

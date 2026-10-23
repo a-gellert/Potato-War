@@ -12,6 +12,8 @@ go.property("crate_type", hash("medkit"))
 go.property("amount", 30)
 go.property("weapon_id", hash("bazooka"))
 
+local ICON_FIT = 30 -- world px of the weapon icon's longest side
+
 function init(self)
 	self.pos = go.get_position()
 	self.is_grounded = false
@@ -21,40 +23,18 @@ function init(self)
 	local type_str = (self.crate_type == hash("weapon")) and "weapon" or "medkit"
 	self.type_str = type_str
 
-	-- Descending whistle audio while airdrop is falling from the sky
-	sound_manager.play_whistle_fall()
-
-	-- Parachute canopy setup: big visible dome
-	pcall(function()
-		go.set("#parachute_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 0.98))
-	end)
-
 	-- Visual setup
 	if type_str == "medkit" then
-<<<<<<< Updated upstream
-		-- White medical crate with prominent RED CROSS
+		-- Green cross / medkit box tint
 		pcall(function()
-			go.set("#box_sprite", "tint", vmath.vector4(0.96, 0.96, 0.94, 1.0))
-			msg.post("#icon_sprite", "disable")
-			msg.post("#cross_h", "enable")
-			msg.post("#cross_v", "enable")
-			go.set("#cross_h", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
-			go.set("#cross_v", "tint", vmath.vector4(0.95, 0.15, 0.15, 1.0))
-=======
-		-- White medical supply crate with red cross
-		pcall(function()
-			go.set("#box_sprite", "tint", vmath.vector4(0.96, 0.96, 0.98, 1.0))
+			go.set("#box_sprite", "tint", vmath.vector4(0.20, 0.88, 0.40, 1.0))
 			go.set("#icon_sprite", "tint", vmath.vector4(1.0, 1.0, 1.0, 1.0))
-			sprite.play_flipbook("#icon_sprite", hash("medkit_cross"))
-			go.set_scale(vmath.vector3(1.0, 1.0, 1.0), "#icon_sprite")
->>>>>>> Stashed changes
+			sprite.play_flipbook("#icon_sprite", hash("circle"))
+			go.set_scale(vmath.vector3(0.85, 0.85, 1.0), "#icon_sprite")
 		end)
 	else
 		-- Gold weapon crate tint
 		pcall(function()
-			msg.post("#cross_h", "disable")
-			msg.post("#cross_v", "disable")
-			msg.post("#icon_sprite", "enable")
 			go.set("#box_sprite", "tint", vmath.vector4(0.95, 0.72, 0.15, 1.0))
 			local wpn_name = "masher_bazooka"
 			local w = weapons.get(self.weapon_id and tostring(self.weapon_id) or "bazooka")
@@ -62,12 +42,11 @@ function init(self)
 				wpn_name = w.icon
 			end
 			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
-			go.set_scale(vmath.vector3(0.95, 0.95, 1.0), "#icon_sprite")
+			-- Icons come in different sizes: fit the longest side into the crate face
+			local size = go.get("#icon_sprite", "size")
+			local k = ICON_FIT / math.max(1, size.x, size.y)
+			go.set("#icon_sprite", "scale", vmath.vector3(k, k, 1.0))
 		end)
-	end
-
-	if not self.is_grounded then
-		sound_manager.play_airdrop_whistle()
 	end
 end
 
@@ -75,6 +54,7 @@ local function collect_crate(self, potato)
 	if self.is_collected then return end
 	self.is_collected = true
 
+	sound_manager.play("pickup")
 	if self.type_str == "medkit" then
 		sound_manager.play_heal()
 		local heal_amt = self.amount or math.random(20, 50)
@@ -92,11 +72,6 @@ local function collect_crate(self, potato)
 			msg.post(potato.url, "apply_heal", { amount = heal_amt })
 		end
 
-<<<<<<< Updated upstream
-		-- Floating green +X over potato (visual event, no text toast banner!)
-=======
-		-- Floating green heal indicator over potato
->>>>>>> Stashed changes
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = potato.pos.x,
 			y = potato.pos.y,
@@ -104,27 +79,42 @@ local function collect_crate(self, potato)
 			is_heal = true,
 			is_max_hp = was_full
 		})
+
+		local amt_str = "+" .. heal_amt
+		local title = i18n.pick({
+			ru = "Аптечка " .. amt_str .. (was_full and " МАКС HP!" or " HP!"),
+			en = "Medkit " .. amt_str .. (was_full and " MAX HP!" or " HP!"),
+			pt = "Kit médico " .. amt_str .. (was_full and " HP MÁX!" or " HP!"),
+			fr = "Trousse de soins " .. amt_str .. (was_full and " HP MAX !" or " HP !"),
+			es = "Botiquín " .. amt_str .. (was_full and " HP MÁX!" or " HP!"),
+			tr = "İlk yardım " .. amt_str .. (was_full and " MAKS HP!" or " HP!"),
+		})
+		msg.post("/gui_hud#gui", "show_achievement_toast", {
+			icon = "❤️",
+			title = title,
+			points = 0
+		})
 	else
-		sound_manager.play_shot()
 		local w_name = tostring(self.weapon_id)
 		local w = weapons.get(w_name)
 		local count = self.amount or 2
-		game_state.add_ammo(w and w.id or w_name, count)
+		game_state.add_ammo(w.id, count)
 
-<<<<<<< Updated upstream
-		-- Ammo pickup floating indicator
-		msg.post("/gui_hud#gui", "show_damage", {
-			x = potato.pos.x,
-			y = potato.pos.y,
-			amount = count,
-			label = "+" .. count .. " " .. (w.name or w.id)
-=======
-		-- Floating weapon pickup indicator over potato
-		msg.post("/gui_hud#gui", "show_damage", {
-			x = potato.pos.x,
-			y = potato.pos.y,
-			label = "+" .. count .. " " .. string.upper(w and (w.name or w.id) or "WEAPON")
->>>>>>> Stashed changes
+		local wn = i18n.field(w, "name")
+		if wn == "" then wn = w.id end
+		local cnt = "+" .. count .. " " .. wn
+		local title = i18n.pick({
+			ru = "Ящик: " .. cnt .. "!",
+			en = "Crate: " .. cnt .. "!",
+			pt = "Caixa: " .. cnt .. "!",
+			fr = "Caisse : " .. cnt .. " !",
+			es = "Caja: " .. cnt .. "!",
+			tr = "Sandık: " .. cnt .. "!",
+		})
+		msg.post("/gui_hud#gui", "show_achievement_toast", {
+			icon = "📦",
+			title = title,
+			points = 0
 		})
 	end
 
@@ -142,12 +132,12 @@ function update(self, dt)
 	if not self.is_grounded then
 		self.pos.y = self.pos.y - 75.0 * dt
 		self.pos.x = self.pos.x + math.sin(self.sway_time * 2.5) * 16.0 * dt
-		pcall(go.set, "#parachute_sprite", "euler.z", math.sin(self.sway_time * 2.5) * 7.0)
 
 		local gy = terrain_grid.get_smooth_ground_y(self.pos.x, 3.0)
 		if self.pos.y <= gy + 16.0 then
 			self.pos.y = gy + 16.0
 			self.is_grounded = true
+			sound_manager.play("crate", { vary = 0.1 })
 			pcall(function()
 				go.animate("#parachute_sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0, 0, 0), go.EASING_INQUAD, 0.25, 0, function()
 					pcall(msg.post, "#parachute_sprite", "disable")

@@ -3,267 +3,67 @@
 
 local M = {}
 
+-- Hats (kept under the historic "skins" name: saves store unlocked_skins / equipped_skin by these ids).
+-- rarity drives the card frame in the shop and the drop chance from supply crates.
+local function hat(id, image, price, rarity, names, descs)
+	local s = { id = id, hat = image, price = price, rarity = rarity, tint = { 1.0, 1.0, 1.0, 1.0 } }
+	for lang, v in pairs(names) do
+		s["name_" .. lang] = v
+	end
+	for lang, v in pairs(descs) do
+		s["desc_" .. lang] = v
+	end
+	s.name = names.ru
+	s.desc = descs.ru
+	return s
+end
+
 M.SKINS = {
-	{
-		id = "classic",
-		name = "Без Шапки",
-		name_ru = "Без Шапки",
-		name_en = "Classic Spud",
-		name_tr = "Şapkasız Patates",
-		name_es = "Papa Clásica",
-		name_pt = "Batata Clássica",
-		name_fr = "Patate Classique",
-		desc = "Классический бравый боец без головного убора",
-		desc_ru = "Классический бравый боец без головного убора",
-		desc_en = "Classic brave spud without headwear",
-		desc_tr = "Şapkasız cesur klasik savaşçı",
-		desc_es = "Papa valiente clásica sin sombrero",
-		desc_pt = "Batata corajosa clássica sem chapéu",
-		desc_fr = "Brave patate classique sans couvre-chef",
-		price = 0,
-		hat = "none",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "cap",
-		name = "Кепка Бойца",
-		name_ru = "Кепка Бойца",
-		name_en = "Fighter Cap",
-		name_tr = "Savaşçı Şapkası",
-		name_es = "Gorra de Luchador",
-		name_pt = "Boné de Lutador",
-		name_fr = "Casquette de Combattant",
-		desc = "Спортивная синяя бейсболка с козырьком",
-		desc_ru = "Спортивная синяя бейсболка с козырьком",
-		desc_en = "Sporty blue baseball cap with visor",
-		desc_tr = "Siperlikli sportif mavi beyzbol şapkası",
-		desc_es = "Gorra deportiva azul con visera",
-		desc_pt = "Boné esportivo azul com aba",
-		desc_fr = "Casquette de baseball bleue sportive avec visière",
-		price = 100,
-		hat = "hat_cap",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "bandana",
-		name = "Бандана Ниндзя",
-		name_ru = "Бандана Ниндзя",
-		name_en = "Ninja Bandana",
-		name_tr = "Ninja Bandanası",
-		name_es = "Pañuelo Ninja",
-		name_pt = "Bandana Ninja",
-		name_fr = "Bandana Ninja",
-		desc = "Боевая красная повязка скрытного диверсанта",
-		desc_ru = "Боевая красная повязка скрытного диверсанта",
-		desc_en = "Battle red headband of a stealth commando",
-		desc_tr = "Gizli komandonun kırmızı kafa bandı",
-		desc_es = "Cinta roja de combate de comando sigiloso",
-		desc_pt = "Faixa vermelha de combate de comando furtivo",
-		desc_fr = "Bandeau rouge de combat de commando furtif",
-		price = 250,
-		hat = "hat_bandana",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "helmet",
-		name = "Стальной Шлем",
-		name_ru = "Стальной Шлем",
-		name_en = "Steel Helmet",
-		name_tr = "Çelik Kask",
-		name_es = "Casco de Acero",
-		name_pt = "Capacete de Aço",
-		name_fr = "Casque d'Acier",
-		desc = "Надежная армейская каска цвета хаки",
-		desc_ru = "Надежная армейская каска цвета хаки",
-		desc_en = "Reliable khaki military combat helmet",
-		desc_tr = "Güvenilir haki askeri savaş kaskı",
-		desc_es = "Confiable casco militar caqui de combate",
-		desc_pt = "Capacete militar cáqui confiável de combate",
-		desc_fr = "Casque militaire kaki fiable de combat",
-		price = 300,
-		hat = "hat_helmet",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "beret",
-		name = "Берет Десанта",
-		name_ru = "Берет Десанта",
-		name_en = "Elite Beret",
-		name_tr = "Seçkin Bere",
-		name_es = "Boina de Élite",
-		name_pt = "Boina de Elite",
-		name_fr = "Béret d'Élite",
-		desc = "Тактический бордовый берет ветерана",
-		desc_ru = "Тактический бордовый берет ветерана",
-		desc_en = "Tactical maroon beret with golden insignia",
-		desc_tr = "Altın armalı taktik bordo bere",
-		desc_es = "Boina táctica granate con insignia dorada",
-		desc_pt = "Boina tática bordô com insígnia dourada",
-		desc_fr = "Béret bordeaux tactique avec insigne doré",
-		price = 400,
-		hat = "hat_beret",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "pirate",
-		name = "Шляпа Пирата",
-		name_ru = "Шляпа Пирата",
-		name_en = "Pirate Tricorn",
-		name_tr = "Korsan Şapkası",
-		name_es = "Sombrero Pirata",
-		name_pt = "Chapéu de Pirata",
-		name_fr = "Chapeau de Pirate",
-		desc = "Грозная треуголка морского капитана",
-		desc_ru = "Грозная треуголка морского капитана",
-		desc_en = "Fierce sea captain tricorn with golden trim",
-		desc_tr = "Altın süslemeli korkusuz kaptan şapkası",
-		desc_es = "Feroz tricornio de capitán con ribete dorado",
-		desc_pt = "Tricórnio feroz de capitão com borda dourada",
-		desc_fr = "Tricorne féroce de capitaine à galon doré",
-		price = 500,
-		hat = "hat_pirate",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "tophat",
-		name = "Цилиндр Джентльмена",
-		name_ru = "Цилиндр Джентльмена",
-		name_en = "Top Hat",
-		name_tr = "Silindir Şapka",
-		name_es = "Sombrero de Copa",
-		name_pt = "Cartola",
-		name_fr = "Haut-de-Forme",
-		desc = "Изысканный черный цилиндр с шелковой лентой",
-		desc_ru = "Изысканный черный цилиндр с шелковой лентой",
-		desc_en = "Refined gentleman top hat with silk ribbon",
-		desc_tr = "İpek kurdeleli şık silindir şapka",
-		desc_es = "Elegante sombrero de copa con cinta de seda",
-		desc_pt = "Cartola refinada com fita de seda",
-		desc_fr = "Haut-de-forme raffiné avec ruban de soie",
-		price = 600,
-		hat = "hat_tophat",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "wizard",
-		name = "Шляпа Мага",
-		name_ru = "Шляпа Мага",
-		name_en = "Wizard Hat",
-		name_tr = "Büyücü Şapkası",
-		name_es = "Sombrero de Mago",
-		name_pt = "Chapéu de Mago",
-		name_fr = "Chapeau de Magicien",
-		desc = "Таинственный остроконечный колпак волшебника",
-		desc_ru = "Таинственный остроконечный колпак волшебника",
-		desc_en = "Mystical starry pointed sorcerer cone",
-		desc_tr = "Yıldızlı gizemli sivri büyücü şapkası",
-		desc_es = "Místico sombrero puntiagudo con estrellas",
-		desc_pt = "Chapéu místico pontudo com estrelas",
-		desc_fr = "Chapeau pointu mystique orné d'étoiles",
-		price = 750,
-		hat = "hat_wizard",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "viking",
-		name = "Шлем Викинга",
-		name_ru = "Шлем Викинга",
-		name_en = "Viking Helmet",
-		name_tr = "Viking Miğferi",
-		name_es = "Casco Vikingo",
-		name_pt = "Capacete Viking",
-		name_fr = "Casque Viking",
-		desc = "Стальной боевой шлем с могучими рогами",
-		desc_ru = "Стальной боевой шлем с могучими рогами",
-		desc_en = "Iron battle dome flanked by fierce horns",
-		desc_tr = "Görkemli boynuzlu çelik savaş miğferi",
-		desc_es = "Casco de hierro de combate con cuernos imponentes",
-		desc_pt = "Capacete de ferro de batalha com chifres imponentes",
-		desc_fr = "Casque de combat en fer orné de cornes",
-		price = 900,
-		hat = "hat_viking",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "sombrero",
-		name = "Сомбреро",
-		name_ru = "Сомбреро",
-		name_en = "Festive Sombrero",
-		name_tr = "Sombrero",
-		name_es = "Sombrero Festivo",
-		name_pt = "Sombrero Festivo",
-		name_fr = "Sombrero Festif",
-		desc = "Широкополое соломенное сомбреро с узорами",
-		desc_ru = "Широкополое соломенное сомбреро с узорами",
-		desc_en = "Wide straw brim with festive Mexican patterns",
-		desc_tr = "Renkli desenli geniş hasır fötr şapka",
-		desc_es = "Ala ancha de paja con patrones festivos",
-		desc_pt = "Aba larga de palha com padrões festivos",
-		desc_fr = "Large bord en paille aux motifs festifs",
-		price = 1000,
-		hat = "hat_sombrero",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "king",
-		name = "Корона Короля",
-		name_ru = "Корона Короля",
-		name_en = "Royal Crown",
-		name_tr = "Kral Tacı",
-		name_es = "Corona Real",
-		name_pt = "Coroa Real",
-		name_fr = "Couronne Royale",
-		desc = "Золотая корона правителя картофельных полей",
-		desc_ru = "Золотая корона правителя картофельных полей",
-		desc_en = "Golden monarch crown adorned with rubies",
-		desc_tr = "Yakutlarla süslü altın hükümdar tacı",
-		desc_es = "Corona dorada de monarca adornada con rubíes",
-		desc_pt = "Coroa dourada de monarca adornada com rubis",
-		desc_fr = "Couronne royale dorée ornée de rubis",
-		price = 1200,
-		hat = "hat_crown",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "ushanka",
-		name = "Зимняя Ушанка",
-		name_ru = "Зимняя Ушанка",
-		name_en = "Winter Ushanka",
-		name_tr = "Kışlık Kalpak",
-		name_es = "Ushanka de Invierno",
-		name_pt = "Ushanka de Inverno",
-		name_fr = "Ouchanka d'Hiver",
-		desc = "Теплая меховая шапка со звездой для лютых морозов",
-		desc_ru = "Теплая меховая шапка со звездой для лютых морозов",
-		desc_en = "Warm winter fur earflap hat with red star",
-		desc_tr = "Kızıl yıldızlı sıcak kışlık kulaklıklı şapka",
-		desc_es = "Cálido gorro de piel con orejeras y estrella roja",
-		desc_pt = "Gorro quente de pele com orelheiras e estrela vermelha",
-		desc_fr = "Chapka chaude en fourrure avec étoile rouge",
-		price = 1400,
-		hat = "hat_ushanka",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
-	{
-		id = "chef",
-		name = "Колпак Шефа",
-		name_ru = "Колпак Шефа",
-		name_en = "Chef Toque",
-		name_tr = "Şef Şapkası",
-		name_es = "Gorro de Chef",
-		name_pt = "Chapéu de Chef",
-		name_fr = "Toque de Chef",
-		desc = "Белоснежный колпак мастера картофельных блюд",
-		desc_ru = "Белоснежный колпак мастера картофельных блюд",
-		desc_en = "Crisp white culinary toque of a master spud chef",
-		desc_tr = "Usta patates aşçısının bembeyaz şef şapkası",
-		desc_es = "Toque blanco nítido de chef maestro de papas",
-		desc_pt = "Toque branco impecável de mestre cuca de batatas",
-		desc_fr = "Toque blanche impeccable d'un maître cuisinier",
-		price = 1800,
-		hat = "hat_chef",
-		tint = { 1.0, 1.0, 1.0, 1.0 },
-	},
+	hat("classic", "none", 0, "common",
+		{ ru = "Без Шапки", en = "Classic Spud", pt = "Sem Chapéu", fr = "Sans chapeau", es = "Sin sombrero", tr = "Şapkasız" },
+		{ ru = "Классический бравый боец без головного убора", en = "Classic brave spud without headwear", pt = "Um valente soldado clássico, sem nada na cabeça", fr = "Un brave combattant classique, tête nue", es = "Un valiente soldado clásico, sin nada en la cabeza", tr = "Başlıksız, klasik ve cesur bir savaşçı" }),
+	hat("cap", "hat_cap", 100, "common",
+		{ ru = "Кепка Бойца", en = "Fighter Cap", pt = "Boné de Combate", fr = "Casquette de Combattant", es = "Gorra de Combate", tr = "Savaşçı Şapkası" },
+		{ ru = "Спортивная бейсболка с козырьком", en = "Sporty baseball cap with visor", pt = "Boné esportivo com aba", fr = "Casquette de baseball sportive à visière", es = "Gorra de béisbol deportiva con visera", tr = "Siperlikli sportif beyzbol şapkası" }),
+	hat("bandana", "hat_bandana", 250, "common",
+		{ ru = "Бандана Ниндзя", en = "Ninja Bandana", pt = "Bandana Ninja", fr = "Bandeau Ninja", es = "Bandana Ninja", tr = "Ninja Bandanası" },
+		{ ru = "Боевая повязка скрытного диверсанта", en = "Battle headband of a stealth commando", pt = "Faixa de batalha de um comando furtivo", fr = "Bandeau de combat d'un commando furtif", es = "Cinta de combate de un comando sigiloso", tr = "Gizli bir komandonun savaş bandı" }),
+	hat("party", "hat_party", 350, "common",
+		{ ru = "Праздничный колпак", en = "Party Hat", pt = "Chapéu de Festa", fr = "Chapeau de fête", es = "Gorro de Fiesta", tr = "Parti Şapkası" },
+		{ ru = "Каждый взрыв — как праздничный салют", en = "Every blast is a celebration", pt = "Cada explosão é uma comemoração", fr = "Chaque explosion est une célébration", es = "Cada explosión es una celebración", tr = "Her patlama bir kutlama" }),
+	hat("beret", "hat_beret", 450, "rare",
+		{ ru = "Берет Десанта", en = "Elite Beret", pt = "Boina de Elite", fr = "Béret d'Élite", es = "Boina de Élite", tr = "Elit Bere" },
+		{ ru = "Тактический берет ветерана", en = "Tactical beret of a veteran", pt = "Boina tática de um veterano", fr = "Béret tactique d'un vétéran", es = "Boina táctica de un veterano", tr = "Bir gazinin taktik beresi" }),
+	hat("helmet", "hat_helmet", 600, "rare",
+		{ ru = "Армейская каска", en = "Army Helmet", pt = "Capacete do Exército", fr = "Casque militaire", es = "Casco Militar", tr = "Asker Miğferi" },
+		{ ru = "Каска настоящего ветерана окопов", en = "Helmet of a true trench veteran", pt = "Capacete de um verdadeiro veterano das trincheiras", fr = "Casque d'un vrai vétéran des tranchées", es = "Casco de un auténtico veterano de trincheras", tr = "Gerçek bir siper gazisinin miğferi" }),
+	hat("headphones", "hat_headphones", 750, "rare",
+		{ ru = "Наушники", en = "Headphones", pt = "Fones de Ouvido", fr = "Casque audio", es = "Auriculares", tr = "Kulaklık" },
+		{ ru = "В бой — под любимый трек", en = "Fight to your favourite track", pt = "Lute ao som da sua música favorita", fr = "Se battre sur son morceau préféré", es = "Pelea con tu canción favorita", tr = "En sevdiğin şarkıyla savaş" }),
+	hat("tophat", "hat_tophat", 900, "rare",
+		{ ru = "Цилиндр Джентльмена", en = "Top Hat", pt = "Cartola", fr = "Haut-de-forme", es = "Chistera", tr = "Silindir Şapka" },
+		{ ru = "Изысканный цилиндр с шелковой лентой", en = "Refined top hat with silk ribbon", pt = "Cartola refinada com fita de seda", fr = "Haut-de-forme raffiné avec ruban de soie", es = "Elegante chistera con cinta de seda", tr = "İpek kurdeleli zarif silindir şapka" }),
+	hat("chef", "hat_chef", 1050, "epic",
+		{ ru = "Колпак повара", en = "Chef Hat", pt = "Chapéu de Chef", fr = "Toque de chef", es = "Gorro de Chef", tr = "Aşçı Şapkası" },
+		{ ru = "Шеф картофельной кухни", en = "Head chef of the potato kitchen", pt = "Chef da cozinha de batatas", fr = "Chef de la cuisine des patates", es = "Chef de la cocina de patatas", tr = "Patates mutfağının baş aşçısı" }),
+	hat("cowboy", "hat_cowboy", 1250, "epic",
+		{ ru = "Ковбойская шляпа", en = "Cowboy Hat", pt = "Chapéu de Caubói", fr = "Chapeau de cowboy", es = "Sombrero Vaquero", tr = "Kovboy Şapkası" },
+		{ ru = "Шляпа самого быстрого стрелка", en = "Hat of the fastest gun in the field", pt = "Chapéu do pistoleiro mais rápido", fr = "Le chapeau de la gâchette la plus rapide", es = "Sombrero del pistolero más rápido", tr = "En hızlı silahşorun şapkası" }),
+	hat("viking", "hat_viking", 1500, "epic",
+		{ ru = "Шлем Викинга", en = "Viking Helmet", pt = "Capacete Viking", fr = "Casque Viking", es = "Casco Vikingo", tr = "Viking Miğferi" },
+		{ ru = "Стальной шлем с могучими рогами", en = "Iron helmet flanked by fierce horns", pt = "Elmo de ferro com chifres ferozes", fr = "Casque de fer flanqué de cornes féroces", es = "Casco de hierro con cuernos feroces", tr = "Azgın boynuzlu demir miğfer" }),
+	hat("pirate", "hat_pirate", 1800, "epic",
+		{ ru = "Пиратская треуголка", en = "Pirate Hat", pt = "Chapéu Pirata", fr = "Chapeau de pirate", es = "Sombrero Pirata", tr = "Korsan Şapkası" },
+		{ ru = "Гроза картофельных морей", en = "Terror of the potato seas", pt = "O terror dos mares de batata", fr = "La terreur des mers de patates", es = "El terror de los mares de patata", tr = "Patates denizlerinin korkulu rüyası" }),
+	hat("wizard", "hat_wizard", 2200, "legendary",
+		{ ru = "Шляпа волшебника", en = "Wizard Hat", pt = "Chapéu de Mago", fr = "Chapeau de sorcier", es = "Sombrero de Mago", tr = "Büyücü Şapkası" },
+		{ ru = "Магия взрывчатки", en = "The magic of explosives", pt = "A magia dos explosivos", fr = "La magie des explosifs", es = "La magia de los explosivos", tr = "Patlayıcıların büyüsü" }),
+	hat("propeller", "hat_propeller", 2600, "legendary",
+		{ ru = "Кепка с пропеллером", en = "Propeller Cap", pt = "Boné de Hélice", fr = "Casquette à hélice", es = "Gorra con Hélice", tr = "Pervaneli Şapka" },
+		{ ru = "Почти умеет летать", en = "It can almost fly", pt = "Quase sabe voar", fr = "Elle sait presque voler", es = "Casi sabe volar", tr = "Neredeyse uçabiliyor" }),
+	hat("king", "hat_crown", 3000, "legendary",
+		{ ru = "Корона Короля", en = "Royal Crown", pt = "Coroa Real", fr = "Couronne Royale", es = "Corona Real", tr = "Kraliyet Tacı" },
+		{ ru = "Корона правителя картофельных полей", en = "Crown of the ruler of the potato fields", pt = "Coroa do soberano dos campos de batata", fr = "Couronne du maître des champs de patates", es = "Corona del soberano de los campos de patata", tr = "Patates tarlalarının hükümdarının tacı" }),
 }
 
 M.SKINS_BY_ID = {}
@@ -275,19 +75,23 @@ end
 M.HATS = M.SKINS
 M.HATS_BY_ID = M.SKINS_BY_ID
 
+local function skin_field(skin, key, lang)
+	lang = lang or "en"
+	if lang == "ru" then
+		return skin[key .. "_ru"] or skin[key] or ""
+	end
+	return skin[key .. "_" .. lang] or skin[key .. "_en"] or skin[key] or ""
+end
+
 function M.get_skin_name(skin, lang)
 	if not skin then return "" end
-	lang = lang or "en"
-	local key = "name_" .. lang
-	return skin[key] or skin.name_en or skin.name or ""
+	return skin_field(skin, "name", lang)
 end
 M.get_hat_name = M.get_skin_name
 
 function M.get_skin_desc(skin, lang)
 	if not skin then return "" end
-	lang = lang or "en"
-	local key = "desc_" .. lang
-	return skin[key] or skin.desc_en or skin.desc or ""
+	return skin_field(skin, "desc", lang)
 end
 M.get_hat_desc = M.get_skin_desc
 
@@ -313,7 +117,6 @@ M.data = {
 	},
 	campaign_map = nil,
 	campaign_turn = 1,
-	no_ads = false,
 	campaign_stats = {
 		battles_won = 0,
 		battles_lost = 0,
@@ -321,7 +124,19 @@ M.data = {
 		sectors_lost = 0,
 		counterattacks_repelled = 0,
 	},
+	settings = { sfx = 1.0, music = 0.6 },
+	weapon_levels = {},
+	blueprints = {},
+	commander_xp = 0,
+	stats = { battles = 0, wins = 0, kills = 0, crates = 0 },
 }
+
+-- Localized status messages (lazy require: i18n loads player_profile lazily)
+local function msg_pick(map)
+	local ok, i18n = pcall(require, "lua_modules.i18n")
+	local lang = (ok and i18n and i18n.current_lang) or "en"
+	return map[lang] or map.en
+end
 
 local function get_save_path()
 	if sys and sys.get_save_file then
@@ -330,42 +145,46 @@ local function get_save_path()
 	return nil
 end
 
-function M.apply_profile_data(loaded)
-	if not loaded or type(loaded) ~= "table" then return end
-	if loaded.language then M.data.language = loaded.language end
-	M.data.points = loaded.points or M.data.points or 0
-	M.data.stars = loaded.stars or M.data.stars or 0
-	if loaded.squad and type(loaded.squad) == "table" and #loaded.squad >= 2 then
-		M.data.squad = loaded.squad
-	end
-	if loaded.unlocked_skins and type(loaded.unlocked_skins) == "table" then
-		M.data.unlocked_skins = loaded.unlocked_skins
-	end
-	if loaded.equipped_skin then
-		M.data.equipped_skin = loaded.equipped_skin
-	end
-	if loaded.campaign_hp then M.data.campaign_hp = loaded.campaign_hp end
-	if loaded.campaign_max_hp then M.data.campaign_max_hp = loaded.campaign_max_hp end
-	if loaded.meta_upgrades and type(loaded.meta_upgrades) == "table" then
-		M.data.meta_upgrades = loaded.meta_upgrades
-	end
-	if loaded.campaign_map ~= nil then M.data.campaign_map = loaded.campaign_map end
-	if loaded.campaign_turn then M.data.campaign_turn = loaded.campaign_turn end
-	if loaded.tutorial_completed ~= nil then M.data.tutorial_completed = (loaded.tutorial_completed == true) end
-	if loaded.onboarding_stage ~= nil then M.data.onboarding_stage = loaded.onboarding_stage end
-	if loaded.campaign_stats and type(loaded.campaign_stats) == "table" then
-		M.data.campaign_stats = loaded.campaign_stats
-	end
-	if loaded.no_ads ~= nil then
-		M.data.no_ads = (loaded.no_ads == true)
-	end
-end
-
-function M.load(callback)
+function M.load()
 	local path = get_save_path()
 	local loaded = (path and sys and sys.load) and sys.load(path) or nil
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
-		M.apply_profile_data(loaded)
+		M.data.language = loaded.language
+		M.data.points = loaded.points or 0
+		M.data.stars = loaded.stars or 0
+		M.data.squad = loaded.squad or {
+			{ id = 1, class_id = "recruit" },
+			{ id = 2, class_id = "recruit" },
+		}
+		-- Ensure squad has at least 2 members
+		if #M.data.squad < 2 then
+			M.data.squad = {
+				{ id = 1, class_id = "recruit" },
+				{ id = 2, class_id = "recruit" },
+			}
+		end
+		M.data.unlocked_skins = loaded.unlocked_skins or { ["classic"] = true }
+		M.data.equipped_skin = loaded.equipped_skin or "classic"
+		M.data.campaign_hp = loaded.campaign_hp or 100
+		M.data.campaign_max_hp = loaded.campaign_max_hp or 100
+		M.data.meta_upgrades = loaded.meta_upgrades or { max_hp = 0, starting_weapon = 0, hp_regen = 0 }
+		M.data.campaign_map = loaded.campaign_map
+		M.data.campaign_turn = loaded.campaign_turn or 1
+		M.data.tutorial_completed = (loaded.tutorial_completed == true)
+		M.data.onboarding_stage = loaded.onboarding_stage or (loaded.tutorial_completed and 2 or 0)
+		M.data.campaign_stats = loaded.campaign_stats or {
+			battles_won = 0,
+			battles_lost = 0,
+			sectors_conquered = 0,
+			sectors_lost = 0,
+			counterattacks_repelled = 0,
+		}
+		M.data.settings = loaded.settings or { sfx = 1.0, music = 0.6 }
+		-- Progression (lua_modules/progression.lua)
+		M.data.weapon_levels = loaded.weapon_levels or {}
+		M.data.blueprints = loaded.blueprints or {}
+		M.data.commander_xp = loaded.commander_xp or 0
+		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
 	else
 		M.data.language = nil
 		M.data.points = 0
@@ -390,57 +209,12 @@ function M.load(callback)
 			sectors_lost = 0,
 			counterattacks_repelled = 0,
 		}
-		M.data.no_ads = false
+		M.data.settings = { sfx = 1.0, music = 0.6 }
+		M.data.weapon_levels = {}
+		M.data.blueprints = {}
+		M.data.commander_xp = 0
+		M.data.stats = { battles = 0, wins = 0, kills = 0, crates = 0 }
 	end
-
-	-- Async cloud load from Playgama Bridge Storage
-	local sdk_ok, sdk = pcall(require, "main.sdk")
-	if sdk_ok and sdk and sdk.storage_get then
-		sdk.storage_get({ "player_profile" }, function(err, cloud_data)
-			local cd = nil
-			if type(cloud_data) == "table" then
-				if cloud_data.player_profile ~= nil then
-					cd = cloud_data.player_profile
-				elseif cloud_data[1] ~= nil then
-					cd = cloud_data[1]
-					if type(cd) == "table" and cd.player_profile ~= nil then
-						cd = cd.player_profile
-					end
-				end
-			elseif type(cloud_data) == "string" then
-				cd = cloud_data
-			end
-
-			-- Parse JSON if serialized
-			if type(cd) == "string" and cd ~= "" then
-				local json_ok, decoded = pcall(json.decode, cd)
-				if json_ok and type(decoded) == "table" then
-					cd = decoded
-				else
-					cd = nil
-				end
-			end
-
-			if type(cd) == "table" and cd.unlocked_skins then
-				local cloud_pts = tonumber(cd.points) or 0
-				local local_pts = tonumber(M.data.points) or 0
-				local cloud_stars = tonumber(cd.stars) or 0
-				local local_stars = tonumber(M.data.stars) or 0
-
-				if (cloud_pts + cloud_stars * 10) >= (local_pts + local_stars * 10) or not loaded then
-					M.apply_profile_data(cd)
-					local p = get_save_path()
-					if p and sys and sys.save then sys.save(p, M.data) end
-				else
-					M.save()
-				end
-			end
-			if callback then callback() end
-		end)
-	elseif callback then
-		callback()
-	end
-
 	return M.data
 end
 
@@ -449,12 +223,6 @@ function M.save()
 	if path and sys and sys.save then
 		sys.save(path, M.data)
 	end
-
-	-- Cloud save via Playgama Bridge Storage
-	local sdk_ok, sdk = pcall(require, "main.sdk")
-	if sdk_ok and sdk and sdk.storage_set then
-		sdk.storage_set({ player_profile = M.data })
-	end
 end
 
 function M.get_language()
@@ -462,11 +230,26 @@ function M.get_language()
 end
 
 function M.set_language(lang)
-	local supported = { en = true, ru = true, tr = true, es = true, pt = true, fr = true }
-	if supported[lang] then
+	if lang == "ru" or lang == "en" or lang == "pt" or lang == "fr" or lang == "es" or lang == "tr" then
 		M.data.language = lang
 		M.save()
 	end
+end
+
+-- kind: "sfx" | "music"; 0..1
+function M.get_volume(kind)
+	local s = M.data.settings or {}
+	local v = s[kind]
+	if v == nil then
+		v = (kind == "music") and 0.6 or 1.0
+	end
+	return v
+end
+
+function M.set_volume(kind, v)
+	M.data.settings = M.data.settings or {}
+	M.data.settings[kind] = v
+	M.save()
 end
 
 function M.get_points()
@@ -507,36 +290,7 @@ function M.buy_star_with_points()
 		M.save()
 		return true, M.data.stars
 	end
-	return false, "Недостаточно очков (требуется 1000 очков)"
-end
-
-function M.has_no_ads()
-	return M.data.no_ads == true
-end
-
-function M.set_no_ads(val)
-	M.data.no_ads = (val == true)
-	M.save()
-end
-
-function M.apply_purchase(product_id)
-	if product_id == "coins_pack_1000" then
-		M.add_points(1000)
-		return true, "+1000 🪙"
-	elseif product_id == "coins_pack_5000" then
-		M.add_points(5000)
-		return true, "+5000 🪙"
-	elseif product_id == "stars_pack_5" then
-		M.add_stars(5)
-		return true, "+5 ⭐"
-	elseif product_id == "stars_pack_20" then
-		M.add_stars(20)
-		return true, "+20 ⭐"
-	elseif product_id == "no_ads" then
-		M.set_no_ads(true)
-		return true, "NO ADS 🚫"
-	end
-	return false
+	return false, msg_pick({ ru = "Недостаточно очков (требуется 1000 очков)", en = "Not enough points (1000 points required)", pt = "Pontos insuficientes (necessário 1000 pontos)", fr = "Pas assez de points (1000 points requis)", es = "Puntos insuficientes (se requieren 1000 puntos)", tr = "Yeterli puan yok (1000 puan gerekli)" })
 end
 
 function M.get_squad()
@@ -563,10 +317,10 @@ end
 function M.unlock_next_potato()
 	local cost = M.get_next_potato_unlock_cost()
 	if not cost then
-		return false, "Максимальный размер банды (4 картошки)"
+		return false, msg_pick({ ru = "Максимальный размер банды (4 картошки)", en = "Maximum squad size reached (4 potatoes)", pt = "Tamanho máximo do bando atingido (4 batatas)", fr = "Taille maximale de la bande atteinte (4 patates)", es = "Tamaño máximo de la banda alcanzado (4 patatas)", tr = "Azami çete boyutuna ulaşıldı (4 patates)" })
 	end
 	if not M.spend_stars(cost) then
-		return false, "Недостаточно звезд"
+		return false, msg_pick({ ru = "Недостаточно звезд", en = "Not enough stars", pt = "Estrelas insuficientes", fr = "Pas assez d'étoiles", es = "Estrellas insuficientes", tr = "Yeterli yıldız yok" })
 	end
 	local new_id = #(M.data.squad) + 1
 	table.insert(M.data.squad, { id = new_id, class_id = "recruit" })
@@ -578,12 +332,12 @@ function M.promote_potato(slot_index, new_class_id, star_cost)
 	local sq = M.get_squad()
 	local member = sq[slot_index]
 	if not member then
-		return false, "Боец не найден"
+		return false, msg_pick({ ru = "Боец не найден", en = "Fighter not found", pt = "Lutador não encontrado", fr = "Combattant introuvable", es = "Combatiente no encontrado", tr = "Savaşçı bulunamadı" })
 	end
 	star_cost = star_cost or 0
 	if star_cost > 0 then
 		if not M.spend_stars(star_cost) then
-			return false, "Недостаточно звезд"
+			return false, msg_pick({ ru = "Недостаточно звезд", en = "Not enough stars", pt = "Estrelas insuficientes", fr = "Pas assez d'étoiles", es = "Estrellas insuficientes", tr = "Yeterli yıldız yok" })
 		end
 	end
 	member.class_id = new_class_id
@@ -599,19 +353,19 @@ M.is_hat_unlocked = M.is_skin_unlocked
 function M.buy_skin(skin_id)
 	local skin = M.SKINS_BY_ID[skin_id]
 	if not skin then
-		return false, "Скин не найден"
+		return false, msg_pick({ ru = "Скин не найден", en = "Skin not found", pt = "Visual não encontrado", fr = "Apparence introuvable", es = "Aspecto no encontrado", tr = "Görünüm bulunamadı" })
 	end
 	if M.is_skin_unlocked(skin_id) then
-		return true, "Уже куплен"
+		return true, msg_pick({ ru = "Уже куплен", en = "Already purchased", pt = "Já comprado", fr = "Déjà acheté", es = "Ya comprado", tr = "Zaten satın alındı" })
 	end
 	if M.get_points() < skin.price then
-		return false, "Недостаточно очков"
+		return false, msg_pick({ ru = "Недостаточно очков", en = "Not enough points", pt = "Pontos insuficientes", fr = "Pas assez de points", es = "Puntos insuficientes", tr = "Yeterli puan yok" })
 	end
 	M.data.points = M.data.points - skin.price
 	M.data.unlocked_skins[skin_id] = true
 	M.data.equipped_skin = skin_id
 	M.save()
-	return true, "Куплено"
+	return true, msg_pick({ ru = "Куплено", en = "Purchased", pt = "Comprado", fr = "Acheté", es = "Comprado", tr = "Satın alındı" })
 end
 M.buy_hat = M.buy_skin
 

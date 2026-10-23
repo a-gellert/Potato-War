@@ -30,3 +30,15 @@ dependencies#2 = https://github.com/britzl/defold-orthographic/archive/master.zi
 [graphics]
 opengl_version_hint = 42
 
+[sprite]
+max_count = 2048
+
+[collection]
+max_instances = 2048
+
+[sound]
+max_sound_data = 128
+max_sound_instances = 128
+max_sound_sources = 64
+max_component_count = 64
+

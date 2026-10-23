@@ -2,13 +2,24 @@
 -- Controls potato visuals, health bar, weapon attachment, elemental statuses, and DoT effects
 
 local weapons = require("lua_modules.weapons")
+local i18n = require("lua_modules.i18n")
 local sound_manager = require("lua_modules.sound_manager")
+local classes = require("lua_modules.classes")
+
+local STEP_SOUND_EVERY = 0.26
 
 go.property("team", 1)
 go.property("potato_id", 1)
 go.property("hp", 100)
 go.property("max_hp", 100)
 go.property("facing", 1)
+
+-- Held weapon + gloves live in a child game object (main/entities/weapon_rig)
+local function rig_post(self, message_id, message)
+	if self.rig then
+		msg.post(msg.url(nil, self.rig, "weapon_rig"), message_id, message)
+	end
+end
 
 local function update_hp_bar(self)
 	local pct = math.max(0, math.min(1.0, self.hp / self.max_hp))
@@ -18,7 +29,7 @@ local function update_hp_bar(self)
 	local cur_w = total_w * pct
 	local offset_x = -((total_w - cur_w) * 16.0) * 0.5
 	go.set("#hp_fill", "scale", vmath.vector3(cur_w, 0.38, 1.0))
-	go.set("#hp_fill", "position", vmath.vector3(offset_x, 31.0, 0.09))
+	go.set("#hp_fill", "position", vmath.vector3(offset_x, 38.75, 0.09))
 
 	-- Crisp white HP counter inside bar
 	pcall(function()
@@ -93,50 +104,15 @@ local function update_facing(self, facing)
 	self.facing = (facing >= 0) and 1 or -1
 	local flip = (self.facing < 0)
 	sprite.set_hflip("#sprite", flip)
-	sprite.set_hflip("#weapon_sprite", flip)
+	rig_post(self, "set_facing", { facing = self.facing })
 	sprite.set_hflip("#emotion", flip)
 	if self.hat_id and self.hat_id ~= "none" then
 		sprite.set_hflip("#hat_sprite", flip)
 	end
 end
 
-local WEAPON_SPRITE_MAP = {
-	grenade       = "grenade",
-	rifle         = "skewer_rifle",
-	knife         = "knife",
-	peeler        = "peeler",
-	molotov       = "oil_bottle",
-	burst         = "rifle",
-	bazooka       = "masher_bazooka",
-	shotgun       = "grater",
-	holy_grenade  = "holy_spud",
-	beetle        = "beetle_crate",
-	drill         = "drill_missile",
-	pepper        = "pepper_bomb",
-	garlic        = "garlic_bomb",
-	beetle_minion = "beetle_minion",
-	air_bomb      = "air_bomb",
-}
-
-local CLASS_SPRITE_MAP = {
-	recruit     = "recruit",
-	assault     = "assault",
-	assault_2   = "assault",
-	sniper      = "sniper",
-	sapper      = "sapper",
-	sapper_2    = "sapper",
-	commando    = "sapper",
-	artillery   = "tank",
-	artillery_2 = "tank",
-	rocketeer   = "tank",
-	medic       = "medic",
-	surgeon     = "medic",
-	engineer    = "sapper",
-	tank        = "tank",
-}
-
 local function update_class_sprite(self)
-	local sprite_name = CLASS_SPRITE_MAP[self.class_id] or "recruit"
+	local sprite_name = classes.sprite_of(self.class_id)
 	pcall(function()
 		sprite.play_flipbook("#sprite", hash(sprite_name))
 	end)
@@ -156,13 +132,15 @@ local function clean_expired_statuses(self)
 end
 
 function init(self)
+	self.rig = factory.create("#rig_factory", nil, nil, {}, 1)
+	go.set_parent(self.rig, go.get_id(), false)
+	go.set_position(vmath.vector3(3, -2, 0), self.rig)
+
 	self.is_alive = (self.hp > 0)
 	self.is_active = false
 	self.hp_bar_timer = 0
 	self.alert_timer = 0
 	self.skin_tint = vmath.vector4(1, 1, 1, 1)
-	self.current_char_tint = vmath.vector4(1, 1, 1, 1)
-	self.soot_level = 0
 	self.statuses = {} -- burning, poisoned, glued, concussed
 	self.class_id = "recruit"
 	self.hat_id = "none"
@@ -191,7 +169,7 @@ function init(self)
 	pcall(function() msg.post("#hp_text", "enable") end)
 
 	-- Hide weapon, reticle, and hit sparks by default until active
-	msg.post("#weapon_sprite", "disable")
+	rig_post(self, "hide")
 	msg.post("#reticle", "disable")
 	pcall(function()
 		msg.post("#hit_spark1", "disable")
@@ -273,7 +251,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = "🔥 ОЖОГ"
+			label = i18n.pick({ ru = "🔥 ОЖОГ", en = "🔥 BURN", pt = "🔥 QUEIMADURA", fr = "🔥 BRÛLURE", es = "🔥 QUEMADURA", tr = "🔥 YANIK" })
 		})
 
 		burn_data.duration = (burn_data.duration or 1) - 1
@@ -294,7 +272,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = "☠ ЯД"
+			label = i18n.pick({ ru = "☠ ЯД", en = "☠ POISON", pt = "☠ VENENO", fr = "☠ POISON", es = "☠ VENENO", tr = "☠ ZEHİR" })
 		})
 
 		poison_data.duration = (poison_data.duration or 1) - 1
@@ -309,7 +287,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = "🍯 КЛЕЙ"
+			label = i18n.pick({ ru = "🍯 КЛЕЙ", en = "🍯 GLUE", pt = "🍯 COLA", fr = "🍯 COLLE", es = "🍯 PEGAMENTO", tr = "🍯 YAPIŞKAN" })
 		})
 	end
 
@@ -319,7 +297,7 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = "💫 ОГЛУШЕНИЕ"
+			label = i18n.pick({ ru = "💫 ОГЛУШЕНИЕ", en = "💫 STUN", pt = "💫 ATORDOADO", fr = "💫 ÉTOURDI", es = "💫 ATURDIDO", tr = "💫 SERSEMLEDİ" })
 		})
 	end
 
@@ -330,12 +308,13 @@ local function process_turn_start(self)
 
 		if self.hp <= 0 then
 			self.is_alive = false
+			sound_manager.play("death", { vary = 0.08 })
 			sprite.play_flipbook("#sprite", hash("tombstone"))
 			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
 	pcall(function() msg.post("#hp_text", "disable") end)
@@ -381,11 +360,11 @@ function on_message(self, message_id, message, sender)
 		self.is_active = message.active
 		if self.is_alive and self.is_active then
 			msg.post("#reticle", "enable")
-			msg.post("#weapon_sprite", "enable")
+			rig_post(self, "show")
 			set_emotion(self, "aim")
 		else
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			set_emotion(self, "idle")
 		end
 
@@ -403,6 +382,7 @@ function on_message(self, message_id, message, sender)
 		end
 		if message.tint then
 			self.skin_tint = vmath.vector4(message.tint[1] or 1, message.tint[2] or 1, message.tint[3] or 1, message.tint[4] or 1)
+			rig_post(self, "set_tint", { tint = self.skin_tint })
 			go.set("#sprite", "tint", self.skin_tint)
 		end
 
@@ -414,17 +394,14 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("set_weapon") then
 		if self.is_alive and message.weapon_id then
-			local w_id = tostring(message.weapon_id)
-			local sprite_name = WEAPON_SPRITE_MAP[w_id] or "grenade"
-			pcall(function()
-				sprite.play_flipbook("#weapon_sprite", hash(sprite_name))
-				local flip = (self.facing < 0)
-				sprite.set_hflip("#weapon_sprite", flip)
-				if self.is_active then
-					msg.post("#weapon_sprite", "enable")
-				end
-			end)
+			rig_post(self, "set_weapon", { weapon_id = tostring(message.weapon_id) })
+			if self.is_active then
+				rig_post(self, "show")
+			end
 		end
+
+	elseif message_id == hash("set_aim") then
+		rig_post(self, "set_aim", { vx = message.vx, vy = message.vy })
 
 	elseif message_id == hash("set_facing") then
 		if message.facing then
@@ -432,6 +409,11 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("on_step") then
+		local now = socket.gettime()
+		if self.is_alive and now - (self.last_step_sound or 0) > STEP_SOUND_EVERY then
+			self.last_step_sound = now
+			sound_manager.play("step", { vary = 0.2 })
+		end
 		if self.is_alive and (not self.scale_anim_timer or self.scale_anim_timer <= 0) then
 			-- Quick squish-and-stretch on walking hop
 			local hop_val = message.hop or 0.5
@@ -475,7 +457,7 @@ function on_message(self, message_id, message, sender)
 					x = p_pos.x,
 					y = p_pos.y + 24,
 					amount = combo.bonus_damage,
-					label = "💥 " .. combo.name
+					label = "💥 " .. i18n.field(combo, "name")
 				})
 			end
 			if combo.duration_bonus then
@@ -484,10 +466,10 @@ function on_message(self, message_id, message, sender)
 		else
 			-- Show status overhead icon/label
 			local label_map = {
-				burning   = "🔥 ОЖОГ!",
-				poisoned  = "☠ ЯД!",
-				glued     = "🍯 КЛЕЙ!",
-				concussed = "💫 ОГЛУШЕН!",
+				burning   = i18n.pick({ ru = "🔥 ОЖОГ!", en = "🔥 BURN!", pt = "🔥 QUEIMADURA!", fr = "🔥 BRÛLURE !", es = "🔥 ¡QUEMADURA!", tr = "🔥 YANIK!" }),
+				poisoned  = i18n.pick({ ru = "☠ ЯД!", en = "☠ POISON!", pt = "☠ VENENO!", fr = "☠ POISON !", es = "☠ ¡VENENO!", tr = "☠ ZEHİR!" }),
+				glued     = i18n.pick({ ru = "🍯 КЛЕЙ!", en = "🍯 GLUE!", pt = "🍯 COLA!", fr = "🍯 COLLE !", es = "🍯 ¡PEGAMENTO!", tr = "🍯 YAPIŞKAN!" }),
+				concussed = i18n.pick({ ru = "💫 ОГЛУШЕН!", en = "💫 STUNNED!", pt = "💫 ATORDOADO!", fr = "💫 ÉTOURDI !", es = "💫 ¡ATURDIDO!", tr = "💫 SERSEMLEDİ!" }),
 			}
 			msg.post("/gui_hud#gui", "show_damage", {
 				x = p_pos.x,
@@ -520,63 +502,27 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("on_jump") then
 		if self.is_alive then
+			sound_manager.play("jump", { vary = 0.1 })
 			self.scale_anim_timer = 0.25
 			set_emotion(self, "jump", 0.6)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 0.76, BASE_SCALE * 1.32, 1.0), go.EASING_OUTQUAD, 0.24)
 		end
 
-	elseif message_id == hash("hit_stop_shock") then
-		if self.is_alive then
-			self.scale_anim_timer = 0.35
-			set_emotion(self, "wow", 0.7)
-			-- Direct impact forehead hit flash & shock squish
-			go.set("#sprite", "tint", vmath.vector4(2.8, 2.8, 2.8, 1.0))
-			go.set("#sprite", "scale", vmath.vector3(BASE_SCALE * 1.45, BASE_SCALE * 0.65, 1.0))
-		end
-
-	elseif message_id == hash("on_bounce") then
-		if self.is_alive then
-			local spd = message.impact_speed or 100
-			local s_ratio = math.min(1.80, 1.25 + (spd / 200.0))
-			local pancake_w = BASE_SCALE * s_ratio
-			local pancake_h = BASE_SCALE * (1.0 / s_ratio)
-			local rebound_w = BASE_SCALE * (1.0 / math.sqrt(s_ratio))
-			local rebound_h = BASE_SCALE * math.sqrt(s_ratio)
-
-			self.scale_anim_timer = 0.36
-			set_emotion(self, "wow", 0.5)
-
-			-- Elastic squash & stretch sequence: pancake -> rebound -> settle
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(pancake_w, pancake_h, 1.0), go.EASING_OUTQUAD, 0.08, 0, function()
-				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(rebound_w, rebound_h, 1.0), go.EASING_OUTBACK, 0.14, 0, function()
-					go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_INOUTSINE, 0.12)
-				end)
-			end)
-
-			sound_manager.play_plop(math.min(1.0, spd / 110.0))
-		end
-
 	elseif message_id == hash("on_land") then
 		if self.is_alive then
-			local spd = message.impact_speed or 60
-			local s_ratio = math.min(1.45, 1.15 + (spd / 280.0))
-			local pancake_w = BASE_SCALE * s_ratio
-			local pancake_h = BASE_SCALE * (1.0 / s_ratio)
-
+			sound_manager.play("land", { vary = 0.1 })
 			self.scale_anim_timer = 0.28
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(pancake_w, pancake_h, 1.0), go.EASING_OUTQUAD, 0.10, 0, function()
-				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_OUTELASTIC, 0.18)
-			end)
-
-			if spd > 35.0 then
-				sound_manager.play_plop(0.65)
-			end
+			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.32, BASE_SCALE * 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
 		end
 
 	elseif message_id == hash("on_recoil") or message_id == hash("hide_weapon") then
 		if self.is_alive then
 			self.scale_anim_timer = 0.18
-			msg.post("#weapon_sprite", "disable")
+			if message_id == hash("hide_weapon") then
+				rig_post(self, "hide")
+			else
+				rig_post(self, "fire")
+			end
 			set_emotion(self, "happy", 1.5)
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.18, BASE_SCALE * 0.86, 1.0), go.EASING_OUTQUAD, 0.15)
 		end
@@ -584,51 +530,19 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("apply_damage") then
 		if not self.is_alive then return end
 
-		local dmg = message.damage or 0
-		self.hp = math.max(0, self.hp - dmg)
+		self.hp = math.max(0, self.hp - (message.damage or 0))
 		update_hp_bar(self)
-
-		-- Accumulate black soot / charring based on explosion damage and health lost
-		local is_explosive = message.is_explosion or (dmg >= 18)
-		local soot_gain = is_explosive and (dmg / 55.0) or (dmg / 110.0)
-		self.soot_level = math.min(1.0, (self.soot_level or 0) + soot_gain)
-
-		local hp_ratio = math.max(0, 1.0 - (self.hp / math.max(1, self.max_hp)))
-		local effective_soot = math.max(self.soot_level, hp_ratio * 0.88)
-
-		-- Burnt crispy charcoal discoloration: skin visibly darkens and blackens with soot
-		local base_r = (self.skin_tint and self.skin_tint.x) or 1.0
-		local base_g = (self.skin_tint and self.skin_tint.y) or 1.0
-		local base_b = (self.skin_tint and self.skin_tint.z) or 1.0
-
-		local charred_r = base_r * (1.0 - effective_soot * 0.65)
-		local charred_g = base_g * (1.0 - effective_soot * 0.74)
-		local charred_b = base_b * (1.0 - effective_soot * 0.78)
-		self.current_char_tint = vmath.vector4(charred_r, charred_g, charred_b, 1.0)
+		sound_manager.play(self.hp <= 0 and "death" or "hurt", { vary = 0.1 })
 
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
 		self.hp_bar_timer = 3.0
+		self.scale_anim_timer = 0.22
 		set_emotion(self, "hurt", 1.4)
 
-		if is_explosive then
-			-- Explosion blast wave squashes potato into pancake and rebounds!
-			local s_ratio = math.min(1.80, 1.35 + (dmg / 70.0))
-			self.scale_anim_timer = 0.38
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE * s_ratio, BASE_SCALE / s_ratio, 1.0), go.EASING_OUTQUAD, 0.10, 0, function()
-				go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE * 0.82, BASE_SCALE * 1.28, 1.0), go.EASING_OUTBACK, 0.14, 0, function()
-					go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(BASE_SCALE, BASE_SCALE, 1.0), go.EASING_INOUTSINE, 0.12)
-				end)
-			end)
-			sound_manager.play_plop(0.95)
-		else
-			self.scale_anim_timer = 0.22
-			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
-		end
-
-		-- Settle tint back into persistent charred soot
-		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.5, 0.3, 1), go.EASING_OUTQUAD, 0.16, 0, function()
-			go.set("#sprite", "tint", self.current_char_tint)
+		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
+		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
+			go.set("#sprite", "tint", self.skin_tint)
 		end)
 
 		-- Particle burst: potato crumbs & hit sparks
@@ -636,13 +550,13 @@ function on_message(self, message_id, message, sender)
 			msg.post("#hit_spark1", "enable")
 			msg.post("#hit_spark2", "enable")
 			go.set("#hit_spark1", "tint", vmath.vector4(1.8, 1.5, 0.4, 1.0))
-			go.set("#hit_spark2", "tint", vmath.vector4(0.85, 0.55, 0.30, 1.0))
-			go.set("#hit_spark1", "scale", vmath.vector3(0.9, 0.9, 1.0))
-			go.set("#hit_spark2", "scale", vmath.vector3(0.8, 0.8, 1.0))
+			go.set("#hit_spark2", "tint", vmath.vector4(1.4, 0.9, 0.4, 1.0))
+			go.set("#hit_spark1", "scale", vmath.vector3(1.2, 1.2, 1.0))
+			go.set("#hit_spark2", "scale", vmath.vector3(1.0, 1.0, 1.0))
 			local ox1 = (math.random() - 0.5) * 36
 			local oy1 = math.random(10, 32)
 			local ox2 = (math.random() - 0.5) * 32
-			local oy2 = math.random(6, 24)
+			local oy2 = math.random(8, 28)
 			go.set("#hit_spark1", "position", vmath.vector3(0, 4, 0.2))
 			go.set("#hit_spark2", "position", vmath.vector3(0, 4, 0.2))
 			go.animate("#hit_spark1", "position.x", go.PLAYBACK_ONCE_FORWARD, ox1, go.EASING_OUTEXPO, 0.35)
@@ -666,47 +580,30 @@ function on_message(self, message_id, message, sender)
 			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
 			go.set_rotation(vmath.quat_rotation_z(0))
 			msg.post("#reticle", "disable")
-			msg.post("#weapon_sprite", "disable")
+			rig_post(self, "hide")
 			msg.post("#emotion", "disable")
 			msg.post("#hat_sprite", "disable")
 			msg.post("#hp_bg", "disable")
 			msg.post("#hp_fill", "disable")
-			pcall(function() msg.post("#hp_text", "disable") end)
 		end
 
 	elseif message_id == hash("drowned") then
 		self.is_alive = false
 		self.hp = 0
 		msg.post("#reticle", "disable")
-		msg.post("#weapon_sprite", "disable")
+		rig_post(self, "hide")
 		msg.post("#emotion", "disable")
 		msg.post("#hat_sprite", "disable")
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
-		pcall(function() msg.post("#hp_text", "disable") end)
-
-		-- Cartoon whistle & boiling fryer sizzle audio!
-		sound_manager.play_fry_whistle()
-
-		-- Turn into steaming crispy french fries!
-		pcall(function()
-			sprite.play_flipbook("#sprite", hash("french_fries"))
+		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
+			go.delete()
 		end)
-		go.set("#sprite", "scale", vmath.vector3(0.95, 0.95, 1.0))
-		go.set("#sprite", "tint", vmath.vector4(1.25, 1.15, 0.85, 1.0))
+	end
+end
 
-		local cur_pos = go.get_position()
-		local oil_surface_y = constants.WATER_LEVEL or 28
-		cur_pos.y = oil_surface_y - 6
-		go.set_position(cur_pos)
-		local jump_peak_y = oil_surface_y + 54
-
-		-- Pop out of boiling fryer oil in a cartoon arc and tumble
-		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, jump_peak_y, go.EASING_OUTQUAD, 0.32, 0, function()
-			go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, cur_pos.y - 70, go.EASING_INQUAD, 0.42, 0, function()
-				go.delete()
-			end)
-		end)
-		go.animate(".", "rotation", go.PLAYBACK_ONCE_FORWARD, vmath.quat_rotation_z(0.38), go.EASING_OUTSINE, 0.74)
+function final(self)
+	if self.rig then
+		pcall(go.delete, self.rig, true)
 	end
 end

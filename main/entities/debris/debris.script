@@ -1,0 +1,85 @@
+-- main/entities/debris/debris.script
+-- One flying chunk (clod, ice shard, ember...). Ballistic flight, bounces off the terrain,
+-- then fades out. Spawned in bursts by lua_modules/debris_fx.lua.
+
+local constants = require("lua_modules.constants")
+local terrain_grid = require("lua_modules.terrain_grid")
+
+go.property("vx", 0)
+go.property("vy", 0)
+go.property("spin", 0)       -- degrees / second
+go.property("life", 1.0)
+go.property("grav", 1.0)     -- gravity multiplier
+go.property("bounce", 0.35)  -- vertical energy kept on terrain hit
+go.property("size", 1.0)
+go.property("grow", 1.0)       -- scale multiplier reached at the end of life
+go.property("drag", 0.0)       -- velocity damping per second
+go.property("fade_start", 0.6) -- fraction of life at which it starts fading
+go.property("anim", hash("dirt_particle"))
+go.property("tint", vmath.vector4(1, 1, 1, 1))
+
+local MIN_BOUNCE_SPEED = 45
+
+function init(self)
+	self.age = 0
+	self.angle = math.random() * 360
+	self.settled = false
+	self.bounces = 0
+	self.base_alpha = self.tint.w
+	sprite.play_flipbook("#sprite", self.anim)
+	go.set("#sprite", "tint", self.tint)
+	go.set_scale(vmath.vector3(self.size, self.size, 1))
+end
+
+function update(self, dt)
+	self.age = self.age + dt
+	local t = self.age / self.life
+	if t >= 1 then
+		go.delete()
+		return
+	end
+
+	if not self.settled then
+		self.vy = self.vy - constants.GRAVITY * self.grav * dt
+		if self.drag > 0 then
+			local k = math.max(0, 1 - self.drag * dt)
+			self.vx, self.vy = self.vx * k, self.vy * k
+		end
+		local p = go.get_position()
+		local nx = p.x + self.vx * dt
+		local ny = p.y + self.vy * dt
+
+		if self.vy < 0 and terrain_grid.is_solid(nx, ny) then
+			-- Hit the ground: bounce a couple of times, then lie still
+			self.bounces = self.bounces + 1
+			if self.bounces > 2 or -self.vy * self.bounce < MIN_BOUNCE_SPEED then
+				self.settled = true
+				self.spin = 0
+				-- Stay on the surface, fade sooner
+				self.age = math.max(self.age, self.life * 0.55)
+			else
+				self.vy = -self.vy * self.bounce
+				self.vx = self.vx * 0.6
+				self.spin = self.spin * -0.5
+			end
+			ny = p.y
+			nx = p.x + self.vx * dt
+		elseif ny < constants.WATER_LEVEL and self.vy < 0 then
+			go.delete() -- splashed into the water
+			return
+		end
+
+		go.set_position(vmath.vector3(nx, ny, p.z))
+		self.angle = self.angle + self.spin * dt
+		go.set_rotation(vmath.quat_rotation_z(math.rad(self.angle)))
+	end
+
+	-- Grow over the lifetime; fade + shrink at the end
+	local s = self.size * (1 + (self.grow - 1) * t)
+	if t > self.fade_start then
+		local k = (t - self.fade_start) / (1 - self.fade_start)
+		go.set("#sprite", "tint.w", self.base_alpha * (1 - k))
+		s = s * (1 - 0.4 * k)
+	end
+	go.set_scale(vmath.vector3(s, s, 1))
+end

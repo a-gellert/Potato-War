@@ -1,0 +1,2 @@
+prototype: "/main/entities/weapon_rig/part.go"
+load_dynamically: false

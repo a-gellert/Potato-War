@@ -134,24 +134,6 @@ images {
   image: "/main/assets/hat_cap.png"
 }
 images {
-  image: "/main/assets/hat_helmet.png"
-}
-images {
-  image: "/main/assets/hat_pirate.png"
-}
-images {
-  image: "/main/assets/hat_wizard.png"
-}
-images {
-  image: "/main/assets/hat_sombrero.png"
-}
-images {
-  image: "/main/assets/hat_ushanka.png"
-}
-images {
-  image: "/main/assets/hat_chef.png"
-}
-images {
   image: "/main/assets/smiles/s_angry.png"
 }
 images {
@@ -176,30 +158,78 @@ images {
   image: "/main/assets/spore.png"
 }
 images {
-  image: "/main/assets/french_fries.png"
+  image: "/main/assets/hat_chef.png"
 }
 images {
-  image: "/main/assets/flags/flagENG.png"
+  image: "/main/assets/hat_cowboy.png"
 }
 images {
-  image: "/main/assets/flags/flagRUS.png"
+  image: "/main/assets/hat_headphones.png"
 }
 images {
-  image: "/main/assets/flags/flagTUR.png"
+  image: "/main/assets/hat_helmet.png"
 }
 images {
-  image: "/main/assets/flags/flagESP.png"
+  image: "/main/assets/hat_party.png"
 }
 images {
-  image: "/main/assets/flags/flagPOR.jpg"
+  image: "/main/assets/hat_pirate.png"
 }
 images {
-  image: "/main/assets/flags/flagFRA.png"
+  image: "/main/assets/hat_propeller.png"
 }
 images {
-  image: "/main/assets/parachute.png"
+  image: "/main/assets/hat_wizard.png"
 }
 images {
-  image: "/main/assets/medkit_cross.png"
+  image: "/main/assets/weapons/p_airbomb.png"
+}
+images {
+  image: "/main/assets/weapons/p_bomblet.png"
+}
+images {
+  image: "/main/assets/weapons/p_bullet.png"
+}
+images {
+  image: "/main/assets/weapons/p_missile.png"
+}
+images {
+  image: "/main/assets/weapons/p_pellet.png"
+}
+images {
+  image: "/main/assets/weapons/p_rocket.png"
+}
+images {
+  image: "/main/assets/weapons/plane.png"
+}
+images {
+  image: "/main/assets/weapons/target.png"
+}
+images {
+  image: "/main/assets/weapons/w_airstrike.png"
+}
+images {
+  image: "/main/assets/weapons/w_bazooka.png"
+}
+images {
+  image: "/main/assets/weapons/w_cluster.png"
+}
+images {
+  image: "/main/assets/weapons/w_dynamite.png"
+}
+images {
+  image: "/main/assets/weapons/w_grenade.png"
+}
+images {
+  image: "/main/assets/weapons/w_holy.png"
+}
+images {
+  image: "/main/assets/weapons/w_homing.png"
+}
+images {
+  image: "/main/assets/weapons/w_shotgun.png"
+}
+images {
+  image: "/main/assets/weapons/w_sniper.png"
 }
 extrude_borders: 2

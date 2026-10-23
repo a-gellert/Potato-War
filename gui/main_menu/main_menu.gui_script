@@ -1,536 +1,74 @@
 -- gui/main_menu/main_menu.gui_script
--- Handles main menu interactions, match lobby, language toggle, and Skin Shop
+-- Main menu: home screen plus the settings, hat shop and quick-battle windows.
+-- The arsenal and the squad are separate screens (gui/arsenal, gui/squad) opened on top.
+-- Everything is built in code with lua_modules/ui_kit.lua; widgets live in gui/main_menu/menu_*.lua.
 
-local constants = require("lua_modules.constants")
 local ui_manager = require("lua_modules.ui_manager")
-local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
-local i18n = require("lua_modules.i18n")
-local sdk = require("main.sdk")
+local menu_home = require("gui.main_menu.menu_home")
+local menu_settings = require("gui.main_menu.menu_settings")
+local menu_shop = require("gui.main_menu.menu_shop")
+local menu_lobby = require("gui.main_menu.menu_lobby")
 
-local BIOMES = {
-	{ id = "grass",   ru = "🌿 Зеленые Холмы",      en = "🌿 Green Meadows",       tr = "🌿 Yeşil Çayırlar",       es = "🌿 Praderas Verdes",       pt = "🌿 Campos Verdes",          fr = "🌿 Prairies Vertes" },
-	{ id = "arctic",  ru = "❄️ Ледяной архипелаг",   en = "❄️ Arctic Ice",          tr = "❄️ Arktik Buz",           es = "❄️ Hielo Ártico",           pt = "❄️ Gelo Ártico",            fr = "❄️ Glace Arctique" },
-	{ id = "desert",  ru = "🏜️ Пустынные Дюны",      en = "🏜️ Desert Dunes",        tr = "🏜️ Çöl Kumulları",        es = "🏜️ Dunas del Desierto",     pt = "🏜️ Dunas do Deserto",       fr = "🏜️ Dunes du Désert" },
-	{ id = "volcano", ru = "🌋 Лавовые Пещеры",      en = "🌋 Lava Caverns",        tr = "🌋 Lav Mağaraları",       es = "🌋 Cavernas de Lava",        pt = "🌋 Cavernas de Lava",       fr = "🌋 Cavernes de Lave" },
-	{ id = "alien",   ru = "🛸 Инопланетный Мир",    en = "🛸 Alien World",         tr = "🛸 Uzaylı Dünyası",       es = "🛸 Mundo Alienígena",        pt = "🛸 Mundo Alienígena",       fr = "🛸 Monde Extraterrestre" },
+local WINDOWS = {
+	settings = menu_settings,
+	shop = menu_shop,
+	lobby = menu_lobby,
 }
 
-local RELIEFS = {
-	{ id = "hills",            ru = "⛰️ Холмы",            en = "⛰️ Hills",            tr = "⛰️ Tepeler",            es = "⛰️ Colinas",            pt = "⛰️ Colinas",            fr = "⛰️ Collines" },
-	{ id = "floating_islands", ru = "🏝️ Парящие Острова",  en = "🏝️ Floating Islands", tr = "🏝️ Uçan Adalar",       es = "🏝️ Islas Flotantes",    pt = "🏝️ Ilhas Flutuantes",   fr = "🏝️ Îles Flottantes" },
-	{ id = "canyon_bridge",    ru = "🌉 Каньон и Мост",    en = "🌉 Canyon Bridge",    tr = "🌉 Kanyon Köprüsü",    es = "🌉 Puente del Cañón",   pt = "🌉 Ponte do Cânion",    fr = "🌉 Pont du Canyon" },
-	{ id = "cavern",           ru = "🕳️ Пещеры",           en = "🕳️ Caverns",          tr = "🕳️ Mağaralar",         es = "🕳️ Cavernas",           pt = "🕳️ Cavernas",           fr = "🕳️ Cavernes" },
-	{ id = "bunkers",          ru = "🏰 Бункеры",          en = "🏰 Bunkers",          tr = "🏰 Sığınaklar",        es = "🏰 Búnkeres",           pt = "🏰 Bunkers",            fr = "🏰 Bunkers" },
-	{ id = "islands",          ru = "🌊 Острова",           en = "🌊 Islands",          tr = "🌊 Adalar",            es = "🌊 Islas",              pt = "🌊 Ilhas",              fr = "🌊 Îles" },
-	{ id = "swiss_cheese",     ru = "🧀 Сырный Каньон",    en = "🧀 Swiss Cheese",    tr = "🧀 İsviçre Peyniri",   es = "🧀 Queso Suizo",        pt = "🧀 Queijo Suíço",       fr = "🧀 Gruyère" },
-	{ id = "flat",             ru = "⬛ Равнина",          en = "⬛ Flat Field",       tr = "⬛ Düz Alan",          es = "⬛ Campo Llano",         pt = "⬛ Campo Plano",         fr = "⬛ Plaine" },
-}
-
-local function update_points_display(self)
-	local pts = player_profile.get_points()
-	pcall(function()
-		local pts_lbl = i18n.t("points_lbl")
-		local shop_pts_lbl = i18n.t("points_lbl")
-		gui.set_text(gui.get_node("txt_total_points"), pts_lbl .. tostring(pts))
-		gui.set_text(gui.get_node("shop_points"), shop_pts_lbl .. tostring(pts))
-	end)
-end
-
-local function update_lobby_ui(self)
-	local is_ru = (i18n.current_lang == "ru")
-	pcall(function()
-		gui.set_text(gui.get_node("lobby_title"), i18n.t("lobby_title"))
-		gui.set_text(gui.get_node("lobby_subtitle"), i18n.t("lobby_subtitle"))
-		gui.set_text(gui.get_node("lbl_count"), i18n.t("lbl_potatoes_count"))
-		gui.set_text(gui.get_node("lbl_opponent"), i18n.t("lbl_mode"))
-		gui.set_text(gui.get_node("lbl_skin_blue"), i18n.t("lbl_skin_blue"))
-		gui.set_text(gui.get_node("lbl_skin_red"), i18n.t("lbl_skin_red"))
-		gui.set_text(gui.get_node("lbl_biome"), i18n.t("lbl_location"))
-		gui.set_text(gui.get_node("lbl_relief"), i18n.t("lbl_relief"))
-		gui.set_text(gui.get_node("txt_lobby_start"), i18n.t("btn_start_battle"))
-		gui.set_text(gui.get_node("txt_lobby_back"), i18n.t("btn_back"))
-
-		gui.set_text(gui.get_node("txt_opp_bot"), i18n.t("mode_bot_opt"))
-		gui.set_text(gui.get_node("txt_opp_human"), i18n.t("mode_human_opt"))
-
-		-- Update Count Buttons 1..4 colors
-		local active_col = vmath.vector4(0.18, 0.5, 0.82, 1.0)
-		local inactive_col = vmath.vector4(0.2, 0.25, 0.32, 1.0)
-		for i = 1, 4 do
-			local btn_node = gui.get_node("btn_cnt_" .. i)
-			gui.set_color(btn_node, (self.lobby_count == i) and active_col or inactive_col)
-		end
-
-		-- Update Opponent Mode buttons colors
-		gui.set_color(gui.get_node("btn_opp_bot"), (self.lobby_opponent == "bot") and active_col or inactive_col)
-		gui.set_color(gui.get_node("btn_opp_human"), (self.lobby_opponent == "human") and active_col or inactive_col)
-
-		-- Update Skins values
-		local skins = player_profile.SKINS
-		local s_blue = skins[self.lobby_skin_blue_idx] or skins[1]
-		local s_red = skins[self.lobby_skin_red_idx] or skins[1]
-		gui.set_text(gui.get_node("txt_skin_blue_val"), player_profile.get_skin_name(s_blue, i18n.current_lang))
-		gui.set_text(gui.get_node("txt_skin_red_val"), player_profile.get_skin_name(s_red, i18n.current_lang))
-
-		-- Update Biome value
-		local biome = BIOMES[self.lobby_biome_idx] or BIOMES[1]
-		gui.set_text(gui.get_node("txt_biome_val"), biome[i18n.current_lang] or biome.en)
-
-		-- Update Relief value
-		local relief = RELIEFS[self.lobby_relief_idx] or RELIEFS[1]
-		gui.set_text(gui.get_node("txt_relief_val"), relief[i18n.current_lang] or relief.en)
-	end)
-end
-
-local function update_localized_menu(self)
-	pcall(function()
-		gui.set_text(gui.get_node("title_text"), i18n.t("title"))
-		gui.set_text(gui.get_node("subtitle_text"), i18n.t("subtitle"))
-		gui.set_text(gui.get_node("txt_campaign"), i18n.t("btn_campaign"))
-		gui.set_text(gui.get_node("txt_quick_pvp"), i18n.t("btn_battle"))
-		gui.set_text(gui.get_node("txt_quick_bot"), i18n.t("btn_iap_store"))
-		gui.set_text(gui.get_node("hint_text"), i18n.t("hint_controls"))
-		gui.set_text(gui.get_node("txt_shop"), "🎩\n" .. i18n.t("btn_shop_short"))
-		gui.set_text(gui.get_node("txt_shop_back"), i18n.t("btn_back"))
-
-		-- Update flag image for language button
-		local flag_node = gui.get_node("img_flag")
-		gui.play_flipbook(flag_node, hash(i18n.get_flag()))
-	end)
-	update_points_display(self)
-	update_lobby_ui(self)
-end
-
-local function update_overlay(self)
-	update_points_display(self)
-	local points = player_profile.get_points()
-	local stars = player_profile.get_stars()
-	local is_ru = (i18n.current_lang == "ru")
-
-	-- IAP STORE MODE
-	if self.overlay_mode == "iap" then
-		pcall(function()
-			gui.set_text(gui.get_node("shop_title"), i18n.t("btn_iap_store") .. " (⇄ " .. i18n.t("shop_tab_hats") .. ")")
-			gui.set_text(gui.get_node("txt_shop_back"), i18n.t("btn_back"))
-
-			local pts_lbl = string.format("🪙 %d   ⭐ %d", points, stars)
-			if player_profile.has_no_ads() then
-				pts_lbl = pts_lbl .. "   🚫 " .. i18n.t("no_ads_status")
-			end
-			gui.set_text(gui.get_node("shop_points"), pts_lbl)
-
-			-- Row 1 (4 items)
-			gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-330, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(-110, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(110, 85, 0))
-			gui.set_position(gui.get_node("skin_bg_4"), vmath.vector3(330, 85, 0))
-
-			-- Row 2 (3 items)
-			gui.set_position(gui.get_node("skin_bg_5"), vmath.vector3(-220, -75, 0))
-			gui.set_position(gui.get_node("skin_bg_6"), vmath.vector3(0, -75, 0))
-			gui.set_position(gui.get_node("skin_bg_7"), vmath.vector3(220, -75, 0))
-
-			-- Back button position
-			gui.set_position(gui.get_node("btn_shop_back"), vmath.vector3(0, -215, 0))
-
-			for i = 1, 6 do
-				gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
-				gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
-			end
-			gui.set_enabled(gui.get_node("skin_bg_7"), false)
-			gui.set_enabled(gui.get_node("btn_skin_7"), false)
-
-			local prods = sdk.DEFAULT_PRODUCTS
-			for i = 1, 5 do
-				local prod = prods[i]
-				if prod then
-					local btn_node = gui.get_node("btn_skin_" .. i)
-					local txt_node = gui.get_node("txt_skin_" .. i)
-					local p_name = prod["name_" .. i18n.current_lang] or prod.name_en or prod.name_ru
-					local p_desc = prod["desc_" .. i18n.current_lang] or prod.desc_en or prod.desc_ru
-					gui.set_text(gui.get_node("skin_name_" .. i), p_name)
-					gui.set_text(gui.get_node("skin_desc_" .. i), p_desc)
-
-					if prod.id == "no_ads" and player_profile.has_no_ads() then
-						gui.set_text(txt_node, i18n.t("btn_purchased"))
-						gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-					else
-						gui.set_text(txt_node, prod.price .. " 💳")
-						gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-					end
-				end
-			end
-
-			-- Slot 6 is "Switch to Hats"
-			local btn_6 = gui.get_node("btn_skin_6")
-			gui.set_text(gui.get_node("skin_name_6"), i18n.t("shop_tab_hats_title"))
-			gui.set_text(gui.get_node("skin_desc_6"), i18n.t("shop_tab_hats_desc"))
-			gui.set_text(gui.get_node("txt_skin_6"), i18n.t("shop_tab_hats"))
-			gui.set_color(btn_6, vmath.vector4(0.18, 0.50, 0.82, 1.0))
-		end)
-		return
+local function open_window(self, name)
+	for key, mod in pairs(WINDOWS) do
+		mod.show(self, key == name)
 	end
+	self.window = name
+	if name then
+		sound_manager.play("whoosh")
+	end
+end
 
-	-- HATS SHOP MODE (Pages 1 & 2)
-	pcall(function()
-		local page = self.shop_hat_page or 1
-		local is_p2 = (page == 2)
-		local title_txt = is_p2 and (i18n.t("btn_shop") .. " (2/2) 🎩  [⇄ " .. i18n.t("btn_prev_page") .. "]")
-		                        or (i18n.t("btn_shop") .. " (1/2) 🎩  [⇄ " .. i18n.t("shop_tab_iap") .. "]")
-		gui.set_text(gui.get_node("shop_title"), title_txt)
-		gui.set_text(gui.get_node("txt_shop_back"), is_p2 and ("⬅️ " .. i18n.t("btn_prev_page")) or i18n.t("btn_back"))
-
-		-- Row 1 (4 items)
-		gui.set_position(gui.get_node("skin_bg_1"), vmath.vector3(-330, 85, 0))
-		gui.set_position(gui.get_node("skin_bg_2"), vmath.vector3(-110, 85, 0))
-		gui.set_position(gui.get_node("skin_bg_3"), vmath.vector3(110, 85, 0))
-		gui.set_position(gui.get_node("skin_bg_4"), vmath.vector3(330, 85, 0))
-
-		-- Row 2 (3 items)
-		gui.set_position(gui.get_node("skin_bg_5"), vmath.vector3(-220, -75, 0))
-		gui.set_position(gui.get_node("skin_bg_6"), vmath.vector3(0, -75, 0))
-		gui.set_position(gui.get_node("skin_bg_7"), vmath.vector3(220, -75, 0))
-
-		-- Back button position
-		gui.set_position(gui.get_node("btn_shop_back"), vmath.vector3(0, -215, 0))
-
-		for i = 1, 7 do
-			gui.set_enabled(gui.get_node("skin_bg_" .. i), true)
-			gui.set_enabled(gui.get_node("btn_skin_" .. i), true)
-		end
-
-		local hats = player_profile.SKINS
-		local equipped = player_profile.data.equipped_skin or "classic"
-
-		for i = 1, 7 do
-			local hat_idx = is_p2 and (i + 6) or i
-			if not is_p2 and i == 7 then
-				-- Page 1, Slot 7: Next page navigation card
-				local btn_node = gui.get_node("btn_skin_7")
-				local txt_node = gui.get_node("txt_skin_7")
-				gui.set_text(gui.get_node("skin_name_7"), i18n.t("shop_nav_more"))
-				gui.set_text(gui.get_node("skin_desc_7"), i18n.t("shop_nav_more_desc"))
-				gui.set_text(txt_node, i18n.t("btn_next_page"))
-				gui.set_color(btn_node, vmath.vector4(0.18, 0.65, 0.85, 1.0))
-			else
-				local hat = hats[hat_idx]
-				if hat then
-					local btn_node = gui.get_node("btn_skin_" .. i)
-					local txt_node = gui.get_node("txt_skin_" .. i)
-					local h_name = player_profile.get_skin_name(hat, i18n.current_lang)
-					local h_desc = player_profile.get_skin_desc(hat, i18n.current_lang)
-					gui.set_text(gui.get_node("skin_name_" .. i), h_name)
-					gui.set_text(gui.get_node("skin_desc_" .. i), h_desc)
-
-					local is_unlocked = player_profile.is_skin_unlocked(hat.id)
-					local is_equipped = (hat.id == equipped)
-
-					if is_equipped then
-						gui.set_text(txt_node, i18n.t("btn_equiped"))
-						gui.set_color(btn_node, vmath.vector4(0.18, 0.80, 0.44, 1.0))
-					elseif is_unlocked then
-						gui.set_text(txt_node, i18n.t("btn_battle"))
-						gui.set_color(btn_node, vmath.vector4(0.18, 0.50, 0.82, 1.0))
-					else
-						if points >= hat.price then
-							gui.set_text(txt_node, i18n.t("btn_buy", hat.price))
-							gui.set_color(btn_node, vmath.vector4(0.85, 0.65, 0.15, 1.0))
-						else
-							gui.set_text(txt_node, i18n.t("btn_buy", hat.price))
-							gui.set_color(btn_node, vmath.vector4(0.35, 0.38, 0.45, 1.0))
-						end
-					end
-				end
-			end
-		end
-	end)
+local function open_overlay(self, path)
+	sound_manager.play("whoosh")
+	msg.post(path, "enable")
+	msg.post(path .. "#gui", "show", { from = "/gui_menu#gui" })
 end
 
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	gui.set_render_order(5)
 	self.ui = ui_manager.create(self)
-	self.overlay_mode = "skins"
-	self.shop_hat_page = 1
 
-	-- Initialize Match Lobby State
-	self.lobby_count = 3
-	self.lobby_opponent = "bot"
-	self.lobby_skin_blue_idx = 1
-	self.lobby_skin_red_idx = 1
-	self.lobby_biome_idx = 1
-	self.lobby_relief_idx = 1
-
-	-- Setup main menu buttons
-	pcall(function()
-		-- Main CAMPAIGN MAP button
-		local camp_btn = gui.get_node("btn_campaign")
-		gui.set_enabled(camp_btn, true)
-		gui.set_position(camp_btn, vmath.vector3(480, 260, 0))
-		gui.set_size(camp_btn, vmath.vector3(340, 52, 0))
-		gui.set_color(camp_btn, vmath.vector4(0.18, 0.76, 0.38, 1.0)) -- Hero Green!
-
-		-- Skirmish Lobby button
-		local pvp_btn = gui.get_node("btn_quick_pvp")
-		gui.set_enabled(pvp_btn, true)
-		gui.set_position(pvp_btn, vmath.vector3(480, 195, 0))
-		gui.set_size(pvp_btn, vmath.vector3(340, 52, 0))
-		gui.set_color(pvp_btn, vmath.vector4(0.70, 0.38, 0.28, 1.0))
-
-		-- Hide unused quick bot button
-		local iap_btn = gui.get_node("btn_quick_bot")
-		gui.set_enabled(iap_btn, false)
-
-		-- Shop button (Separate icon on the right side)
-		local shop_btn = gui.get_node("btn_shop")
-		gui.set_enabled(shop_btn, true)
-		gui.set_position(shop_btn, vmath.vector3(880, 420, 0))
-		gui.set_size(shop_btn, vmath.vector3(80, 80, 0))
-		gui.set_color(shop_btn, vmath.vector4(0.92, 0.65, 0.15, 1.0)) -- Amber Gold!
-		local txt_shop = gui.get_node("txt_shop")
-		gui.set_scale(txt_shop, vmath.vector3(0.50, 0.50, 1.0))
-
-		-- Controls hint below
-		local hint = gui.get_node("hint_text")
-		gui.set_position(hint, vmath.vector3(480, 120, 0))
-	end)
-
-	local function set_background_menu_enabled(enabled)
-		pcall(function()
-			gui.set_enabled(gui.get_node("btn_campaign"), enabled)
-			gui.set_enabled(gui.get_node("btn_quick_pvp"), enabled)
-			gui.set_enabled(gui.get_node("btn_shop"), enabled)
-			gui.set_enabled(gui.get_node("btn_lang"), enabled)
-		end)
+	local close = function()
+		open_window(self, nil)
+		menu_home.refresh(self)
 	end
-
-	-- CAMPAIGN MAP button (Opens Global Island Campaign Map)
-	self.ui:button("btn_campaign", function()
-		sound_manager.play_click()
+	menu_home.build(self, {
+		settings = function() open_window(self, "settings") end,
+		arsenal = function() open_overlay(self, "/gui_arsenal") end,
+		squad = function() open_overlay(self, "/gui_squad") end,
+		hats = function() open_window(self, "shop") end,
+		quick = function() open_window(self, "lobby") end,
+		campaign = function()
+			msg.post(".", "disable")
+			msg.post("/gui_campaign_map", "enable")
+			msg.post("/gui_campaign_map#gui", "show")
+		end,
+	})
+	menu_settings.build(self, close)
+	menu_shop.build(self, close)
+	menu_lobby.build(self, close, function(config)
+		open_window(self, nil)
 		msg.post(".", "disable")
-		msg.post("/gui_campaign_map", "enable")
-		msg.post("/gui_campaign_map#gui", "show")
+		msg.post("/main#main", "start_battle", config)
 	end)
 
-	-- SKIRMISH LOBBY button (Opens Quick Match Setup)
-	self.ui:button("btn_quick_pvp", function()
-		set_background_menu_enabled(false)
-		pcall(function()
-			gui.set_enabled(gui.get_node("lobby_overlay"), true)
-		end)
-		update_lobby_ui(self)
-	end)
-
-	-- Register Lobby Potato Count buttons 1..4
-	for i = 1, 4 do
-		local cnt = i
-		self.ui:button("btn_cnt_" .. cnt, function()
-			self.lobby_count = cnt
-			update_lobby_ui(self)
-		end)
+	self.on_language_changed = function()
+		menu_home.refresh(self)
+		menu_settings.refresh(self)
 	end
-
-	-- Register Opponent mode buttons
-	self.ui:button("btn_opp_bot", function()
-		self.lobby_opponent = "bot"
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_opp_human", function()
-		self.lobby_opponent = "human"
-		update_lobby_ui(self)
-	end)
-
-	-- Register Skin Selectors
-	local total_skins = #player_profile.SKINS
-	self.ui:button("btn_skin_blue_prev", function()
-		self.lobby_skin_blue_idx = ((self.lobby_skin_blue_idx - 2 + total_skins) % total_skins) + 1
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_skin_blue_next", function()
-		self.lobby_skin_blue_idx = (self.lobby_skin_blue_idx % total_skins) + 1
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_skin_red_prev", function()
-		self.lobby_skin_red_idx = ((self.lobby_skin_red_idx - 2 + total_skins) % total_skins) + 1
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_skin_red_next", function()
-		self.lobby_skin_red_idx = (self.lobby_skin_red_idx % total_skins) + 1
-		update_lobby_ui(self)
-	end)
-
-	-- Register Biome & Relief Selectors
-	local total_biomes = #BIOMES
-	self.ui:button("btn_biome_prev", function()
-		self.lobby_biome_idx = ((self.lobby_biome_idx - 2 + total_biomes) % total_biomes) + 1
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_biome_next", function()
-		self.lobby_biome_idx = (self.lobby_biome_idx % total_biomes) + 1
-		update_lobby_ui(self)
-	end)
-
-	local total_reliefs = #RELIEFS
-	self.ui:button("btn_relief_prev", function()
-		self.lobby_relief_idx = ((self.lobby_relief_idx - 2 + total_reliefs) % total_reliefs) + 1
-		update_lobby_ui(self)
-	end)
-	self.ui:button("btn_relief_next", function()
-		self.lobby_relief_idx = (self.lobby_relief_idx % total_reliefs) + 1
-		update_lobby_ui(self)
-	end)
-
-	-- Lobby Action Buttons (START BATTLE & BACK)
-	self.ui:button("btn_lobby_start", function()
-		msg.post(".", "disable")
-		local s_blue = player_profile.SKINS[self.lobby_skin_blue_idx] or player_profile.SKINS[1]
-		local s_red = player_profile.SKINS[self.lobby_skin_red_idx] or player_profile.SKINS[1]
-		msg.post("/main#main", "start_battle", {
-			potato_count = self.lobby_count,
-			opponent_type = self.lobby_opponent,
-			skin_blue = s_blue.id,
-			skin_red = s_red.id,
-			biome = BIOMES[self.lobby_biome_idx].id,
-			terrain_type = RELIEFS[self.lobby_relief_idx].id,
-		})
-	end)
-
-	self.ui:button("btn_lobby_back", function()
-		pcall(function()
-			gui.set_enabled(gui.get_node("lobby_overlay"), false)
-		end)
-		set_background_menu_enabled(true)
-		update_localized_menu(self)
-	end)
-
-	-- Shop button (Separate icon on the right)
-	self.ui:button("btn_shop", function()
-		self.overlay_mode = "skins"
-		self.shop_hat_page = 1
-		set_background_menu_enabled(false)
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), true)
-		end)
-		update_overlay(self)
-	end)
-
-	-- IAP Store button
-	self.ui:button("btn_quick_bot", function()
-		self.overlay_mode = "iap"
-		set_background_menu_enabled(false)
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), true)
-		end)
-		update_overlay(self)
-	end)
-
-	-- Shop title tab toggle (Hats <-> IAP)
-	self.ui:button("shop_title", function()
-		if self.overlay_mode == "iap" then
-			self.overlay_mode = "skins"
-			self.shop_hat_page = 1
-		elseif self.shop_hat_page == 2 then
-			self.shop_hat_page = 1
-		else
-			self.overlay_mode = "iap"
-		end
-		update_overlay(self)
-	end)
-
-	-- Language cycle button (cycles: EN → RU → TR → ES → PT → FR → EN → ...)
-	self.ui:button("btn_lang", function()
-		i18n.next_lang()
-		pcall(function()
-			local flag_node = gui.get_node("img_flag")
-			gui.play_flipbook(flag_node, hash(i18n.get_flag()))
-		end)
-		update_localized_menu(self)
-		update_overlay(self)
-		update_lobby_ui(self)
-	end)
-
-	-- Back button in shop overlay
-	self.ui:button("btn_shop_back", function()
-		if self.overlay_mode == "skins" and self.shop_hat_page == 2 then
-			self.shop_hat_page = 1
-			update_overlay(self)
-			return
-		end
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), false)
-		end)
-		set_background_menu_enabled(true)
-		update_points_display(self)
-	end)
-
-	-- Skins / IAP items 1 to 7 click handlers
-	local function handle_card_click(idx)
-		if self.overlay_mode == "iap" then
-			local prods = sdk.DEFAULT_PRODUCTS
-			local p = prods[idx]
-			if p then
-				if p.id == "no_ads" and player_profile.has_no_ads() then
-					return
-				end
-				sdk.purchase(p.id, function()
-					update_overlay(self)
-					update_points_display(self)
-				end)
-			elseif idx == 6 then
-				self.overlay_mode = "skins"
-				self.shop_hat_page = 1
-				update_overlay(self)
-			end
-			return
-		end
-
-		-- HATS MODE
-		if (self.shop_hat_page or 1) == 1 and idx == 7 then
-			-- Next page clicked
-			self.shop_hat_page = 2
-			update_overlay(self)
-			return
-		end
-
-		local hat_idx = (self.shop_hat_page == 2) and (idx + 6) or idx
-		local skins = player_profile.SKINS
-		local skin = skins[hat_idx]
-		if skin then
-			if player_profile.is_skin_unlocked(skin.id) then
-				player_profile.equip_skin(skin.id)
-			else
-				local ok = player_profile.buy_skin(skin.id)
-				if not ok then
-					local btn = gui.get_node("btn_skin_" .. idx)
-					pcall(function()
-						gui.cancel_animation(btn, "scale")
-						gui.set_scale(btn, vmath.vector3(1.10, 0.88, 1.0))
-						gui.animate(btn, "scale", vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBOUNCE, 0.25)
-					end)
-				end
-			end
-			update_overlay(self)
-		end
+	self.on_changed = function()
+		menu_home.refresh(self)
 	end
-
-	for i = 1, 7 do
-		local idx = i
-		self.ui:button("btn_skin_" .. idx, function()
-			handle_card_click(idx)
-		end)
-		self.ui:button("skin_bg_" .. idx, function()
-			handle_card_click(idx)
-		end)
-	end
-
-	-- Overlays hidden by default
-	pcall(function()
-		gui.set_enabled(gui.get_node("shop_overlay"), false)
-		gui.set_enabled(gui.get_node("lobby_overlay"), false)
-	end)
-
-	update_localized_menu(self)
+	menu_home.refresh(self)
 end
 
 function on_input(self, action_id, action)
@@ -544,22 +82,14 @@ end
 function on_message(self, message_id, message, sender)
 	if message_id == hash("show") then
 		msg.post(".", "enable")
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), false)
-			gui.set_enabled(gui.get_node("lobby_overlay"), false)
-		end)
-		set_background_menu_enabled(true)
-		update_localized_menu(self)
+		open_window(self, nil)
+		menu_home.refresh(self)
 	elseif message_id == hash("open_shop") then
 		msg.post(".", "enable")
-		self.overlay_mode = (message and message.mode) or "skins"
-		self.shop_hat_page = 1
-		pcall(function()
-			gui.set_enabled(gui.get_node("shop_overlay"), true)
-			gui.set_enabled(gui.get_node("lobby_overlay"), false)
-		end)
-		set_background_menu_enabled(false)
-		update_overlay(self)
+		menu_home.refresh(self)
+		open_window(self, "shop")
+	elseif message_id == hash("overlay_closed") then
+		menu_home.refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
 	end

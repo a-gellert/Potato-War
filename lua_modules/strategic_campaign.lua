@@ -8,6 +8,7 @@ local territory_map = require("lua_modules.territory_map")
 local player_profile = require("lua_modules.player_profile")
 local constants = require("lua_modules.constants")
 local level_config = require("lua_modules.level_config")
+local i18n = require("lua_modules.i18n")
 
 local M = {}
 
@@ -84,7 +85,7 @@ end
 function M.fortify_sector(sector_id)
 	local cost = territory_map.get_fortify_cost(sector_id)
 	if M.get_supplies() < cost then
-		return false, "Недостаточно припасов"
+		return false, i18n.pick({ ru = "Недостаточно припасов", en = "Not enough supplies", pt = "Suprimentos insuficientes", fr = "Pas assez de ravitaillement", es = "Suministros insuficientes", tr = "Yeterli erzak yok" })
 	end
 	local ok, err = territory_map.fortify_sector(sector_id)
 	if ok then
@@ -103,7 +104,7 @@ end
 function M.select_target(sector_id)
 	local s = territory_map.get_sector(sector_id)
 	if not s then
-		return false, "Сектор не найден"
+		return false, i18n.pick({ ru = "Сектор не найден", en = "Sector not found", pt = "Setor não encontrado", fr = "Secteur introuvable", es = "Sector no encontrado", tr = "Sektör bulunamadı" })
 	end
 
 	local available = M.get_available_targets()
@@ -116,7 +117,7 @@ function M.select_target(sector_id)
 	end
 
 	if not is_avail then
-		return false, "Сектор не является доступной приграничной целью"
+		return false, i18n.pick({ ru = "Сектор не является доступной приграничной целью", en = "Sector is not an available border target", pt = "O setor não é um alvo de fronteira disponível", fr = "Ce secteur n'est pas une cible frontalière disponible", es = "El sector no es un objetivo fronterizo disponible", tr = "Bu sektör uygun bir sınır hedefi değil" })
 	end
 
 	M.selected_target_id = s.id
@@ -131,7 +132,8 @@ function M.build_battle_config(s, battle_type)
 	local lvl_cfg = level_config.get(s.id)
 
 	local enemy_count = (battle_type == "assault") and (lvl_cfg.enemy_count or s.garrison or 2) or 2
-	local player_count = (battle_type == "defense") and math.max(1, s.garrison or 2) or 1
+	-- The whole squad from the barracks fights every sector battle
+	local player_count = #player_profile.get_squad()
 	local enemy_skill = lvl_cfg.enemy_skill or "normal"
 	local enemy_hp = lvl_cfg.enemy_hp or (def == 1 and 70 or (def == 2 and 85 or 100))
 
@@ -140,6 +142,10 @@ function M.build_battle_config(s, battle_type)
 		sector_id = s.id,
 		sector_name_ru = s.name_ru,
 		sector_name_en = s.name_en,
+		sector_name_pt = s.name_pt,
+		sector_name_fr = s.name_fr,
+		sector_name_es = s.name_es,
+		sector_name_tr = s.name_tr,
 		region = s.region,
 		battle_type = battle_type,
 		biome = lvl_cfg.biome or s.biome,
@@ -154,6 +160,7 @@ function M.build_battle_config(s, battle_type)
 		enemy_classes = lvl_cfg.enemy_classes,
 		enemy_levels = lvl_cfg.enemy_levels,
 		opponent_type = "bot",
+		use_squad = true,
 		enemy_skill = enemy_skill,
 		bot_difficulty = enemy_skill,
 		defense_level = def,
@@ -188,7 +195,7 @@ function M.launch_battle(sector_id)
 	end
 	local cfg = M.prepare_battle(M.active_battle_sector_id)
 	if not cfg then
-		return false, "Не удалось сформировать бой"
+		return false, i18n.pick({ ru = "Не удалось сформировать бой", en = "Failed to set up the battle", pt = "Não foi possível preparar a batalha", fr = "Impossible de préparer le combat", es = "No se pudo preparar la batalla", tr = "Savaş hazırlanamadı" })
 	end
 	return true, cfg
 end
@@ -329,6 +336,10 @@ function M.execute_ai_counterattack(auto_resolve)
 		target_id = target.id,
 		target_name_ru = target.name_ru,
 		target_name_en = target.name_en,
+		target_name_pt = target.name_pt,
+		target_name_fr = target.name_fr,
+		target_name_es = target.name_es,
+		target_name_tr = target.name_tr,
 		staging_id = staging and staging.id,
 		defended = defended,
 		captured = not defended,
@@ -351,6 +362,23 @@ function M.execute_ai_counterattack(auto_resolve)
 	return result
 end
 
+-- Sectors left under attack for a whole turn fall unless their defences hold
+local function resolve_ignored_attacks(except_id)
+	local lost = {}
+	for id, s in pairs(territory_map.get_sectors()) do
+		if s.owner == "blue" and s.under_attack and id ~= except_id then
+			local hold_chance = 35 + ((s.defense_level or 1) - 1) * 27.5
+			if math.random(1, 100) <= hold_chance then
+				territory_map.set_under_attack(id, false)
+			else
+				territory_map.capture_sector(id, "red")
+				table.insert(lost, id)
+			end
+		end
+	end
+	return lost
+end
+
 -- Resolve tactical battle results
 function M.resolve_battle(winner_team, points_earned)
 	local sector_id = M.active_battle_sector_id
@@ -362,6 +390,10 @@ function M.resolve_battle(winner_team, points_earned)
 		sector_id = sector_id,
 		sector_name_ru = s and s.name_ru or "Сектор",
 		sector_name_en = s and s.name_en or "Sector",
+		sector_name_pt = s and s.name_pt or "Setor",
+		sector_name_fr = s and s.name_fr or "Secteur",
+		sector_name_es = s and s.name_es or "Sector",
+		sector_name_tr = s and s.name_tr or "Sektör",
 		is_victory = is_victory,
 		battle_type = M.active_battle_type,
 		points_earned = points_earned or 0,
@@ -374,13 +406,21 @@ function M.resolve_battle(winner_team, points_earned)
 			territory_map.capture_sector(sector_id, "blue")
 			stats.sectors_conquered = (stats.sectors_conquered or 0) + 1
 			outcome.message_ru = "СЕКТОР ОСВОБОЖДЕН! Флаг Синих поднят!"
-			outcome.message_en = "SECTOR LIBERATED! Blue flag is raised!"
+				outcome.message_en = "SECTOR LIBERATED! Blue flag is raised!"
+			outcome.message_pt = "SETOR LIBERTADO! A bandeira Azul foi hasteada!"
+			outcome.message_fr = "SECTEUR LIBÉRÉ ! Le drapeau Bleu est hissé !"
+			outcome.message_es = "¡SECTOR LIBERADO! ¡La bandera Azul ondea!"
+			outcome.message_tr = "SEKTÖR KURTARILDI! Mavi bayrak göndere çekildi!"
 		else
 			-- Defended successfully
 			territory_map.set_under_attack(sector_id, false)
 			stats.counterattacks_repelled = (stats.counterattacks_repelled or 0) + 1
 			outcome.message_ru = "АТАКА ОТБИТА! Оборона рубежа удержана!"
-			outcome.message_en = "ATTACK REPELLED! Sector defense held!"
+				outcome.message_en = "ATTACK REPELLED! Sector defense held!"
+			outcome.message_pt = "ATAQUE REPELIDO! A defesa do setor resistiu!"
+			outcome.message_fr = "ATTAQUE REPOUSSÉE ! La défense du secteur a tenu !"
+			outcome.message_es = "¡ATAQUE REPELIDO! ¡La defensa del sector resistió!"
+			outcome.message_tr = "SALDIRI PÜSKÜRTÜLDÜ! Sektör savunması direndi!"
 		end
 
 		if territory_map.is_victory("blue") then
@@ -398,16 +438,28 @@ function M.resolve_battle(winner_team, points_earned)
 				s.defense_level = lvl - 1
 				territory_map.set_under_attack(sector_id, false)
 				outcome.message_ru = "ОБОРОНА ОСЛАБЛЕНА! Уровень защиты снижен."
-				outcome.message_en = "DEFENSE WEAKENED! Fortification degraded."
+					outcome.message_en = "DEFENSE WEAKENED! Fortification degraded."
+				outcome.message_pt = "DEFESA ENFRAQUECIDA! A fortificação foi degradada."
+				outcome.message_fr = "DÉFENSE AFFAIBLIE ! La fortification est dégradée."
+				outcome.message_es = "¡DEFENSA DEBILITADA! La fortificación se degradó."
+				outcome.message_tr = "SAVUNMA ZAYIFLADI! Tahkimat seviyesi düştü."
 			else
 				territory_map.capture_sector(sector_id, "red")
 				stats.sectors_lost = (stats.sectors_lost or 0) + 1
 				outcome.message_ru = "СЕКТОР ПОТЕРЯН! Враг захватил территорию!"
-				outcome.message_en = "SECTOR LOST! Enemy seized the territory!"
+					outcome.message_en = "SECTOR LOST! Enemy seized the territory!"
+				outcome.message_pt = "SETOR PERDIDO! O inimigo tomou o território!"
+				outcome.message_fr = "SECTEUR PERDU ! L'ennemi s'est emparé du territoire !"
+				outcome.message_es = "¡SECTOR PERDIDO! ¡El enemigo se apoderó del territorio!"
+				outcome.message_tr = "SEKTÖR KAYBEDİLDİ! Düşman toprakları ele geçirdi!"
 			end
 		else
 			outcome.message_ru = "ШТУРМ ПРОВАЛЕН! Войска отступили на базу."
-			outcome.message_en = "ASSAULT FAILED! Forces retreated to base."
+				outcome.message_en = "ASSAULT FAILED! Forces retreated to base."
+			outcome.message_pt = "ASSALTO FALHOU! As tropas recuaram para a base."
+			outcome.message_fr = "ASSAUT RATÉ ! Les troupes se sont repliées à la base."
+			outcome.message_es = "¡ASALTO FALLIDO! Las tropas se retiraron a la base."
+			outcome.message_tr = "HÜCUM BAŞARISIZ! Birlikler üsse çekildi."
 		end
 
 		if territory_map.is_defeat("blue") then
@@ -420,6 +472,15 @@ function M.resolve_battle(winner_team, points_earned)
 
 	player_profile.set_campaign_stats(stats)
 	player_profile.set_campaign_turn(M.get_turn() + 1)
+
+	-- A new turn: ignored attacks are settled, then the sectors pay their income
+	outcome.lost_sectors = resolve_ignored_attacks(sector_id)
+	if territory_map.is_defeat("blue") then
+		M.set_phase(M.PHASE_DEFEAT)
+		outcome.campaign_lost = true
+		return outcome
+	end
+	outcome.income = M.collect_income()
 	M.set_phase(M.PHASE_COUNTERATTACK)
 
 	-- Check for enemy counter-attack on next turn
