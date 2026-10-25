@@ -7,6 +7,7 @@ local physics_sim = require("lua_modules.physics_sim")
 local terrain_grid = require("lua_modules.terrain_grid")
 local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
+local match_spawner = require("lua_modules.match_spawner")
 
 local MAX_DOTS = 14
 
@@ -194,26 +195,42 @@ function on_input(self, action_id, action)
 				self.dragging = false
 				return false
 			end
+			hide_guide(self)
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
 			game_state.poki_gameplay_start()
 
 		elseif self.dragging and not action.released then
-			local raw_dx = action.x - self.drag_start.x
-			local raw_dy = action.y - self.drag_start.y
 			local is_slingshot = (game_state.aim_control_mode == "slingshot")
+			local aim_x, aim_y
 
-			-- Slingshot pulls backward to shoot forward; Direct aims towards drag
-			local aim_x = is_slingshot and (-raw_dx) or raw_dx
-			local aim_y = is_slingshot and (-raw_dy) or raw_dy
+			if is_slingshot then
+				local raw_dx = action.x - self.drag_start.x
+				local raw_dy = action.y - self.drag_start.y
+				aim_x = -raw_dx
+				aim_y = -raw_dy
+			else
+				-- Direct mode: aim from unit's screen position towards the touch / cursor point
+				local psx, psy = camera_controller.world_to_screen(potato.pos.x, potato.pos.y + 8)
+				aim_x = action.x - psx
+				aim_y = action.y - psy
+			end
+
 			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
-			if len > 12 then
+			-- Aim sensitivity from config (mouse vs touchscreen)
+			local sens = match_spawner.is_mobile_platform()
+				and (constants.AIM_SENSITIVITY_TOUCH or 0.5)
+				or (constants.AIM_SENSITIVITY_MOUSE or 0.5)
+
+			local min_len = is_slingshot and 12 or 16
+			if len > min_len then
 				game_state.is_aiming = true
 				msg.post("/gui_hud#gui", "hide_tutorial")
 				local dir_x = aim_x / len
 				local dir_y = aim_y / len
-				local power = (weapon.fixed_power and weapon.max_power or math.min(weapon.max_power, len * weapon.power_scale)) * 1.30
+				local effective_len = len * sens
+				local power = (weapon.fixed_power and weapon.max_power or math.min(weapon.max_power, effective_len * weapon.power_scale)) * 1.30
 
 				local vx = dir_x * power
 				local vy = dir_y * power
@@ -236,16 +253,25 @@ function on_input(self, action_id, action)
 		elseif action.released and self.dragging then
 			self.dragging = false
 			game_state.is_aiming = false
-			local raw_dx = action.x - self.drag_start.x
-			local raw_dy = action.y - self.drag_start.y
 			local is_slingshot = (game_state.aim_control_mode == "slingshot")
-			local aim_x = is_slingshot and (-raw_dx) or raw_dx
-			local aim_y = is_slingshot and (-raw_dy) or raw_dy
-			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
+			local aim_x, aim_y
 
+			if is_slingshot then
+				local raw_dx = action.x - self.drag_start.x
+				local raw_dy = action.y - self.drag_start.y
+				aim_x = -raw_dx
+				aim_y = -raw_dy
+			else
+				local psx, psy = camera_controller.world_to_screen(potato.pos.x, potato.pos.y + 8)
+				aim_x = action.x - psx
+				aim_y = action.y - psy
+			end
+
+			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 			hide_guide(self)
 
-			if len > 16 then
+			local min_fire_len = is_slingshot and 16 or 20
+			if len > min_fire_len and (self.last_vx ~= 0 or self.last_vy ~= 0) then
 				-- Fire weapon!
 				game_state.tutorial_first_shot_done = true
 				msg.post("/gui_hud#gui", "tutorial_shot_fired")
@@ -287,6 +313,26 @@ function on_message(self, message_id, message, sender)
 				msg.post(potato.url, "set_facing", { facing = facing_dir })
 				msg.post(potato.url, "set_aim", { vx = message.vx, vy = message.vy })
 			end
+		end
+
+	elseif message_id == hash("tutorial_aim_preview") then
+		if not self.dragging and not game_state.is_aiming then
+			local potato = game_state.active_potato
+			if potato and potato.is_alive then
+				local weapon = weapons.get(message.weapon_id or game_state.selected_weapon_id or "bazooka")
+				show_trajectory(self, potato.pos.x, potato.pos.y + 8, message.vx, message.vy, weapon)
+				local facing_dir = (message.vx >= 0) and 1 or -1
+				potato.facing = facing_dir
+				if potato.url then
+					msg.post(potato.url, "set_facing", { facing = facing_dir })
+					msg.post(potato.url, "set_aim", { vx = message.vx, vy = message.vy })
+				end
+			end
+		end
+
+	elseif message_id == hash("hide_tutorial_aim") then
+		if not self.dragging and not game_state.is_aiming then
+			hide_guide(self)
 		end
 
 	elseif message_id == hash("hide_aim") then

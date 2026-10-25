@@ -61,8 +61,8 @@ function M.update_potato(p, dt, terrain, wind_vector)
 		p.vel.x = 0
 	end
 
-	-- Check water level: Instant death into boiling deep fryer!
-	if p.pos.y < constants.WATER_LEVEL or new_y < constants.WATER_LEVEL then
+	-- Check water level: Instant death into water / deep fryer!
+	if p.pos.y <= (constants.WATER_LEVEL + 4.0) or new_y <= (constants.WATER_LEVEL + 4.0) then
 		if game_state and game_state.mode == constants.MODE_TUTORIAL then
 			-- Fail-safe tutorial rescue: teleport back to safe edge without penalty
 			p.pos.x = 380.0
@@ -72,7 +72,7 @@ function M.update_potato(p, dt, terrain, wind_vector)
 			p.is_grounded = true
 			return "tutorial_rescue"
 		else
-			-- Worms instant death upon falling into the boiling fryer oil!
+			-- Worms instant death upon falling into the water!
 			p.pos.x = new_x
 			p.pos.y = math.min(p.pos.y, constants.WATER_LEVEL - 5)
 			p.hp = 0
@@ -86,16 +86,30 @@ function M.update_potato(p, dt, terrain, wind_vector)
 		-- Airborne state
 		new_y = p.pos.y + p.vel.y * dt
 
-		local ground_y = terrain.get_smooth_ground_y(new_x, 6.0, p.pos.y + 6.0)
+		local ground_y = terrain.get_smooth_ground_y(new_x, 4.0, p.pos.y + 6.0)
 		local target_standing_y = ground_y + check_radius
 
-		-- Check landing on ground
-		if p.vel.y <= 0 and new_y <= (target_standing_y + 2.0) and p.pos.y >= (ground_y - 4.0) then
+		-- Check if potato is trapped in a narrow pit/crevice (solid walls on both sides)
+		-- Probe at body width and also slightly above to catch wider pits
+		local probe_dx = check_radius * 1.5
+		local wall_left = terrain.is_solid(new_x - probe_dx, new_y) or terrain.is_solid(new_x - probe_dx, new_y + check_radius)
+		local wall_right = terrain.is_solid(new_x + probe_dx, new_y) or terrain.is_solid(new_x + probe_dx, new_y + check_radius)
+		local in_tight_pit = wall_left and wall_right
+		-- Also detect if center is embedded inside solid terrain (clipped through wall)
+		local in_wall = terrain.is_solid(new_x, new_y)
+
+		if in_tight_pit or in_wall then
+			-- In a narrow pit or embedded: cancel horizontal jitter, allow vertical settling only
+			p.vel.x = 0
+		end
+
+		-- Check landing on ground (only if ground is actually above water!)
+		if ground_y > constants.WATER_LEVEL and p.vel.y <= 0 and new_y <= (target_standing_y + 3.0) then
 			local impact_speed = math.abs(p.vel.y)
-			if impact_speed > 70.0 then
-				-- Rubbery Spud: high fall elastic rebound!
-				p.vel.y = impact_speed * 0.48
-				p.vel.x = p.vel.x * 0.75
+			if impact_speed > 90.0 and not in_tight_pit and not in_wall then
+				-- High fall elastic rebound on open ground
+				p.vel.y = impact_speed * 0.35
+				p.vel.x = p.vel.x * 0.5
 				new_y = target_standing_y + 2.0
 				p.is_grounded = false
 				p.pos.x = new_x
@@ -104,7 +118,7 @@ function M.update_potato(p, dt, terrain, wind_vector)
 			else
 				new_y = target_standing_y
 				p.vel.y = 0
-				p.vel.x = p.vel.x * 0.4
+				p.vel.x = in_tight_pit and 0 or (p.vel.x * 0.3)
 				p.is_grounded = true
 				p.pos.x = new_x
 				p.pos.y = new_y
@@ -114,31 +128,70 @@ function M.update_potato(p, dt, terrain, wind_vector)
 			-- Check side/head/ceiling collision with solid terrain while airborne
 			local hit, nx, ny = terrain.check_circle_collision(new_x, new_y, check_radius)
 			if hit then
-				local dot = p.vel.x * nx + p.vel.y * ny
-				if dot < 0 then
-					local impact_speed = math.abs(dot)
-					local restitution = 0.52
-					p.vel.x = (p.vel.x - (1.0 + restitution) * dot * nx) * 0.78
-					p.vel.y = (p.vel.y - (1.0 + restitution) * dot * ny) * 0.78
-					new_x = new_x + nx * 2.5
-					new_y = new_y + ny * 2.5
-					if impact_speed > 55.0 then
+				-- In a narrow pit, embedded in wall, or against steep walls with low lateral speed: damp horizontal motion completely
+				if in_tight_pit or in_wall or (math.abs(nx) > 0.45 and (math.abs(p.vel.x) < 40.0 or ny > 0.35)) then
+					p.vel.x = 0
+					-- If embedded in solid terrain and moving upward, prevent phasing through ceiling
+					if in_wall and p.vel.y > 0 then
+						p.vel.y = 0
+					end
+					-- Check if bottom of circle is resting on or near ground inside the pit, or wedged between walls
+					if ground_y > constants.WATER_LEVEL and p.vel.y <= 0 then
+						p.is_grounded = true
+						p.vel.y = 0
+						-- If wedged in a narrow pit where it cannot reach the pit floor, rest at wedged height
+						if in_tight_pit and new_y > target_standing_y then
+							new_y = math.max(target_standing_y, math.min(new_y, p.pos.y))
+						else
+							new_y = target_standing_y
+						end
 						p.pos.x = new_x
 						p.pos.y = new_y
-						return "bounce", impact_speed
+						return "land", math.abs(p.vel.y)
 					end
-				end
-				if ny > 0.55 and p.vel.y <= 0 and math.abs(p.vel.y) <= 70.0 then
-					-- Landed on terrain shelf
-					p.is_grounded = true
-					p.vel.y = 0
-					new_y = target_standing_y
-					p.pos.x = new_x
-					p.pos.y = new_y
-					return "land", math.abs(p.vel.y)
-				elseif ny < -0.45 and p.vel.y > 0 then
-					-- Bonked head against ceiling or bridge underside!
-					p.vel.y = -math.abs(p.vel.y) * 0.5
+				else
+					local dot = p.vel.x * nx + p.vel.y * ny
+					if dot < 0 then
+						local impact_speed = math.abs(dot)
+						if impact_speed > 45.0 then
+							local restitution = 0.30
+							p.vel.x = (p.vel.x - (1.0 + restitution) * dot * nx) * 0.65
+							p.vel.y = (p.vel.y - (1.0 + restitution) * dot * ny) * 0.65
+							new_x = new_x + nx * 1.0
+							new_y = new_y + ny * 1.0
+							-- In pits: clamp upward velocity to prevent phasing through walls
+							if wall_left and wall_right then
+								p.vel.x = 0
+								if p.vel.y > 0 then
+									p.vel.y = math.min(p.vel.y, 60.0)
+								end
+								new_y = math.min(new_y, p.pos.y + 2.0)
+							end
+							if impact_speed > 60.0 then
+								p.pos.x = new_x
+								p.pos.y = new_y
+								return "bounce", impact_speed
+							end
+						else
+							-- Low speed contact with wall: damp smoothly, no bouncing
+							p.vel.x = p.vel.x * 0.15
+							p.vel.y = p.vel.y * 0.85
+							new_x = new_x + nx * 0.4
+						end
+					end
+					if ny > 0.55 and p.vel.y <= 0 and math.abs(p.vel.y) <= 80.0 and ground_y > constants.WATER_LEVEL then
+						-- Landed on terrain shelf
+						p.is_grounded = true
+						p.vel.y = 0
+						p.vel.x = 0
+						new_y = target_standing_y
+						p.pos.x = new_x
+						p.pos.y = new_y
+						return "land", math.abs(p.vel.y)
+					elseif ny < -0.45 and p.vel.y > 0 then
+						-- Bonked head against ceiling or bridge underside!
+						p.vel.y = -math.abs(p.vel.y) * 0.4
+					end
 				end
 			end
 		end
@@ -147,17 +200,28 @@ function M.update_potato(p, dt, terrain, wind_vector)
 		local ground_y = terrain.get_smooth_ground_y(new_x, 4.0, p.pos.y + 8.0)
 		local target_standing_y = ground_y + check_radius
 
-		-- If potato got upward vertical impulse (e.g. explosion blast or jump), become airborne
-		if p.vel.y > 5.0 then
+		if ground_y <= constants.WATER_LEVEL then
+			-- Ground fell away into water! Potato slips into water
+			p.is_grounded = false
+			p.vel.y = -50.0
+			new_y = p.pos.y + p.vel.y * dt
+		elseif p.vel.y > 5.0 then
 			p.is_grounded = false
 			new_y = p.pos.y + p.vel.y * dt
 		else
+			-- Check if potato is trapped in narrow pit or resting on solid walls
+			local probe_dx = check_radius * 1.5
+			local wall_left = terrain.is_solid(new_x - probe_dx, p.pos.y) or terrain.is_solid(new_x - probe_dx, p.pos.y + check_radius)
+			local wall_right = terrain.is_solid(new_x + probe_dx, p.pos.y) or terrain.is_solid(new_x + probe_dx, p.pos.y + check_radius)
+			local in_tight_pit = wall_left and wall_right
+			local is_supported = in_tight_pit or terrain.check_circle_collision(new_x, p.pos.y, check_radius)
+
 			-- Check if ground fell away below (e.g. destroyed by blast)
-			if (p.pos.y - target_standing_y) > 8.0 then
+			if (p.pos.y - target_standing_y) > 8.0 and not is_supported then
 				p.is_grounded = false
 				p.vel.y = -20.0
 				new_y = p.pos.y + p.vel.y * dt
-			elseif (target_standing_y - p.pos.y) > 6.0 then
+			elseif (target_standing_y - p.pos.y) > 6.0 and not in_tight_pit then
 				-- Hit a wall or steep rise while moving along ground: block horizontal progress
 				new_x = p.pos.x
 				new_y = p.pos.y
@@ -170,7 +234,12 @@ function M.update_potato(p, dt, terrain, wind_vector)
 					p.is_walking = false -- will be set back to true on next walk_potato call if still walking
 				else
 					p.walk_step_time = 0
-					new_y = target_standing_y
+					if in_tight_pit and (p.pos.y - target_standing_y) > 4.0 then
+						-- Wedged in pit above floor: preserve wedged resting height
+						new_y = p.pos.y
+					else
+						new_y = target_standing_y
+					end
 				end
 				p.vel.y = 0
 			end
@@ -262,8 +331,8 @@ function M.walk_potato(p, dir, dt, terrain)
 		end
 	end
 
-	-- 5. Walking off a cliff / ledge (steep drop)
-	if (curr_gy - target_gy) > 8.0 then
+	-- 5. Walking off a cliff / ledge (steep drop) or into water
+	if (curr_gy - target_gy) > 8.0 or target_gy <= constants.WATER_LEVEL then
 		p.pos.x = target_x
 		p.is_grounded = false
 		p.vel.x = dir * base_speed * 0.75

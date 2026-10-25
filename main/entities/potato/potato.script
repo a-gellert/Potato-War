@@ -251,7 +251,8 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = i18n.pick({ ru = "🔥 ОЖОГ", en = "🔥 BURN", pt = "🔥 QUEIMADURA", fr = "🔥 BRÛLURE", es = "🔥 QUEMADURA", tr = "🔥 YANIK" })
+			status = "burning",
+			label = i18n.pick({ ru = "ОЖОГ", en = "BURN", pt = "QUEIMADURA", fr = "BRÛLURE", es = "QUEMADURA", tr = "YANIK" })
 		})
 
 		burn_data.duration = (burn_data.duration or 1) - 1
@@ -272,7 +273,8 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 16,
 			amount = dmg,
-			label = i18n.pick({ ru = "☠ ЯД", en = "☠ POISON", pt = "☠ VENENO", fr = "☠ POISON", es = "☠ VENENO", tr = "☠ ZEHİR" })
+			status = "poisoned",
+			label = i18n.pick({ ru = "ЯД", en = "POISON", pt = "VENENO", fr = "POISON", es = "VENENO", tr = "ZEHİR" })
 		})
 
 		poison_data.duration = (poison_data.duration or 1) - 1
@@ -287,7 +289,8 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = i18n.pick({ ru = "🍯 КЛЕЙ", en = "🍯 GLUE", pt = "🍯 COLA", fr = "🍯 COLLE", es = "🍯 PEGAMENTO", tr = "🍯 YAPIŞKAN" })
+			status = "glued",
+			label = i18n.pick({ ru = "КЛЕЙ", en = "GLUE", pt = "COLA", fr = "COLLE", es = "PEGAMENTO", tr = "YAPIŞKAN" })
 		})
 	end
 
@@ -297,7 +300,8 @@ local function process_turn_start(self)
 			x = p_pos.x,
 			y = p_pos.y + 24,
 			amount = 0,
-			label = i18n.pick({ ru = "💫 ОГЛУШЕНИЕ", en = "💫 STUN", pt = "💫 ATORDOADO", fr = "💫 ÉTOURDI", es = "💫 ATURDIDO", tr = "💫 SERSEMLEDİ" })
+			status = "concussed",
+			label = i18n.pick({ ru = "ОГЛУШЕНИЕ", en = "STUN", pt = "ATORDOADO", fr = "ÉTOURDI", es = "ATURDIDO", tr = "SERSEMLEDİ" })
 		})
 	end
 
@@ -457,7 +461,8 @@ function on_message(self, message_id, message, sender)
 					x = p_pos.x,
 					y = p_pos.y + 24,
 					amount = combo.bonus_damage,
-					label = "💥 " .. i18n.field(combo, "name")
+					status = "combo",
+					label = i18n.field(combo, "name")
 				})
 			end
 			if combo.duration_bonus then
@@ -466,15 +471,16 @@ function on_message(self, message_id, message, sender)
 		else
 			-- Show status overhead icon/label
 			local label_map = {
-				burning   = i18n.pick({ ru = "🔥 ОЖОГ!", en = "🔥 BURN!", pt = "🔥 QUEIMADURA!", fr = "🔥 BRÛLURE !", es = "🔥 ¡QUEMADURA!", tr = "🔥 YANIK!" }),
-				poisoned  = i18n.pick({ ru = "☠ ЯД!", en = "☠ POISON!", pt = "☠ VENENO!", fr = "☠ POISON !", es = "☠ ¡VENENO!", tr = "☠ ZEHİR!" }),
-				glued     = i18n.pick({ ru = "🍯 КЛЕЙ!", en = "🍯 GLUE!", pt = "🍯 COLA!", fr = "🍯 COLLE !", es = "🍯 ¡PEGAMENTO!", tr = "🍯 YAPIŞKAN!" }),
-				concussed = i18n.pick({ ru = "💫 ОГЛУШЕН!", en = "💫 STUNNED!", pt = "💫 ATORDOADO!", fr = "💫 ÉTOURDI !", es = "💫 ¡ATURDIDO!", tr = "💫 SERSEMLEDİ!" }),
+				burning   = i18n.pick({ ru = "ОЖОГ!", en = "BURN!", pt = "QUEIMADURA!", fr = "BRÛLURE !", es = "¡QUEMADURA!", tr = "YANIK!" }),
+				poisoned  = i18n.pick({ ru = "ЯД!", en = "POISON!", pt = "VENENO!", fr = "POISON !", es = "¡VENENO!", tr = "ZEHİR!" }),
+				glued     = i18n.pick({ ru = "КЛЕЙ!", en = "GLUE!", pt = "COLA!", fr = "COLLE !", es = "¡PEGAMENTO!", tr = "YAPIŞKAN!" }),
+				concussed = i18n.pick({ ru = "ОГЛУШЕН!", en = "STUNNED!", pt = "ATORDOADO!", fr = "ÉTOURDI !", es = "¡ATURDIDO!", tr = "SERSEMLEDİ!" }),
 			}
 			msg.post("/gui_hud#gui", "show_damage", {
 				x = p_pos.x,
 				y = p_pos.y + 20,
 				amount = 0,
+				status = st_type,
 				label = label_map[st_type] or st_type
 			})
 		end

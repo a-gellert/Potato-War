@@ -40,7 +40,7 @@ end
 
 -- Focus camera on a target coordinate
 function M.follow(x, y, immediate)
-	local effective_zoom = math.max(0.65, M.target_zoom or M.zoom or 1.0)
+	local effective_zoom = math.max(0.55, M.target_zoom or M.zoom or 1.0)
 	local half_w = (constants.SCREEN_WIDTH * 0.5) / effective_zoom
 	local half_h = (constants.SCREEN_HEIGHT * 0.5) / effective_zoom
 
@@ -72,7 +72,7 @@ end
 
 -- Set target zoom level (1.0 = normal, >1.0 = zoomed in on projectile)
 function M.set_zoom(z)
-	M.target_zoom = math.max(0.75, math.min(1.75, z or 1.0))
+	M.target_zoom = math.max(0.55, math.min(2.0, z or 1.0))
 end
 
 -- Convert world coordinates to screen (GUI) coordinates
@@ -100,8 +100,8 @@ function M.update(dt)
 	M.pos.x = M.pos.x + (M.target_pos.x - M.pos.x) * math.min(1.0, lerp_speed * dt)
 	M.pos.y = M.pos.y + (M.target_pos.y - M.pos.y) * math.min(1.0, lerp_speed * dt)
 
-	-- Smooth zoom interpolation (3.5x for gradual cinematic zoom-in/out)
-	M.zoom = M.zoom + (M.target_zoom - M.zoom) * math.min(1.0, 3.5 * dt)
+	-- Smooth zoom interpolation (3.8x for gradual cinematic zoom-in/out)
+	M.zoom = M.zoom + (M.target_zoom - M.zoom) * math.min(1.0, 3.8 * dt)
 
 	-- Calculate shake offset
 	local shake_x = 0

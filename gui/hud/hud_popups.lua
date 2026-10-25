@@ -10,15 +10,14 @@ local M = {}
 local TOAST_Y = 350
 local TOAST_HIDDEN_Y = 322
 
-local function damage_color(label, is_heal, is_crit)
-	if is_heal then
+local function damage_color(label, is_heal, is_crit, status)
+	if is_heal or status == "water" then
 		return vmath.vector4(0.18, 1.0, 0.45, 1.0) -- Vibrant emerald green
-	-- Status labels are matched by their icon so the colors work in every language
-	elseif label and string.find(label, "☠", 1, true) then
+	elseif status == "poisoned" then
 		return vmath.vector4(0.35, 1.0, 0.30, 1.0) -- Poison green
-	elseif label and string.find(label, "🔥", 1, true) then
+	elseif status == "burning" or status == "fire" or status == "combo" then
 		return vmath.vector4(1.0, 0.45, 0.15, 1.0) -- Fire orange
-	elseif label and string.find(label, "🍯", 1, true) then
+	elseif status == "glued" or status == "concussed" then
 		return vmath.vector4(1.0, 0.90, 0.25, 1.0) -- Honey yellow
 	elseif is_crit then
 		return vmath.vector4(1.0, 0.18, 0.12, 1.0) -- Crit red
@@ -46,7 +45,7 @@ function M.show_damage(message)
 	gui.set_font(txt_node, "system_font")
 	local base_scale = is_heal and 0.85 or (is_crit and 1.15 or (label and 0.80 or 0.75))
 	gui.set_scale(txt_node, vmath.vector3(base_scale * 1.5, base_scale * 1.5, 1.0))
-	gui.set_color(txt_node, damage_color(label, is_heal, is_crit))
+	gui.set_color(txt_node, damage_color(label, is_heal, is_crit, message.status))
 
 	-- Punchy scale-down pop and drifting upward with horizontal scatter
 	local scatter_x = (math.random() - 0.5) * 24
@@ -58,6 +57,19 @@ function M.show_damage(message)
 	end)
 end
 
+local TOAST_ICONS = {
+	["🎯"] = "ic_radius",
+	["🌊"] = "ic_damage",
+	["🏹"] = "ic_battle",
+	["🛡️"] = "ic_check",
+	["🛡"] = "ic_check",
+	["❤️"] = "ic_heart",
+	["💥"] = "ic_damage",
+	["📦"] = "ic_ammo",
+	["⚠️"] = "ic_skull",
+	["🏆"] = "ic_trophy",
+}
+
 function M.show_toast(message)
 	local panel = gui.get_node("toast_panel")
 	local txt = gui.get_node("toast_text")
@@ -66,7 +78,8 @@ function M.show_toast(message)
 	if pts > 0 then
 		pts_str = i18n.t("toast_pts_fmt", pts)
 	end
-	gui.set_text(txt, (message.icon or "🏆") .. " " .. (message.title or "") .. pts_str)
+
+	gui.set_text(txt, (message.title or "") .. pts_str)
 	gui.set_enabled(panel, true)
 
 	gui.cancel_animations(panel, gui.PROP_POSITION)

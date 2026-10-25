@@ -37,6 +37,10 @@ M.POTATO_JUMP_IMPULSE = 295.0
 M.MAX_FALL_SPEED = 600.0
 M.PLAYER_HP = 120
 
+-- Aim Sensitivity (50% reduction from base 1.0)
+M.AIM_SENSITIVITY_MOUSE = 0.5
+M.AIM_SENSITIVITY_TOUCH = 0.5
+
 -- Teams
 M.TEAM_BLUE = 1
 M.TEAM_RED = 2
@@ -82,6 +86,12 @@ function M.log(...)
 	end
 	local str = table.concat(parts, " ")
 	print(str)
+
+	if html5 and html5.run then
+		local escaped = str:gsub("\\", "\\\\"):gsub("'", "\\'"):gsub("\n", " "):gsub("\r", "")
+		pcall(html5.run, "console.log('%c[POTATO WAR LOG]', 'color: #ff9800; font-weight: bold;', '" .. escaped .. "');")
+	end
+
 	local f = io.open("C:/Users/gellert.alexandr/Desktop/D_Projects/Potato War/game_debug.log", "a")
 	if f then
 		f:write(str .. "\n")

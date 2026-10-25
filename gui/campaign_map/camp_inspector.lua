@@ -38,8 +38,11 @@ function M.build(self, handlers)
 
 	ins.enemies_label = kit.text(p, "", -112, 118, 14, { font = "label", align = "left", color = kit.C.muted })
 	ins.enemies = {}
+	ins.enemy_emotions = {}
 	for k = 1, MAX_ENEMIES do
-		ins.enemies[k] = kit.icon(p, "recruit", -84 + (k - 1) * 56, 82, 46, { texture = "game" })
+		local ex = -84 + (k - 1) * 56
+		ins.enemies[k] = kit.icon(p, "recruit", ex, 82, 46, { texture = "game" })
+		ins.enemy_emotions[k] = kit.icon(p, "s_angry", ex, 85, 18, { texture = "game" })
 	end
 	ins.rows = {
 		difficulty = row(p, 36, "ic_skull", "ui_difficulty_normal"),
@@ -92,6 +95,9 @@ function M.refresh(self)
 		local cid = enemy_classes and enemy_classes[k]
 		local visible = show_enemies and ((enemy_classes and cid ~= nil) or (not enemy_classes and k <= 2))
 		gui.set_enabled(node, visible)
+		if ins.enemy_emotions and ins.enemy_emotions[k] then
+			gui.set_enabled(ins.enemy_emotions[k], visible)
+		end
 		if visible then
 			kit.set_icon(node, classes.sprite_of(cid or "recruit"), 44, 46, "game")
 		end

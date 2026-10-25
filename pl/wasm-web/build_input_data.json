@@ -1,0 +1,25 @@
+{
+  "bob_arguments" : {
+    "sha1" : "a81dbb0478e8b73931dc2d671563204f6ac0ef82",
+    "version" : "1.14.0",
+    "timestamp" : "2026-10-12 11:39:45"
+  },
+  "defold_sdk" : "a81dbb0478e8b73931dc2d671563204f6ac0ef82",
+  "dependencies" : [ {
+    "url" : "https://github.com/Playgama/bridge-defold/archive/refs/tags/v2.3.0.zip",
+    "commit-sha1" : "79c3efdcd2d054c183a6baf61dfb709716bc01c2",
+    "payload-sha1" : "27f2b5d71a383231fe375aa9c40dff6e2e925ac2"
+  }, {
+    "url" : "https://github.com/Insality/druid/archive/master.zip",
+    "commit-sha1" : "3eeb5c7ab701bd99503cc83ff5aa49cbeffbea24",
+    "payload-sha1" : "23cde74eb8d1474c64e7f551b88772208687c89b"
+  }, {
+    "url" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
+    "commit-sha1" : "387370806f7689114ade6d77f98a4341e6b5c062",
+    "payload-sha1" : "96cb51bbc0957995bc89cf87c4eecfd372a1af63"
+  }, {
+    "url" : "https://github.com/defold/extension-poki-sdk/archive/refs/tags/4.1.0.zip",
+    "commit-sha1" : "f6da316a7623e92aeeddacd8b80c1147997fa4bd",
+    "payload-sha1" : "40dfee813a2642b0acafabaea5cedd968651fd19"
+  } ]
+}

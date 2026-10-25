@@ -213,7 +213,7 @@ local DEFS = {
 		fuse_time        = 6.0,
 		wind_sensitivity = 0.50,
 		blast_radius     = 48,
-		max_damage       = 65,
+		max_damage       = 40,
 		blast_force      = 220,
 		max_power        = 700,
 		power_scale      = 3.5,
@@ -598,7 +598,7 @@ local DEFS = {
 		category         = M.CATEGORY_ARENA_PICKUP,
 		rarity           = "rare",
 		sfx              = "throw",
-		pickup_rarity    = "common",
+		pickup_rarity    = "rare",
 		default_ammo     = 2,
 		desc             = "Кипящее масло: заливает все фритюром и поджигает врагов (Горение)",
 		desc_en = "Boiling oil: deep-fries everything and sets enemies ablaze (Burning)",
@@ -646,7 +646,7 @@ local DEFS = {
 		category         = M.CATEGORY_ARENA_PICKUP,
 		rarity           = "rare",
 		sfx              = "throw",
-		pickup_rarity    = "common",
+		pickup_rarity    = "rare",
 		default_ammo     = 2,
 		desc             = "Жгучий помол кайенского перца: ядовитое облако отравляет бойцов (Яд)",
 		desc_en = "A fiery grind of cayenne pepper: a toxic cloud poisons the fighters (Poison)",
@@ -961,17 +961,21 @@ for i, id in ipairs(ORDER) do
 	weapon.projectile_tint = weapon.projectile_tint or { 1, 1, 1, 1 }
 	M.LIST[i] = weapon
 	M.BY_ID[id] = weapon
+	M.BY_ID[hash(id)] = weapon
 	if not weapon.internal then
 		table.insert(M.PLAYER_LIST, weapon)
 	end
 end
 
 function M.get(id)
-	return M.BY_ID[id] or M.LIST[1]
+	if id == nil then
+		return M.BY_ID["dynamite"] or M.LIST[2]
+	end
+	return M.BY_ID[id] or (type(id) == "string" and M.BY_ID[hash(id)]) or M.BY_ID["dynamite"] or M.LIST[2]
 end
 
 function M.get_by_index(idx)
-	return M.LIST[idx] or M.LIST[1]
+	return M.LIST[idx] or M.BY_ID["dynamite"] or M.LIST[2]
 end
 
 function M.count()
@@ -1012,14 +1016,17 @@ end
 function M.get_random_arena_pickup(rarity)
 	local pool = {}
 	for _, w in ipairs(M.LIST) do
-		if w.category == M.CATEGORY_ARENA_PICKUP then
-			if not rarity or w.pickup_rarity == rarity then
+		-- Only powerful / rare arena pickups, never grenades or basic class weapons
+		if w.category == M.CATEGORY_ARENA_PICKUP and w.id ~= "grenade" and not w.internal then
+			if not rarity or w.pickup_rarity == rarity or w.rarity == rarity then
 				table.insert(pool, w)
 			end
 		end
 	end
 	if #pool == 0 then
-		return M.get("molotov")
+		local powerful = { "dynamite", "cluster", "homing", "holy_grenade", "airstrike", "garlic", "beetle" }
+		local pick = powerful[math.random(1, #powerful)]
+		return M.get(pick)
 	end
 	return pool[math.random(1, #pool)]
 end

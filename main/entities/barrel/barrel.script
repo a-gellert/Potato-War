@@ -90,7 +90,7 @@ local function explode(self)
 	if game_state.active_team == constants.TEAM_BLUE then
 		player_profile.add_points(25)
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
-			icon = "💥",
+			icon = "ic_damage",
 			title = i18n.pick({ ru = "TNT БАБАХ!", en = "TNT BOOM!", pt = "TNT BUM!", fr = "TNT BOUM !", es = "¡TNT BUM!", tr = "TNT GÜM!" }),
 			points = 25
 		})

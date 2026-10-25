@@ -19,7 +19,7 @@ local PLANE_ALTITUDE = 0.92 -- plane altitude as a share of the world height
 -- Bots fire most weapons freely; these heavy ones they really have to carry and use up
 local BOT_LIMITED = { airstrike = true, homing = true, dynamite = true, cluster = true, holy_grenade = true }
 
-local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id, target_id)
+local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id, target_id, dont_track)
 	local url = factory.create("#projectile_factory", vmath.vector3(x, y, 0.2), nil, {
 		vel_x = vx,
 		vel_y = vy,
@@ -27,7 +27,9 @@ local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id, target_
 		owner_id = owner_id or 0,
 		target_id = target_id or 0,
 	})
-	table.insert(self.active_projectiles, url)
+	if not dont_track then
+		table.insert(self.active_projectiles, url)
+	end
 	return url
 end
 
@@ -276,7 +278,7 @@ function M.drop_airstrike_bomb(self, message)
 end
 
 function M.drop_air_bomb(self, message)
-	spawn_projectile(self, message.x, message.y, (math.random() - 0.5) * 40, -340, "air_bomb", 999)
+	spawn_projectile(self, message.x, message.y, (math.random() - 0.5) * 40, -340, "air_bomb", 999, nil, true)
 	sound_manager.play("whistle", { vary = 0.1 })
 end
 

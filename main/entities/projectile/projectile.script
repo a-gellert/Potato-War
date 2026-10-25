@@ -87,19 +87,31 @@ function init(self)
 
 	-- Projectile smoke & spark trail initialization (expanded and juicier)
 	self.trail_timer = 0
+	self.puff_timer = 0
 	pcall(function()
-		go.set("#trail1", "tint", vmath.vector4(1.0, 0.95, 0.7, 0.0))
-		go.set("#trail2", "tint", vmath.vector4(1.6, 0.95, 0.3, 0.0))
-		go.set("#trail3", "tint", vmath.vector4(0.9, 0.9, 0.9, 0.0))
-		go.set("#trail4", "tint", vmath.vector4(2.0, 0.6, 0.2, 0.0))
-		go.set("#trail5", "tint", vmath.vector4(2.0, 0.8, 0.25, 0.0))
-		go.set("#trail6", "tint", vmath.vector4(0.7, 0.7, 0.7, 0.0))
-		go.set("#trail1", "scale", vmath.vector3(1.0, 1.0, 1.0))
-		go.set("#trail2", "scale", vmath.vector3(0.8, 0.8, 1.0))
-		go.set("#trail3", "scale", vmath.vector3(1.2, 1.2, 1.0))
-		go.set("#trail4", "scale", vmath.vector3(0.9, 0.9, 1.0))
-		go.set("#trail5", "scale", vmath.vector3(0.9, 0.9, 1.0))
-		go.set("#trail6", "scale", vmath.vector3(1.4, 1.4, 1.0))
+		if self.weapon.spin then
+			-- For tumbling/spinning grenades and bombs, disable attached trail sprites.
+			-- Free-floating smoke and spark puffs will be emitted into the world instead!
+			msg.post("#trail1", "disable")
+			msg.post("#trail2", "disable")
+			msg.post("#trail3", "disable")
+			msg.post("#trail4", "disable")
+			msg.post("#trail5", "disable")
+			msg.post("#trail6", "disable")
+		else
+			go.set("#trail1", "tint", vmath.vector4(1.0, 0.95, 0.7, 0.0))
+			go.set("#trail2", "tint", vmath.vector4(1.6, 0.95, 0.3, 0.0))
+			go.set("#trail3", "tint", vmath.vector4(0.9, 0.9, 0.9, 0.0))
+			go.set("#trail4", "tint", vmath.vector4(2.0, 0.6, 0.2, 0.0))
+			go.set("#trail5", "tint", vmath.vector4(2.0, 0.8, 0.25, 0.0))
+			go.set("#trail6", "tint", vmath.vector4(0.7, 0.7, 0.7, 0.0))
+			go.set("#trail1", "scale", vmath.vector3(1.0, 1.0, 1.0))
+			go.set("#trail2", "scale", vmath.vector3(0.8, 0.8, 1.0))
+			go.set("#trail3", "scale", vmath.vector3(1.2, 1.2, 1.0))
+			go.set("#trail4", "scale", vmath.vector3(0.9, 0.9, 1.0))
+			go.set("#trail5", "scale", vmath.vector3(0.9, 0.9, 1.0))
+			go.set("#trail6", "scale", vmath.vector3(1.4, 1.4, 1.0))
+		end
 	end)
 end
 
@@ -231,24 +243,32 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 			if p.is_alive then
 				local dmg = 0
 				local max_dmg = self.weapon.max_damage
-				-- Tutorial fail-safe: the player cannot hurt themselves on the training ground
-				local is_invulnerable = (game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE)
+				-- Tutorial fail-safe: the player cannot hurt themselves on the training ground, but enemy can retaliate
+				local is_self_hurt = (game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE and self.owner_id == p.id)
 
-				if is_invulnerable then
+				if is_self_hurt then
 					local hp_before = p.hp
 					physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
 					p.hp = hp_before
 					p.is_alive = true
 				elseif direct_hit_potato and p.id == direct_hit_potato.id then
 					dmg = max_dmg
-					p.hp = math.max(0, p.hp - dmg)
-					if p.hp <= 0 then p.is_alive = false end
+					if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
+						p.hp = math.max(15, p.hp - dmg)
+					else
+						p.hp = math.max(0, p.hp - dmg)
+						if p.hp <= 0 then p.is_alive = false end
+					end
 					local dir_x = (self.vel.x >= 0) and 1 or -1
 					p.vel.x = p.vel.x + dir_x * (self.weapon.blast_force or 150) * 0.5
 					p.vel.y = p.vel.y + (self.weapon.blast_force or 150) * 0.4
 					p.is_grounded = false
 				else
 					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
+					if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
+						p.hp = math.max(15, p.hp)
+						p.is_alive = true
+					end
 				end
 				apply_potato_damage(self, p, dmg, hit_x, hit_y)
 			end
@@ -284,8 +304,10 @@ function update(self, dt)
 
 	local status, hx, hy, hit_potato = physics_sim.update_projectile(self, dt, terrain_grid, game_state.potatoes, game_state.wind_vector)
 
-	-- Update camera tracking to follow this projectile
-	camera_controller.follow(self.pos.x, self.pos.y)
+	-- Update camera tracking to follow this projectile (except ambient air raid bombs)
+	if self.weapon.id ~= "air_bomb" then
+		camera_controller.follow(self.pos.x, self.pos.y)
+	end
 
 	if status == "bounce" then
 		sound_manager.play("bounce", { vary = 0.15 })
@@ -314,45 +336,85 @@ function update(self, dt)
 		-- Update game object transform
 		go.set_position(self.pos)
 		local speed = math.sqrt(self.vel.x * self.vel.x + self.vel.y * self.vel.y)
+		local flight_angle = 0
+		if speed > 10.0 then
+			flight_angle = math.atan2(self.vel.y, self.vel.x)
+		end
+
 		if self.weapon.spin then
 			if not self.is_resting then
 				self.rot_angle = (self.rot_angle or 0) - self.vel.x * dt * 0.05
 			end
-		elseif speed > 10.0 then
-			self.rot_angle = math.atan2(self.vel.y, self.vel.x) - math.rad(self.weapon.art_angle or 0)
+			go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
+
+			-- Emit standalone trailing smoke & spark puffs into the game world behind the flying grenade/fuse.
+			-- These are separate objects in world space and will NEVER rotate with the grenade!
+			if speed > 15.0 or (self.weapon.fuse_fx and not self.is_resting) then
+				self.puff_timer = (self.puff_timer or 0) + dt
+				local interval = (speed > 80) and 0.04 or 0.07
+				if self.puff_timer >= interval then
+					self.puff_timer = 0
+					local is_spark = (math.random() < 0.35)
+					local p_vx = (math.random() - 0.5) * 18 - self.vel.x * 0.12
+					local p_vy = 12 + math.random() * 22 - self.vel.y * 0.08
+					local p_tint = is_spark and vmath.vector4(2.0, 1.1, 0.4, 0.95) or vmath.vector4(0.85, 0.85, 0.85, 0.65)
+					local p_anim = is_spark and "spark" or "smoke"
+					local p_size = is_spark and (0.4 + math.random() * 0.25) or (0.5 + math.random() * 0.35)
+					local p_life = is_spark and (0.25 + math.random() * 0.2) or (0.55 + math.random() * 0.3)
+
+					msg.post("/main#main", "spawn_puff", {
+						x = self.pos.x + (math.random() - 0.5) * 4,
+						y = self.pos.y + (math.random() - 0.5) * 4,
+						vx = p_vx,
+						vy = p_vy,
+						life = p_life,
+						grav = is_spark and 0.4 or -0.15,
+						size = p_size,
+						grow = is_spark and 0.8 or 2.2,
+						drag = 2.0,
+						anim = p_anim,
+						tint = p_tint,
+					})
+				end
+			end
+		else
+			-- Non-spinning projectiles (Bazooka, Rifle, Homing Missiles, etc.):
+			-- Point along flight trajectory and animate attached smoke/spark flame trail
+			if speed > 10.0 then
+				self.rot_angle = flight_angle - math.rad(self.weapon.art_angle or 0)
+			end
+			go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
+
+			self.trail_timer = (self.trail_timer or 0) + dt * 16.0
+			pcall(function()
+				local t1_a = math.min(0.90, (speed / 100.0)) * (0.7 + 0.3 * math.sin(self.trail_timer))
+				local t2_a = math.min(1.0, (speed / 80.0)) * (0.7 + 0.3 * math.sin(self.trail_timer + 2.0))
+				local t3_a = math.min(0.85, (speed / 120.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 4.0))
+				local t4_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.cos(self.trail_timer * 1.3))
+				local t5_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.sin(self.trail_timer * 1.3))
+				local t6_a = math.min(0.75, (speed / 140.0)) * (0.5 + 0.5 * math.sin(self.trail_timer + 1.5))
+
+				go.set("#trail1", "tint.w", t1_a)
+				go.set("#trail2", "tint.w", t2_a)
+				go.set("#trail3", "tint.w", t3_a)
+				go.set("#trail4", "tint.w", t4_a)
+				go.set("#trail5", "tint.w", t5_a)
+				go.set("#trail6", "tint.w", t6_a)
+
+				local s1 = 0.9 + 0.4 * math.sin(self.trail_timer)
+				local s2 = 0.7 + 0.35 * math.cos(self.trail_timer * 1.5)
+				local s3 = 1.2 + 0.5 * math.sin(self.trail_timer * 0.8)
+				local s4 = 0.8 + 0.3 * math.sin(self.trail_timer * 1.4)
+				local s5 = 0.8 + 0.3 * math.cos(self.trail_timer * 1.4)
+				local s6 = 1.4 + 0.6 * math.sin(self.trail_timer * 0.6)
+
+				go.set("#trail1", "scale", vmath.vector3(s1, s1, 1.0))
+				go.set("#trail2", "scale", vmath.vector3(s2, s2, 1.0))
+				go.set("#trail3", "scale", vmath.vector3(s3, s3, 1.0))
+				go.set("#trail4", "scale", vmath.vector3(s4, s4, 1.0))
+				go.set("#trail5", "scale", vmath.vector3(s5, s5, 1.0))
+				go.set("#trail6", "scale", vmath.vector3(s6, s6, 1.0))
+			end)
 		end
-		go.set_rotation(vmath.quat_rotation_z(self.rot_angle or 0))
-
-		-- Animate juicy trailing smoke/spark particles behind projectile (enhanced effects)
-		self.trail_timer = (self.trail_timer or 0) + dt * 16.0
-		pcall(function()
-			local t1_a = math.min(0.90, (speed / 100.0)) * (0.7 + 0.3 * math.sin(self.trail_timer))
-			local t2_a = math.min(1.0, (speed / 80.0)) * (0.7 + 0.3 * math.sin(self.trail_timer + 2.0))
-			local t3_a = math.min(0.85, (speed / 120.0)) * (0.6 + 0.4 * math.sin(self.trail_timer + 4.0))
-			local t4_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.cos(self.trail_timer * 1.3))
-			local t5_a = math.min(1.0, (speed / 90.0)) * (0.7 + 0.3 * math.sin(self.trail_timer * 1.3))
-			local t6_a = math.min(0.75, (speed / 140.0)) * (0.5 + 0.5 * math.sin(self.trail_timer + 1.5))
-
-			go.set("#trail1", "tint.w", t1_a)
-			go.set("#trail2", "tint.w", t2_a)
-			go.set("#trail3", "tint.w", t3_a)
-			go.set("#trail4", "tint.w", t4_a)
-			go.set("#trail5", "tint.w", t5_a)
-			go.set("#trail6", "tint.w", t6_a)
-
-			local s1 = 0.9 + 0.4 * math.sin(self.trail_timer)
-			local s2 = 0.7 + 0.35 * math.cos(self.trail_timer * 1.5)
-			local s3 = 1.2 + 0.5 * math.sin(self.trail_timer * 0.8)
-			local s4 = 0.8 + 0.3 * math.sin(self.trail_timer * 1.4)
-			local s5 = 0.8 + 0.3 * math.cos(self.trail_timer * 1.4)
-			local s6 = 1.4 + 0.6 * math.sin(self.trail_timer * 0.6)
-
-			go.set("#trail1", "scale", vmath.vector3(s1, s1, 1.0))
-			go.set("#trail2", "scale", vmath.vector3(s2, s2, 1.0))
-			go.set("#trail3", "scale", vmath.vector3(s3, s3, 1.0))
-			go.set("#trail4", "scale", vmath.vector3(s4, s4, 1.0))
-			go.set("#trail5", "scale", vmath.vector3(s5, s5, 1.0))
-			go.set("#trail6", "scale", vmath.vector3(s6, s6, 1.0))
-		end)
 	end
 end

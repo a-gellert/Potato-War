@@ -38,28 +38,45 @@ end
 -- Returns the adjusted x and its ground height.
 function M.find_dry_x(x, from_wy, opts)
 	opts = opts or {}
-	local min_x = opts.min_x or (constants.POTATO_RADIUS + 20)
-	local max_x = opts.max_x or (constants.WORLD_WIDTH - constants.POTATO_RADIUS - 20)
-	local margin = opts.margin or 20
+	local min_x = opts.min_x or (constants.POTATO_RADIUS + 30)
+	local max_x = opts.max_x or (constants.WORLD_WIDTH - constants.POTATO_RADIUS - 30)
+	local margin = opts.margin or 25
+	local min_safe_y = constants.WATER_LEVEL + margin
 	local step = opts.step or 15
-	local max_offset = opts.max_offset or 220
+	local max_offset = opts.max_offset or math.floor((max_x - min_x) * 0.5)
 
 	local gy = terrain_grid.get_smooth_ground_y(x, 6.0, from_wy)
-	if gy >= constants.WATER_LEVEL + margin then
+	if gy >= min_safe_y then
 		return x, gy
 	end
+
+	-- Search outward left and right across the battlefield for dry ground
 	for offset = step, max_offset, step do
-		local test_l = math.max(min_x, x - offset)
-		local test_r = math.min(max_x, x + offset)
-		local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0, from_wy)
-		local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0, from_wy)
-		if gy_l > constants.WATER_LEVEL + margin then
-			return test_l, gy_l
-		elseif gy_r > constants.WATER_LEVEL + margin then
-			return test_r, gy_r
+		local test_l = x - offset
+		if test_l >= min_x then
+			local gy_l = terrain_grid.get_smooth_ground_y(test_l, 6.0, from_wy)
+			if gy_l >= min_safe_y then
+				return test_l, gy_l
+			end
+		end
+		local test_r = x + offset
+		if test_r <= max_x then
+			local gy_r = terrain_grid.get_smooth_ground_y(test_r, 6.0, from_wy)
+			if gy_r >= min_safe_y then
+				return test_r, gy_r
+			end
 		end
 	end
-	return x, gy
+
+	-- Ultimate fallback: full linear scan of map to find any safe dry ground
+	for test_x = min_x, max_x, 20 do
+		local gy_scan = terrain_grid.get_smooth_ground_y(test_x, 6.0, from_wy)
+		if gy_scan >= min_safe_y then
+			return test_x, gy_scan
+		end
+	end
+
+	return x, math.max(min_safe_y, gy)
 end
 
 local function pick_blue_hat(match_cfg, is_tutorial)
@@ -110,7 +127,8 @@ function M.spawn_potato(self, x, team, potato_id, initial_hp, max_hp, from_wy, c
 	local gy
 	x, gy = M.find_dry_x(x, from_wy)
 
-	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
+	local safe_ground_y = math.max(constants.WATER_LEVEL + 25, gy)
+	local spawn_y = safe_ground_y + constants.POTATO_RADIUS + 2.0
 	constants.log(">>> SPAWNING POTATO:", potato_id, "team:", team, "x:", x, "y:", spawn_y, "hp:", initial_hp, "class:", class_id, "lvl:", unit_level)
 
 	-- Resolve class archetype and initialize its inventory
@@ -215,10 +233,10 @@ end
 
 -- Training ground: flat field, the target stands on the same line in front of the player
 function M.spawn_tutorial(self)
-	local player = M.spawn_potato(self, tutorial.PLAYER_X, constants.TEAM_BLUE, 1, 100, 100, nil, "recruit", 1, { bazooka = 99 })
-	local target = M.spawn_potato(self, tutorial.TARGET_X, constants.TEAM_RED, 2, tutorial.TARGET_HP, tutorial.TARGET_HP, nil, "recruit", 1)
+	local player = M.spawn_potato(self, tutorial.PLAYER_X, constants.TEAM_BLUE, 1, 60, 60, nil, "recruit", 1, { bazooka = 99 })
+	local target = M.spawn_potato(self, tutorial.TARGET_X, constants.TEAM_RED, 2, tutorial.TARGET_HP, tutorial.TARGET_HP, nil, "recruit", 1, { only_grenade = true })
 	target.is_target = true
-	tutorial.start()
+	tutorial.start(1)
 	tutorial.spawn_x = player.pos.x
 end
 
@@ -308,9 +326,11 @@ function M.spawn_battle(self, ctx)
 		local sector_hp = lobby_config and lobby_config.enemy_hp
 		local enemy_hp = (type(sector_hp) == "table" and sector_hp[i])
 			or (type(sector_hp) == "number" and sector_hp)
-			or (is_campaign and level_config.get_enemy_hp(active_level, i))
+		local is_training = (lobby_config and (lobby_config.is_seamless_battle or lobby_config.red_only_grenade))
+		local ammo_overrides = is_training and { only_grenade = true }
+			or (is_campaign and level_config.get_enemy_ammo_overrides and level_config.get_enemy_ammo_overrides(active_level, i))
 			or nil
-		M.spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl)
+		M.spawn_potato(self, x, constants.TEAM_RED, blue_count + i, enemy_hp, enemy_hp, from_wy, enemy_class, enemy_lvl, ammo_overrides)
 	end
 
 	-- Defensive Fortifications: crate on the defensive rampart
@@ -319,7 +339,13 @@ function M.spawn_battle(self, ctx)
 		local p_gy = terrain_grid.get_smooth_ground_y(parapet_x, 4.0, from_wy)
 		if p_gy > constants.WATER_LEVEL + 20 then
 			local crate_pos = vmath.vector3(parapet_x, p_gy + 16, 0.15)
-			local c_url = factory.create("#crate_factory", crate_pos, nil, { weapon_id = hash("grenade"), ammo_count = 2 })
+			local pickup = weapons.get_random_arena_pickup()
+			local w_id = pickup and pickup.id or "dynamite"
+			local c_url = factory.create("#crate_factory", crate_pos, nil, {
+				crate_type = hash("weapon"),
+				weapon_id = hash(w_id),
+				amount = 2
+			})
 			table.insert(self.spawned_crates, { id = c_url, url = c_url, x = parapet_x, y = crate_pos.y })
 		end
 	end
@@ -348,7 +374,8 @@ function M.revive_potato(self, pot, hp)
 	local gy
 	rx, gy = M.find_dry_x(rx, from_wy, { step = 12, max_offset = 120 })
 
-	local spawn_y = math.max(constants.WATER_LEVEL + 30, gy + constants.POTATO_RADIUS)
+	local safe_ground_y = math.max(constants.WATER_LEVEL + 25, gy)
+	local spawn_y = safe_ground_y + constants.POTATO_RADIUS + 2.0
 	pot.pos = vmath.vector3(rx, spawn_y, 0.1)
 	pot.vel = vmath.vector3(0, 0, 0)
 	pot.hp = hp
@@ -371,6 +398,27 @@ function M.revive_potato(self, pot, hp)
 		msg.post(new_url, "set_skin", { tint = skin.tint, hat = skin.hat, skin_id = skin.id })
 	end
 	return new_url
+end
+
+-- Post-spawn safety validation: verify that no potatoes spawned underwater or in water gaps.
+-- Repositions any submerged potatoes onto dry surface ground above water.
+function M.validate_surface_spawns(self)
+	local min_safe_ground_y = constants.WATER_LEVEL + 25
+	for _, p in ipairs(self.spawned_potatoes or {}) do
+		if p.is_alive and p.url then
+			local ground_y = terrain_grid.get_smooth_ground_y(p.pos.x, 4.0)
+			if ground_y < min_safe_ground_y or p.pos.y < (min_safe_ground_y + constants.POTATO_RADIUS) then
+				local safe_x, safe_gy = M.find_dry_x(p.pos.x, nil, { margin = 25 })
+				p.pos.x = safe_x
+				p.pos.y = safe_gy + constants.POTATO_RADIUS + 2.0
+				p.vel.x = 0
+				p.vel.y = 0
+				p.is_grounded = false
+				go.set_position(p.pos, p.url)
+				constants.log(">>> VALIDATE SPAWNS: repositioned submerged unit", p.id, "to safe x:", safe_x, "y:", p.pos.y)
+			end
+		end
+	end
 end
 
 return M

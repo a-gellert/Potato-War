@@ -9,7 +9,7 @@ local M = {}
 M.DEFINITIONS = {
 	one_shot = {
 		id = "one_shot",
-		icon = "🎯",
+		icon = "ic_radius",
 		title_ru = "СНАЙПЕР!",
 		title_en = "ONE SHOT!",
 		desc_ru = "Уничтожил врага за один выстрел!",
@@ -26,7 +26,7 @@ M.DEFINITIONS = {
 	},
 	water_kill = {
 		id = "water_kill",
-		icon = "🌊",
+		icon = "ic_damage",
 		title_ru = "В ВОДУ!",
 		title_en = "WATER KILL!",
 		desc_ru = "Сбросил вражескую картошку в воду!",
@@ -43,7 +43,7 @@ M.DEFINITIONS = {
 	},
 	long_shot = {
 		id = "long_shot",
-		icon = "🏹",
+		icon = "ic_battle",
 		title_ru = "ДАЛЬНИЙ ПРИЦЕЛ!",
 		title_en = "LONG SHOT!",
 		desc_ru = "Попадание с огромной дистанции!",
@@ -60,7 +60,7 @@ M.DEFINITIONS = {
 	},
 	flawless = {
 		id = "flawless",
-		icon = "🛡️",
+		icon = "ic_check",
 		title_ru = "БЕЗ УРОНА!",
 		title_en = "FLAWLESS!",
 		desc_ru = "Победа без единой царапины!",
@@ -77,7 +77,7 @@ M.DEFINITIONS = {
 	},
 	clutch = {
 		id = "clutch",
-		icon = "❤️",
+		icon = "ic_heart",
 		title_ru = "НА ГРАНИ!",
 		title_en = "CLUTCH!",
 		desc_ru = "Победа с критическим здоровьем!",
@@ -94,7 +94,7 @@ M.DEFINITIONS = {
 	},
 	double_kill = {
 		id = "double_kill",
-		icon = "💥",
+		icon = "ic_damage",
 		title_ru = "ДВОЙНОЙ УДАР!",
 		title_en = "DOUBLE KILL!",
 		desc_ru = "2 врага уничтожены одним выстрелом!",

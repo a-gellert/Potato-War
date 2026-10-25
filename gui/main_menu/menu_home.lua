@@ -48,14 +48,15 @@ function M.build(self, handlers)
 	kit.icon_button(self.ui, root, "home_settings", 438, 246, 46, "ic_gear", handlers.settings)
 
 	-- Title
-	h.title = kit.text(root, "POTATO WAR", 0, 168, 58, { font = "title", color = kit.C.gold })
+	h.title = kit.text(root, "GREAT POTATO WAR", 0, 168, 52, { font = "title", color = kit.C.gold, max_w = 640 })
 	h.subtitle = kit.text(root, "", 0, 128, 16, { font = "label", color = kit.C.muted })
 
 	-- Squad leader on a pedestal
 	kit.box(root, "glow", 0, -92, 230, 46, vmath.vector4(0.02, 0.04, 0.08, 0.7))
 	h.hero = kit.group(root, 0, -2)
 	h.hero_body = kit.icon(h.hero, "recruit", 0, 0, HERO_H, { texture = "game" })
-	h.hero_hat = kit.icon(h.hero, "hat_cap", 0, HERO_H * 0.51, HERO_H * 0.62, { texture = "game" })
+	h.hero_face = kit.icon(h.hero, "s_happy", 2, HERO_H * 0.18, HERO_H * 0.35, { texture = "game" })
+	h.hero_hat = kit.icon(h.hero, "hat_cap", 0, HERO_H * 0.495, HERO_H * 0.76, { texture = "game" })
 	gui.animate(h.hero, "scale.y", 1.03, gui.EASING_INOUTSINE, 1.4, 0, nil, gui.PLAYBACK_LOOP_PINGPONG)
 	h.squad_size = kit.text(root, "", 0, -122, 14, { font = "label", color = kit.C.muted })
 
@@ -91,6 +92,7 @@ function M.refresh(self)
 	gui.set_text(h.xp_text, into .. " / " .. need)
 	kit.set_text(h.coins.text, kit.num(player_profile.get_points()), 92, 19, "label")
 	kit.set_text(h.stars.text, kit.num(player_profile.get_stars()), 60, 19, "label")
+	kit.set_text(h.title, i18n.t("title") or "GREAT POTATO WAR", 640, 52, "title")
 	kit.set_text(h.subtitle, i18n.t("ui_subtitle"), 420, 16, "label")
 
 	-- Hero: the first squad member in the equipped hat
@@ -101,7 +103,7 @@ function M.refresh(self)
 	local has_hat = hat and hat.hat and hat.hat ~= "none"
 	gui.set_enabled(h.hero_hat, has_hat)
 	if has_hat then
-		kit.set_icon(h.hero_hat, hat.hat, HERO_H * 0.66, HERO_H * 0.62)
+		kit.set_icon(h.hero_hat, hat.hat, HERO_H * 0.82, HERO_H * 0.76)
 	end
 	kit.set_text(h.squad_size, string.format(i18n.t("ui_fighters_fmt"), #squad), 300, 14, "label")
 

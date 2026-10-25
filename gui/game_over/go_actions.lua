@@ -12,8 +12,22 @@ local territory_map = require("lua_modules.territory_map")
 local M = {}
 
 local function leave(path, message_id, message)
-	msg.post(".", "disable")
-	msg.post(path, message_id, message or {})
+	local is_level_exit = (message_id == "show_menu" or message_id == "show_campaign_map")
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if sdk_ok and sdk and sdk.on_level_closed then
+		sdk.on_level_closed(function()
+			msg.post(".", "disable")
+			msg.post(path, message_id, message or {})
+		end, is_level_exit, true)
+	elseif sdk_ok and sdk and sdk.on_match_finished then
+		sdk.on_match_finished(function()
+			msg.post(".", "disable")
+			msg.post(path, message_id, message or {})
+		end, is_level_exit)
+	else
+		msg.post(".", "disable")
+		msg.post(path, message_id, message or {})
+	end
 end
 
 -- Same battle once more: the sector for war map battles, the lobby setup for quick battles

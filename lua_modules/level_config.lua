@@ -79,7 +79,7 @@ function M.normalize_level(entry, level_index)
 	-- Normalize enemy HP (can be number or table per enemy)
 	local enemy_hp = entry.enemy_hp
 	if enemy_hp == nil then
-		enemy_hp = (lvl == 1) and 85 or 100
+		enemy_hp = (lvl == 1) and 60 or 100
 	end
 
 	-- Normalize enemy classes and unit levels (ranks)
@@ -128,6 +128,7 @@ function M.normalize_level(entry, level_index)
 		skill_level = skill, -- Backwards compatibility alias
 		enemy_classes = enemy_classes,
 		enemy_levels = enemy_levels,
+		enemy_ammo_overrides = entry.enemy_ammo_overrides or entry.red_ammo_overrides,
 	}
 end
 
@@ -162,9 +163,10 @@ M.LEVELS = {
 		desc_es = "Desembarco en la playa. Un centinela novato y solitario patrulla la arena.",
 		desc_tr = "Sahile çıkarma. Yalnız bir acemi nöbetçi kumsalda dolaşıyor.",
 		enemy_count = 1,
-		enemy_hp = { 100 },
+		enemy_hp = { 55 },
 		enemy_classes = { "recruit" },
 		enemy_levels = { 1 },
+		enemy_ammo_overrides = { { only_grenade = true } },
 		terrain_type = "hills",
 		biome = "grass",
 		enemy_skill = "easy",
@@ -184,7 +186,7 @@ M.LEVELS = {
 		desc_es = "Frontera de colinas ondulantes. Un explorador de asalto domina la altura.",
 		desc_tr = "Dalgalı tepelerin sınırı. Bir saldırı izcisi yüksek zemini tutuyor.",
 		enemy_count = 2,
-		enemy_hp = { 100, 95 },
+		enemy_hp = { 65, 55 },
 		enemy_classes = { "assault", "recruit" },
 		enemy_levels = { 1, 1 },
 		terrain_type = "hills",
@@ -206,12 +208,12 @@ M.LEVELS = {
 		desc_es = "Pareja de patrulla avanzada: una patata de asalto y un zapador sembrando obstáculos.",
 		desc_tr = "İleri devriye ikilisi: bir saldırı patatesi ve engel döşeyen bir istihkâmcı.",
 		enemy_count = 2,
-		enemy_hp = { 110, 105 },
+		enemy_hp = { 75, 70 },
 		enemy_classes = { "assault", "sapper" },
 		enemy_levels = { 1, 1 },
 		terrain_type = "hills",
 		biome = "grass",
-		enemy_skill = "normal",
+		enemy_skill = "easy",
 	},
 	{
 		level = 4,
@@ -228,12 +230,12 @@ M.LEVELS = {
 		desc_es = "Islote del faro costero. Un francotirador cubre a un zapador de fortificaciones.",
 		desc_tr = "Kıyıdaki fener adası. Bir keskin nişancı, tahkimat yapan bir istihkâmcıyı koruyor.",
 		enemy_count = 2,
-		enemy_hp = { 115, 110 },
+		enemy_hp = { 80, 75 },
 		enemy_classes = { "sniper", "sapper" },
 		enemy_levels = { 1, 1 },
 		terrain_type = "islands",
 		biome = "grass",
-		enemy_skill = "normal",
+		enemy_skill = "easy",
 	},
 
 	-- =========================================================================
@@ -253,10 +255,10 @@ M.LEVELS = {
 		desc_fr = "Dunes brûlantes. Un assaillant soutenu par un médecin de combat tient la ligne.",
 		desc_es = "Dunas abrasadoras. Un asaltante con apoyo de un médico de combate mantiene la línea.",
 		desc_tr = "Kavurucu kum tepeleri. Savaş sahası sağlıkçısı destekli bir saldırı eri cepheyi tutuyor.",
-		enemy_count = 3,
-		enemy_hp = { 110, 105, 100 },
-		enemy_classes = { "assault", "medic", "sapper" },
-		enemy_levels = { 1, 1, 1 },
+		enemy_count = 2,
+		enemy_hp = { 85, 80 },
+		enemy_classes = { "assault", "medic" },
+		enemy_levels = { 1, 1 },
 		terrain_type = "flat",
 		biome = "desert",
 		enemy_skill = "normal",
@@ -276,7 +278,7 @@ M.LEVELS = {
 		desc_es = "Profundidades del abismo. Un trío enemigo lanza una lluvia de morteros sobre el barranco.",
 		desc_tr = "Uçurumun derinlikleri. Düşman üçlüsü uçurumun üzerine havan yağdırıyor.",
 		enemy_count = 3,
-		enemy_hp = { 85, 85, 85 },
+		enemy_hp = { 75, 75, 75 },
 		enemy_classes = { "artillery", "assault", "sapper" },
 		enemy_levels = { 1, 1, 1 },
 		terrain_type = "canyon_bridge",
@@ -675,6 +677,18 @@ function M.get_skill_level(level_num)
 	return cfg.enemy_skill or "normal"
 end
 M.get_bot_difficulty = M.get_skill_level
+
+-- Get enemy ammo overrides for given level and enemy index
+function M.get_enemy_ammo_overrides(level_num, enemy_index)
+	local cfg = M.get(level_num)
+	if not cfg or not cfg.enemy_ammo_overrides then
+		return nil
+	end
+	if type(cfg.enemy_ammo_overrides) == "table" then
+		return cfg.enemy_ammo_overrides[enemy_index] or cfg.enemy_ammo_overrides
+	end
+	return nil
+end
 
 -- Get total number of predefined levels
 function M.count()

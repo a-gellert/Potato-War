@@ -6,6 +6,8 @@ local game_state = require("lua_modules.game_state")
 local i18n = require("lua_modules.i18n")
 local camera_controller = require("lua_modules.camera_controller")
 
+local tutorial = require("lua_modules.tutorial")
+
 local M = {}
 
 local function wind_color(spd)
@@ -58,6 +60,52 @@ function M.update_badges(self, dt)
 		return
 	end
 
+	local bounce_y = math.sin(self.badge_timer * 4.5) * 3.0
+	local arrow_pulse = 14 + math.sin(self.badge_timer * 6.0) * 2.5
+
+	if tutorial.is_active() then
+		-- In tutorial: show player badge "YOU" above player
+		local psx, psy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
+		local p_bg = gui.get_node("marker_player_bg")
+		if psx >= 10 and psx <= 950 and psy >= 10 and psy <= 530 then
+			gui.set_enabled(p_bg, true)
+			local hp_pct = math.max(0.01, math.min(1.0, (p.hp or 100) / (p.max_hp or 100)))
+			gui.set_position(p_bg, vmath.vector3(psx, psy + 34 + bounce_y, 0))
+			gui.set_text(gui.get_node("marker_player_text"), p.name or i18n.t("name_you"))
+			gui.set_scale(gui.get_node("marker_player_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
+			gui.set_position(gui.get_node("marker_player_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
+		else
+			gui.set_enabled(p_bg, false)
+		end
+
+		-- In tutorial: ALSO show enemy badge "ENEMY" above target
+		local enemy = nil
+		for _, other in ipairs(game_state.potatoes or {}) do
+			if other.team == constants.TEAM_RED and other.is_alive then
+				enemy = other
+				break
+			end
+		end
+		local e_bg = gui.get_node("marker_enemy_bg")
+		if enemy and enemy.is_alive then
+			local esx, esy = camera_controller.world_to_screen(enemy.pos.x, enemy.pos.y)
+			if esx >= 10 and esx <= 950 and esy >= 10 and esy <= 530 then
+				gui.set_enabled(e_bg, true)
+				local ehp_pct = math.max(0.01, math.min(1.0, (enemy.hp or 100) / (enemy.max_hp or 100)))
+				gui.set_position(e_bg, vmath.vector3(esx, esy + 34 + bounce_y, 0))
+				gui.set_text(gui.get_node("marker_enemy_text"), enemy.name or i18n.t("name_enemy"))
+				gui.set_scale(gui.get_node("marker_enemy_hp_fill"), vmath.vector3(ehp_pct, 1.0, 1.0))
+				gui.set_position(gui.get_node("marker_enemy_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
+			else
+				gui.set_enabled(e_bg, false)
+			end
+		else
+			gui.set_enabled(e_bg, false)
+		end
+		return
+	end
+
+	-- Regular battle: only show badge above active potato
 	local sx, sy = camera_controller.world_to_screen(p.pos.x, p.pos.y)
 	if sx < 20 or sx > 940 or sy < 20 or sy > 520 then
 		hide_badges()
@@ -71,8 +119,6 @@ function M.update_badges(self, dt)
 	gui.set_enabled(gui.get_node("marker_player_bg"), is_blue)
 	gui.set_enabled(gui.get_node("marker_enemy_bg"), not is_blue)
 
-	local bounce_y = math.sin(self.badge_timer * 4.5) * 3.0
-	local arrow_pulse = 14 + math.sin(self.badge_timer * 6.0) * 2.5
 	local hp_pct = math.max(0.01, math.min(1.0, (p.hp or 100) / (p.max_hp or 100)))
 	local default_name = i18n.t(is_blue and "name_you" or "name_enemy")
 

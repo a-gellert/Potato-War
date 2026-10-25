@@ -23,6 +23,7 @@ local battle_camera = require("lua_modules.battle_camera")
 local world_events = require("lua_modules.world_events")
 local match_results = require("lua_modules.match_results")
 local progression = require("lua_modules.progression")
+local sdk = require("main.sdk")
 
 -- Control Mode Flag: "auto" (Mobile=slingshot, PC=direct), "direct", or "slingshot"
 go.property("aim_control_mode", hash("auto")) -- options: hash("auto"), hash("direct"), or hash("slingshot")
@@ -39,10 +40,12 @@ local SEAMLESS_BATTLE_2 = {
 	seamless_stage = 2,
 	hat_blue = "hat_cap",
 	blue_classes = { "assault", "sniper" },
-	red_hats = { "hat_viking", "hat_beret" },
-	red_classes = { "medic", "tank" },
-	enemy_skill = "normal",
-	bot_difficulty = "normal",
+	red_hats = { "hat_bandana", "hat_beret" },
+	red_classes = { "recruit", "recruit" },
+	red_only_grenade = true,
+	enemy_hp = { 50, 50 },
+	enemy_skill = "easy",
+	bot_difficulty = "easy",
 }
 
 local function resolve_aim_control_mode(self)
@@ -55,7 +58,7 @@ local function resolve_aim_control_mode(self)
 	local is_mobile = match_spawner.is_mobile_platform()
 	local effective_mode = cfg_mode
 	if effective_mode == "auto" then
-		effective_mode = is_mobile and "slingshot" or "direct"
+		effective_mode = "direct"
 	end
 	constants.log(">>> AIM CONTROL MODE:", effective_mode, "(configured:", cfg_mode, "mobile:", is_mobile, ")")
 	return effective_mode
@@ -117,6 +120,7 @@ local function start_game_match(self, mode, level, lobby_config)
 	end
 
 	local is_tutorial = (game_state.mode == constants.MODE_TUTORIAL)
+	local is_training_2 = (lobby_config and lobby_config.is_seamless_battle == true) and not player_profile.is_tutorial_completed()
 	local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN)
 	local config = game_state.get_current_config()
 	game_state.battle = describe_battle(lobby_config, is_tutorial)
@@ -141,6 +145,26 @@ local function start_game_match(self, mode, level, lobby_config)
 		or game_state.campaign_level
 		or 1
 
+	-- Visual loading screen transition between matches / levels
+	local l_title, l_sub
+	if is_tutorial then
+		l_title = require("lua_modules.i18n").pick({ ru = "УЧЕБНЫЙ ПОЛИГОН", en = "BOOT CAMP", pt = "CAMPO DE TREINO", fr = "CAMP D'ENTRAÎNEMENT", es = "CAMPO DE ENTRENAMIENTO", tr = "EĞİTİM KAMPI" })
+		l_sub = require("lua_modules.i18n").pick({ ru = "Урок 1: Стрельба и прицеливание", en = "Lesson 1: Aiming & Shooting", pt = "Lição 1: Mirar e Atirar", fr = "Leçon 1 : Viser et Tirer", es = "Lección 1: Apuntar y Disparar", tr = "Ders 1: Nişan Alma ve Ateş" })
+	elseif lobby_config and lobby_config.is_seamless_battle then
+		l_title = require("lua_modules.i18n").pick({ ru = "ОСТРОВНОЙ БОЙ", en = "ISLAND BATTLE", pt = "BATALHA NA ILHA", fr = "BATAILLE DE L'ÎLE", es = "BATALLA EN LA ISLA", tr = "ADA SAVAŞI" })
+		l_sub = require("lua_modules.i18n").pick({ ru = "Урок 2: Перемещение и бой", en = "Lesson 2: Movement & Battle", pt = "Lição 2: Movimento e Combate", fr = "Leçon 2 : Déplacement et Combat", es = "Lección 2: Movimiento y Combate", tr = "Ders 2: Hareket ve Savaş" })
+	else
+		l_title = config and (config["name_" .. require("lua_modules.i18n").current_lang] or config.name_en or config.name) or "БОЙ"
+		l_sub = config and (config["desc_" .. require("lua_modules.i18n").current_lang] or config.desc_en or config.desc) or ""
+	end
+
+	pcall(msg.post, "/gui_loading#gui", "start_loading", {
+		title = l_title,
+		subtitle = l_sub,
+	})
+
+	sdk.in_game_loading_started()
+
 	-- Generate terrain grid synchronously first so spawning uses the new level's terrain
 	local grid_w = is_campaign and constants.TERRAIN_WIDTH or constants.PVP_TERRAIN_WIDTH
 	terrain_grid.init(grid_w, constants.TERRAIN_HEIGHT, constants.TERRAIN_SCALE)
@@ -163,7 +187,19 @@ local function start_game_match(self, mode, level, lobby_config)
 			active_level = active_level,
 			terrain_preset = terrain_preset,
 		})
+		if is_training_2 then
+			tutorial.start(2)
+			local blue = game_state.potatoes[1]
+			if blue then
+				tutorial.spawn_x = blue.pos.x
+			end
+		else
+			tutorial.reset()
+		end
 	end
+
+	-- Verify no units are submerged under water; ensure they are on the surface
+	match_spawner.validate_surface_spawns(self)
 
 	-- Point active_potato to first blue potato so weapon selection equips the new instance
 	game_state.active_potato = game_state.potatoes[1]
@@ -171,23 +207,47 @@ local function start_game_match(self, mode, level, lobby_config)
 		game_state.select_weapon("bazooka")
 	end
 
-	battle_camera.start_flyover(self)
+	sdk.in_game_loading_stopped()
+	sdk.round_start(active_level)
+
+	if is_tutorial then
+		camera_controller.reset(470, 260)
+		camera_controller.set_zoom(1.22)
+		camera_controller.follow(470, 260, true)
+	elseif is_training_2 then
+		local active = game_state.active_potato
+		local ax = active and active.pos.x or 350
+		local ay = active and active.pos.y or 270
+		camera_controller.reset(ax, ay)
+		camera_controller.set_zoom(1.0)
+		camera_controller.follow(ax, ay, true)
+	else
+		battle_camera.start_flyover(self)
+	end
 
 	show_screen("/gui_hud")
 	msg.post("/gui_hud#gui", "match_started")
 	sound_manager.music(is_tutorial and "music_menu" or battle_music(config, is_defense))
+	pcall(msg.post, "/gui_loading#gui", "finish_loading")
 end
 
 local function leave_match(self)
+	pcall(msg.post, "/gui_loading#gui", "start_loading", {
+		title = require("lua_modules.i18n").pick({ ru = "ГЛАВНОЕ МЕНЮ", en = "MAIN MENU", pt = "MENU PRINCIPAL", fr = "MENU PRINCIPAL", es = "MENÚ PRINCIPAL", tr = "ANA MENÜ" }),
+		subtitle = ""
+	})
 	game_state.poki_gameplay_stop()
 	battle_camera.cancel_victory(self)
 	match_spawner.clear(self)
 	player_control.reset(self)
 	tutorial.reset()
+	self.seamless_stage = 0
 	camera_controller.reset(480, 270)
 	msg.post("/aim_guide#aim_guide", "hide_aim")
 	msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
 	game_state.set_state(constants.STATE_MENU)
+	show_screen("/gui_menu")
+	pcall(msg.post, "/gui_loading#gui", "finish_loading")
 end
 
 local function on_turn_changed(self, active_team, active_potato)
@@ -204,11 +264,19 @@ local function on_turn_changed(self, active_team, active_potato)
 			end
 		end
 	end
+	pcall(msg.post, "/gui_hud#gui", "turn_changed")
 end
 
 local function on_game_over(self, winner_team, points_earned, hp_healed, current_hp, next_hp)
 	msg.post("/aim_guide#aim_guide", "hide_aim")
 	local data = match_results.build(self.seamless_stage, winner_team, points_earned, hp_healed, current_hp, next_hp)
+	self.seamless_stage = 0
+
+	local is_victory = (winner_team == constants.TEAM_BLUE)
+	sdk.round_end(is_victory, game_state.campaign_level or 1)
+	if is_victory then
+		sdk.happy_time(1.0)
+	end
 
 	sound_manager.music(nil)
 	if winner_team == constants.TEAM_BLUE then
@@ -266,6 +334,7 @@ end
 function init(self)
 	constants.log(">>> MAIN SCRIPT INIT STARTED")
 	msg.post(".", "acquire_input_focus")
+	constants.log(">>> INIT STEP 1: sound_manager.init()")
 	sound_manager.init()
 	game_state.aim_control_mode = resolve_aim_control_mode(self)
 
@@ -279,6 +348,7 @@ function init(self)
 	self.active_projectiles = {}
 	self.burst_queue = {} -- { weapon_id, origin_x, origin_y, vel_x, vel_y, owner_id, shots_left, delay_timer }
 	self.seamless_stage = 0
+	constants.log(">>> INIT STEP 2: player_control & battle_camera reset")
 	player_control.reset(self)
 	bot_turn.reset(self)
 	battle_camera.init(self)
@@ -304,23 +374,57 @@ function init(self)
 	end
 
 	-- Launch sequence: Auto-start tutorial on first start, otherwise show main menu
+	constants.log(">>> INIT STEP 3: match_spawner.clear & camera_controller.reset")
 	match_spawner.clear(self)
 	camera_controller.reset(480, 270)
-	if not player_profile.is_tutorial_completed() then
-		if player_profile.get_onboarding_stage() == 1 then
-			constants.log(">>> RESUMING SEAMLESS EXPERIENCE: BATTLE 2")
-			msg.post(".", "start_seamless_battle_2")
+
+	constants.log(">>> INIT STEP 4: sdk.init()")
+	sdk.init()
+	constants.log(">>> INIT STEP 5: sdk.send_game_ready()")
+	sdk.send_game_ready()
+
+	pcall(msg.post, "/gui_loading#gui", "show_boot")
+
+	local boot_handled = false
+	local function proceed_after_cloud()
+		if boot_handled then return end
+		boot_handled = true
+
+		local is_tut_done = player_profile.is_tutorial_completed()
+		constants.log(">>> INIT STEP 6: check tutorial status after profile load: " .. tostring(is_tut_done))
+		if not is_tut_done then
+			if player_profile.get_onboarding_stage() == 1 then
+				constants.log(">>> RESUMING SEAMLESS EXPERIENCE: BATTLE 2")
+				msg.post(".", "start_seamless_battle_2")
+			else
+				self.seamless_stage = 1
+				constants.log(">>> FIRST START: AUTO-LAUNCHING TUTORIAL SANDBOX")
+				-- Deferred: terrain.script init generates its default "hills" grid after this init,
+				-- starting right here would let it overwrite the flat training ground
+				msg.post(".", "start_match", { mode = constants.MODE_TUTORIAL, level = 1 })
+			end
 		else
-			self.seamless_stage = 1
-			constants.log(">>> FIRST START: AUTO-LAUNCHING TUTORIAL SANDBOX")
-			-- Deferred: terrain.script init generates its default "hills" grid after this init,
-			-- starting right here would let it overwrite the flat training ground
-			msg.post(".", "start_match", { mode = constants.MODE_TUTORIAL, level = 1 })
+			constants.log(">>> SHOWING MAIN MENU /gui_menu")
+			show_screen("/gui_menu")
+			msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+			pcall(msg.post, "/gui_menu#gui", "refresh")
+			pcall(msg.post, "/gui_loading#gui", "finish_loading")
 		end
-	else
-		show_screen("/gui_menu")
-		msg.post("/terrain#terrain", "set_menu_mode", { is_menu = true })
+		constants.log(">>> MAIN SCRIPT INIT FINISHED SUCCESSFULLY")
 	end
+
+	-- Safety timeout: if cloud storage takes > 2.0s, proceed with local profile
+	timer.delay(2.0, false, function()
+		if not boot_handled then
+			constants.log("⏳ Cloud profile load timeout — proceeding with local data")
+			proceed_after_cloud()
+		end
+	end)
+
+	player_profile.load_cloud(function(applied)
+		constants.log("☁️ player_profile.load_cloud finished (applied: " .. tostring(applied) .. ")")
+		proceed_after_cloud()
+	end)
 end
 
 function update(self, dt)
@@ -390,7 +494,9 @@ function on_input(self, action_id, action)
 	end
 
 	if action_id == hash("escape") and action.pressed then
-		msg.post(".", "show_menu")
+		game_state.on_level_closed(function()
+			msg.post(".", "show_menu")
+		end, true, false)
 		return true
 	end
 
@@ -443,7 +549,7 @@ function on_message(self, message_id, message, sender)
 		player_control.jump()
 
 	elseif message_id == hash("fire_weapon") then
-		if game_state.mode == constants.MODE_TUTORIAL then
+		if game_state.mode == constants.MODE_TUTORIAL or (tutorial.is_active and tutorial.is_active()) then
 			tutorial.on_shot()
 		end
 		weapon_fire.fire(self, message)
@@ -479,6 +585,20 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("airstrike_drop") then
 		weapon_fire.drop_airstrike_bomb(self, message)
+
+	elseif message_id == hash("spawn_puff") then
+		factory.create("#debris_factory", vmath.vector3(message.x, message.y, 0.4), nil, {
+			vx = message.vx or 0,
+			vy = message.vy or 0,
+			life = message.life or 0.6,
+			grav = message.grav or 0.1,
+			size = message.size or 0.5,
+			grow = message.grow or 1.8,
+			drag = message.drag or 1.5,
+			fade_start = 0.2,
+			anim = hash(message.anim or "smoke"),
+			tint = message.tint or vmath.vector4(1, 1, 1, 0.7),
+		})
 
 	elseif message_id == hash("potato_damaged") then
 		if message.damage and message.damage > 0 and message.x and message.y then

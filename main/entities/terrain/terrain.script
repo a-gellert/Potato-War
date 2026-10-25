@@ -374,8 +374,8 @@ function init(self)
 	self.bg_update_timer = 0
 	self.horizon_profile = {}
 
-	-- Water shimmer animation
-	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.15, go.EASING_INOUTSINE, 1.8)
+	-- Water shimmer animation (calm gentle wave)
+	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
 
 	-- Apply initial environment
 	apply_biome_environment(self, "grass")
@@ -551,10 +551,10 @@ function init(self)
 		go.set("#bg_islands", "position", vmath.vector3(0, 120, -0.25))
 
 		-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
-		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
+		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
 		go.set("#water", "scale.x", 2.5)
 		go.set("#water", "scale.y", 2.5)
-		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
+		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
 	end)
 
 	-- Initially disable battle layers for main menu
@@ -688,10 +688,10 @@ function on_message(self, message_id, message, sender)
 			go.set("#bg_islands", "scale", vmath.vector3(2.2, 2.0, 1.0))
 
 			-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
-			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 140, 0.4))
+			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
 			go.set("#water", "scale.x", 2.5)
 			go.set("#water", "scale.y", 2.5)
-			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.65, go.EASING_INOUTSINE, 1.6)
+			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
 		end)
 
 		self.current_preset = preset

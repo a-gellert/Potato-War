@@ -43,43 +43,8 @@ local function pick_node_with_slop(node, x, y, slop)
 	return false
 end
 
--- Hybrid-casual look: chunky darker base + glossy top highlight, added as children
--- (children keep working with scripts that recolor the button via gui.set_color).
-local decorated = {}
-local SKIP_PREFIXES = { "sec_btn_", "btn_skin_" }
-
+-- Button styling is managed declaratively via .gui templates (slice9, panels, themes)
 local function decorate_button(node, node_id)
-	if decorated[node_id] then return end
-	for _, prefix in ipairs(SKIP_PREFIXES) do
-		if node_id:sub(1, #prefix) == prefix then return end
-	end
-	pcall(function()
-		if gui.get_flipbook(node) ~= hash("box") then return end
-		decorated[node_id] = true
-		local size = gui.get_size(node)
-		local w, h = size.x, size.y
-		if h < 20 then return end
-
-		local base_h = math.max(4, h * 0.2)
-		local base = gui.new_box_node(vmath.vector3(0, -h / 2 + base_h / 2, 0), vmath.vector3(w, base_h, 0))
-		gui.set_texture(base, "game")
-		gui.play_flipbook(base, "white_pixel")
-		gui.set_color(base, vmath.vector4(0, 0, 0, 0.3))
-		gui.set_parent(base, node, false)
-		gui.set_inherit_alpha(base, true)
-
-		local gloss_h = math.max(4, h * 0.26)
-		local gloss = gui.new_box_node(vmath.vector3(0, h / 2 - gloss_h / 2 - 3, 0), vmath.vector3(w - 10, gloss_h, 0))
-		gui.set_texture(gloss, "game")
-		gui.play_flipbook(gloss, "white_pixel")
-		gui.set_color(gloss, vmath.vector4(1, 1, 1, 0.22))
-		gui.set_parent(gloss, node, false)
-		gui.set_inherit_alpha(gloss, true)
-
-		-- Decorations go below the button's own icon/text children.
-		gui.move_below(gloss, nil)
-		gui.move_below(base, nil)
-	end)
 end
 
 local function animate_button_press(node, pressed)

@@ -33,14 +33,18 @@ function M.create_inventory(class_id, initial_ammo_overrides)
 	-- Initialize all weapons in the database
 	for _, w in ipairs(weapons.LIST) do
 		local count = 0
-		if w.id == "grenade" then
-			count = -1 -- Unlimited!
-		elseif c.base_arsenal and c.base_arsenal[w.id] ~= nil then
-			count = c.base_arsenal[w.id]
-		end
+		if initial_ammo_overrides and (initial_ammo_overrides.only_grenade or initial_ammo_overrides.only_grenades) then
+			count = (w.id == "grenade") and -1 or 0
+		else
+			if w.id == "grenade" then
+				count = -1 -- Unlimited!
+			elseif c.base_arsenal and c.base_arsenal[w.id] ~= nil then
+				count = c.base_arsenal[w.id]
+			end
 
-		if initial_ammo_overrides and initial_ammo_overrides[w.id] ~= nil then
-			count = initial_ammo_overrides[w.id]
+			if initial_ammo_overrides and initial_ammo_overrides[w.id] ~= nil then
+				count = initial_ammo_overrides[w.id]
+			end
 		end
 
 		inv.weapons[w.id] = {

@@ -10,80 +10,71 @@ local level_config = require("lua_modules.level_config")
 local inventory_manager = require("lua_modules.inventory_manager")
 local classes = require("lua_modules.classes")
 
+local sdk = require("main.sdk")
+
 local M = {}
 
 -- Campaign level definitions: delegated to level_config module
 M.CAMPAIGN_LEVELS = level_config.LEVELS
 
--- Poki SDK Safety Wrappers & State Tracking
+-- SDK Safety Wrappers & State Tracking
 M.is_gameplay_active = false
 M.gameplay_started = false -- backwards-compatibility alias
 
-function M.poki_gameplay_start()
+function M.gameplay_start(world, level)
 	if M.is_gameplay_active then
 		return
 	end
 	M.is_gameplay_active = true
 	M.gameplay_started = true
-	constants.log(">>> POKI SDK: gameplayStart")
-	pcall(function()
-		if poki_sdk then poki_sdk.gameplay_start() end
-	end)
+	constants.log(">>> SDK: gameplayStart")
+	sdk.gameplay_start(world, level)
 end
+M.poki_gameplay_start = M.gameplay_start
 
-function M.poki_gameplay_stop()
+function M.gameplay_stop(world, level)
 	if not M.is_gameplay_active then
 		return
 	end
 	M.is_gameplay_active = false
 	M.gameplay_started = false
-	constants.log(">>> POKI SDK: gameplayStop")
-	pcall(function()
-		if poki_sdk then poki_sdk.gameplay_stop() end
-	end)
+	constants.log(">>> SDK: gameplayStop")
+	sdk.gameplay_stop(world, level)
+end
+M.poki_gameplay_stop = M.gameplay_stop
+
+function M.commercial_break(callback, placement)
+	constants.log(">>> SDK: commercialBreak")
+	sdk.commercial_break(callback, placement or "interstitial")
+end
+M.poki_commercial_break = M.commercial_break
+
+function M.try_commercial_break(callback, placement)
+	sdk.try_commercial_break(callback, placement or "interstitial")
 end
 
-function M.poki_commercial_break(callback)
-	constants.log(">>> POKI SDK: commercialBreak")
+function M.on_level_closed(callback, is_level_exit, is_match_finish)
+	sdk.on_level_closed(callback, is_level_exit, is_match_finish)
+end
+
+function M.on_match_finished(callback, is_level_exit)
+	sdk.on_match_finished(callback, is_level_exit)
+end
+
+function M.rewarded_break(callback, placement)
+	constants.log(">>> SDK: rewardedBreak")
 	local called = false
-	local function done()
+	local rewarded = false
+	sdk.rewarded_break(function()
+		rewarded = true
+	end, function(earned)
 		if not called then
 			called = true
-			sound_manager.set_ad_mute(false)
-			if callback then callback() end
+			if callback then callback(rewarded or (earned == true)) end
 		end
-	end
-	if poki_sdk and poki_sdk.commercial_break then
-		sound_manager.set_ad_mute(true)
-		local ok = pcall(function()
-			poki_sdk.commercial_break(done)
-		end)
-		if not ok then
-			done()
-		end
-	else
-		done()
-	end
+	end, placement or "rewarded")
 end
-
-function M.poki_rewarded_break(callback)
-	constants.log(">>> POKI SDK: rewardedBreak")
-	if poki_sdk and poki_sdk.rewarded_break then
-		sound_manager.set_ad_mute(true)
-		local ok = pcall(function()
-			poki_sdk.rewarded_break(function(self, success)
-				sound_manager.set_ad_mute(false)
-				if callback then callback(success) end
-			end)
-		end)
-		if not ok then
-			sound_manager.set_ad_mute(false)
-			if callback then callback(false) end
-		end
-	else
-		if callback then callback(true) end
-	end
-end
+M.poki_rewarded_break = M.rewarded_break
 
 -- Runtime state
 M.mode = constants.MODE_CAMPAIGN
@@ -286,13 +277,18 @@ function M.select_weapon(weapon_id)
 		return
 	end
 	M.selected_weapon_id = weapon_id
-	if not M.is_in_loadout(weapon_id) then
-		if not M.player_loadout then M.player_loadout = { "grenade" } end
-		if #M.player_loadout < M.MAX_LOADOUT_SLOTS then
-			table.insert(M.player_loadout, weapon_id)
-		else
-			table.remove(M.player_loadout, 2)
-			table.insert(M.player_loadout, weapon_id)
+	if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+		inventory_manager.select_weapon(M.active_potato.id, weapon_id)
+		M.player_loadout = inventory_manager.get_loadout(M.active_potato.id)
+	else
+		if not M.is_in_loadout(weapon_id) then
+			if not M.player_loadout then M.player_loadout = { "grenade" } end
+			if #M.player_loadout < M.MAX_LOADOUT_SLOTS then
+				table.insert(M.player_loadout, weapon_id)
+			else
+				table.remove(M.player_loadout, 2)
+				table.insert(M.player_loadout, weapon_id)
+			end
 		end
 	end
 	if M.on_weapon_changed then
@@ -534,11 +530,22 @@ local function begin_current_turn()
 	end
 	sound_manager.play(M.is_bot_turn() and "turn_enemy" or "turn_player")
 
-	-- Ensure selected weapon is valid and has ammo
+	-- Ensure selected weapon is valid and matches active potato
 	if M.active_team == constants.TEAM_BLUE then
-		if M.selected_weapon_id ~= weapons.TYPES.GRENADE and M.get_ammo(M.selected_weapon_id) <= 0 then
-			M.select_weapon(weapons.TYPES.GRENADE)
+		local unit_weapon = "grenade"
+		if M.active_potato and M.active_potato.id and inventory_manager.inventories[M.active_potato.id] then
+			local inv = inventory_manager.get(M.active_potato.id)
+			if inv and inv.active_weapon_id then
+				unit_weapon = inv.active_weapon_id
+			end
+		else
+			unit_weapon = M.selected_weapon_id or "grenade"
 		end
+
+		if unit_weapon ~= weapons.TYPES.GRENADE and M.get_ammo(unit_weapon) <= 0 then
+			unit_weapon = weapons.TYPES.GRENADE
+		end
+		M.select_weapon(unit_weapon)
 	else
 		M.selected_weapon_id = weapons.TYPES.GRENADE
 	end
@@ -655,13 +662,10 @@ function M.next_turn()
 		return
 	end
 
-	if M.mode == constants.MODE_TUTORIAL then
-		-- Training target never fires back: the player keeps the turn until it is destroyed
-		M.active_team = constants.TEAM_BLUE
+	M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
+	if M.mode == constants.MODE_TUTORIAL and M.active_team == constants.TEAM_BLUE then
 		M.add_ammo("bazooka", 1)
 		M.select_weapon("bazooka")
-	else
-		M.active_team = (M.active_team == constants.TEAM_BLUE) and constants.TEAM_RED or constants.TEAM_BLUE
 	end
 	begin_current_turn()
 end

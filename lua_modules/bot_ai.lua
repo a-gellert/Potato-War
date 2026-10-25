@@ -512,6 +512,13 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 	local hit, hx, hy = terrain.raycast(bot.pos.x, bot.pos.y + 8, target.pos.x, target.pos.y + 8)
 	local clear_los = not hit or (math.abs(hx - target.pos.x) < 22 and math.abs(hy - target.pos.y) < 22)
 
+	local function can_use(w_id)
+		if not (bot and bot.id and inventory_manager.inventories[bot.id]) then
+			return true
+		end
+		return inventory_manager.has_weapon(bot.id, w_id)
+	end
+
 	-- Helper: simulate candidate shot and score it
 	local function eval_shot(weapon, aim_dx, aim_dy, power)
 		local vx = aim_dx * power
@@ -618,7 +625,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 
 		-- SAFE STANDOFF CHECK:
 		local safe_standoff = breach_weapon.blast_radius * 1.15 + 10.0
-		if wall_dist >= safe_standoff then
+		if wall_dist >= safe_standoff and can_use(breach_weapon.id) then
 			-- Aim at the upper rim of the wall to blow it away
 			local aim_x = to_wall_x / wall_dist
 			local aim_y = to_wall_y / wall_dist
@@ -651,7 +658,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 
 	-- B. SITUATION: MELEE RANGE (< 44px)
 	if dist < 44.0 then
-		if math.random() > 0.35 then
+		if can_use(weapons.TYPES.KNIFE) and math.random() > 0.35 then
 			return {
 				weapon_id = weapons.TYPES.KNIFE,
 				aim_dx = dir_to_target,
@@ -659,7 +666,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 				power = 1,
 				is_breaching = false,
 			}
-		else
+		elseif can_use(weapons.TYPES.SHOTGUN) then
 			local sg = weapons.get(weapons.TYPES.SHOTGUN)
 			return {
 				weapon_id = sg.id,
@@ -676,7 +683,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 		-- Close-medium range: Shotgun, Assault Rifle (Burst), Knife, or Bazooka direct shot
 		if dist < 140.0 then
 			local roll = math.random()
-			if roll < 0.35 then
+			if roll < 0.35 and can_use(weapons.TYPES.SHOTGUN) then
 				local sg = weapons.get(weapons.TYPES.SHOTGUN)
 				local len = math.sqrt(dx * dx + dy * dy)
 				return {
@@ -686,7 +693,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = sg.max_power * 0.75,
 					is_breaching = false,
 				}
-			elseif roll < 0.70 then
+			elseif roll < 0.70 and can_use(weapons.TYPES.BURST) then
 				local burst = weapons.get(weapons.TYPES.BURST)
 				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
 				local eff_dy = dy + drop
@@ -698,7 +705,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = burst.max_power,
 					is_breaching = false,
 				}
-			else
+			elseif can_use(weapons.TYPES.BAZOOKA) then
 				local baz = weapons.get(weapons.TYPES.BAZOOKA)
 				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
 				local eff_dy = dy + drop
@@ -714,7 +721,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 		elseif dist < 450.0 then
 			-- Medium to long range direct fire: Sniper Rifle, Burst, or Bazooka
 			local roll = math.random()
-			if roll < 0.45 then
+			if roll < 0.45 and can_use(weapons.TYPES.RIFLE) then
 				local rifle = weapons.get(weapons.TYPES.RIFLE)
 				local drop = 0.5 * constants.GRAVITY * rifle.gravity_mult * math.pow(dist / rifle.speed, 2)
 				local eff_dy = dy + drop
@@ -726,7 +733,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = rifle.max_power,
 					is_breaching = false,
 				}
-			elseif roll < 0.75 then
+			elseif roll < 0.75 and can_use(weapons.TYPES.BURST) then
 				local burst = weapons.get(weapons.TYPES.BURST)
 				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
 				local eff_dy = dy + drop
@@ -738,7 +745,7 @@ function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, diff
 					power = burst.max_power,
 					is_breaching = false,
 				}
-			else
+			elseif can_use(weapons.TYPES.BAZOOKA) then
 				local baz = weapons.get(weapons.TYPES.BAZOOKA)
 				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
 				local eff_dy = dy + drop

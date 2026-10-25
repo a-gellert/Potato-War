@@ -34,3 +34,7 @@ components {
   id: "plane_factory"
   component: "/main/entities/plane/plane.factory"
 }
+components {
+  id: "debris_factory"
+  component: "/main/entities/debris/debris.factory"
+}

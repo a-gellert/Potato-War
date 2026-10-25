@@ -22,9 +22,6 @@ end
 
 local function update_localization(self)
 	pcall(function()
-		gui.set_text(gui.get_node("txt_left"), i18n.t("touch_left"))
-		gui.set_text(gui.get_node("txt_jump"), i18n.t("touch_jump"))
-		gui.set_text(gui.get_node("txt_right"), i18n.t("touch_right"))
 		gui.set_text(gui.get_node("txt_pause"), i18n.t("btn_pause"))
 		gui.set_text(gui.get_node("txt_inventory"), i18n.t("btn_inventory"))
 		gui.set_text(gui.get_node("inventory_title"), i18n.t("inventory_title"))
@@ -34,13 +31,17 @@ end
 
 local function detect_touch_screen()
 	local sname = sys.get_sys_info().system_name
-	local is_touch = (sname == "Android" or sname == "iPhone OS")
-	if html5 then
-		pcall(function()
-			is_touch = html5.run("('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '1' : '0'") == "1"
-		end)
+	if sname == "Android" or sname == "iPhone OS" then
+		return true
 	end
-	return is_touch
+	if html5 then
+		local is_touch = false
+		pcall(function()
+			is_touch = html5.run("(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && /Mobi|Android/i.test(navigator.userAgent))) ? '1' : '0'") == "1"
+		end)
+		return is_touch
+	end
+	return false
 end
 
 -- Hold button that walks/jumps the potato via main.script while pressed
@@ -91,7 +92,9 @@ local function register_buttons(self)
 
 	self.ui:button("btn_pause", function()
 		hide_aim()
-		msg.post("/main#main", "show_menu")
+		game_state.on_level_closed(function()
+			msg.post("/main#main", "show_menu")
+		end, true, false)
 	end, { slop = 12 })
 
 	-- Inventory button, close button and 12 inventory slots
@@ -131,6 +134,7 @@ function init(self)
 	hud_tutorial.init(self)
 	pcall(function()
 		gui.set_enabled(gui.get_node("inventory_overlay"), false)
+		gui.set_enabled(gui.get_node("touch_controls"), false)
 	end)
 	register_buttons(self)
 	update_localization(self)
@@ -219,7 +223,14 @@ function update(self, dt)
 end
 
 function on_message(self, message_id, message, sender)
-	if message_id == hash("match_started") then
+	if message_id == hash("turn_changed") then
+		self.last_weapon = game_state.selected_weapon_id
+		self.last_potato_id = game_state.active_potato and game_state.active_potato.id
+		hud_weapons.update_selection(self, game_state.selected_weapon_id)
+		if self.is_inventory_open then
+			hud_weapons.update_inventory(self)
+		end
+	elseif message_id == hash("match_started") then
 		hud_tutorial.reset(self)
 		hud_timer.reset(self)
 		update_localization(self)

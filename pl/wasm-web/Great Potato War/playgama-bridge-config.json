@@ -1,0 +1,9 @@
+{
+  "payments": [
+    { "id": "coins_pack_1000" },
+    { "id": "coins_pack_5000" },
+    { "id": "stars_pack_5" },
+    { "id": "stars_pack_20" },
+    { "id": "no_ads" }
+  ]
+}

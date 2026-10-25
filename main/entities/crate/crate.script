@@ -10,7 +10,7 @@ local i18n = require("lua_modules.i18n")
 
 go.property("crate_type", hash("medkit"))
 go.property("amount", 30)
-go.property("weapon_id", hash("bazooka"))
+go.property("weapon_id", hash("dynamite"))
 
 local ICON_FIT = 30 -- world px of the weapon icon's longest side
 
@@ -36,11 +36,11 @@ function init(self)
 		-- Gold weapon crate tint
 		pcall(function()
 			go.set("#box_sprite", "tint", vmath.vector4(0.95, 0.72, 0.15, 1.0))
-			local wpn_name = "masher_bazooka"
-			local w = weapons.get(self.weapon_id and tostring(self.weapon_id) or "bazooka")
-			if w and w.icon then
-				wpn_name = w.icon
+			local w = weapons.get(self.weapon_id)
+			if not w or w.id == "grenade" then
+				w = weapons.get("dynamite")
 			end
+			local wpn_name = w.icon or "dynamite"
 			sprite.play_flipbook("#icon_sprite", hash(wpn_name))
 			-- Icons come in different sizes: fit the longest side into the crate face
 			local size = go.get("#icon_sprite", "size")
@@ -90,13 +90,15 @@ local function collect_crate(self, potato)
 			tr = "İlk yardım " .. amt_str .. (was_full and " MAKS HP!" or " HP!"),
 		})
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
-			icon = "❤️",
+			icon = "ic_heart",
 			title = title,
 			points = 0
 		})
 	else
-		local w_name = tostring(self.weapon_id)
-		local w = weapons.get(w_name)
+		local w = weapons.get(self.weapon_id)
+		if not w or w.id == "grenade" then
+			w = weapons.get_random_arena_pickup() or weapons.get("dynamite")
+		end
 		local count = self.amount or 2
 		game_state.add_ammo(w.id, count)
 
@@ -112,7 +114,7 @@ local function collect_crate(self, potato)
 			tr = "Sandık: " .. cnt .. "!",
 		})
 		msg.post("/gui_hud#gui", "show_achievement_toast", {
-			icon = "📦",
+			icon = "ic_ammo",
 			title = title,
 			points = 0
 		})

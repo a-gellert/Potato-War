@@ -150,9 +150,14 @@ function M.update_panels(self)
 		gui.set_enabled(gui.get_node("btn_inventory"), is_player_turn and not is_campaign)
 	end)
 
-	if game_state.selected_weapon_id ~= self.last_weapon then
+	local current_potato_id = game_state.active_potato and game_state.active_potato.id
+	if game_state.selected_weapon_id ~= self.last_weapon or current_potato_id ~= self.last_potato_id then
 		self.last_weapon = game_state.selected_weapon_id
+		self.last_potato_id = current_potato_id
 		M.update_selection(self, game_state.selected_weapon_id)
+		if self.is_inventory_open then
+			M.update_inventory(self)
+		end
 	end
 end
 

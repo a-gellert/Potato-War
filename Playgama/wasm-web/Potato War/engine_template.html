@@ -116,26 +116,6 @@
         </div>
 
         <script id="engine-loader" type="text/javascript" src="dmloader.js"></script>
-        <script id="cpp-helper" type="text/javascript" src="cpp_helper.js"></script>
-        <script type="text/javascript">
-            // Ensure CStrOrNull and packToJson are immediately available on window for Defold WASM bridge
-            window.CStrOrNull = function(string) {
-                if (string !== undefined && string !== null) {
-                    var str = String(string);
-                    if (typeof stringToNewUTF8 === 'function') return stringToNewUTF8(str);
-                    if (typeof Module !== 'undefined' && typeof Module.stringToNewUTF8 === 'function') return Module.stringToNewUTF8(str);
-                }
-                return 0;
-            };
-            window.packToJson = function(data) {
-                if (data !== undefined && data !== null) {
-                    var jsonStr = JSON.stringify({ data: data });
-                    if (typeof stringToNewUTF8 === 'function') return stringToNewUTF8(jsonStr);
-                    if (typeof Module !== 'undefined' && typeof Module.stringToNewUTF8 === 'function') return Module.stringToNewUTF8(jsonStr);
-                }
-                return 0;
-            };
-        </script>
         <script id="engine-setup" type="text/javascript">
             // Startup parameters via CUSTOM_PARAMETERS object
         </script>
@@ -283,12 +263,13 @@
 
                 window._pauseEngineLoop = function() {
                     if (window._isEngineLoopPaused) return;
-                    window._isEngineLoopPaused = true;
                     try {
                         var mod = (typeof Module !== 'undefined') ? Module : window.Module;
                         if (mod) {
                             if (typeof mod._dmEngineSetUpdateEnabled === 'function') mod._dmEngineSetUpdateEnabled(0);
                             if (typeof mod._dmEngineSetRenderEnabled === 'function') mod._dmEngineSetRenderEnabled(0);
+                            if (typeof mod.pauseMainLoop === 'function') mod.pauseMainLoop();
+                            window._isEngineLoopPaused = true;
                             console.log('%c[PLAYGAMA SDK] ⏸️ Engine main loop paused', 'color: #ff9800; font-weight: bold;');
                         }
                     } catch(e) {
@@ -298,12 +279,13 @@
 
                 window._resumeEngineLoop = function() {
                     if (!window._isEngineLoopPaused) return;
-                    window._isEngineLoopPaused = false;
                     try {
                         var mod = (typeof Module !== 'undefined') ? Module : window.Module;
                         if (mod) {
                             if (typeof mod._dmEngineSetUpdateEnabled === 'function') mod._dmEngineSetUpdateEnabled(1);
                             if (typeof mod._dmEngineSetRenderEnabled === 'function') mod._dmEngineSetRenderEnabled(1);
+                            if (typeof mod.resumeMainLoop === 'function') mod.resumeMainLoop();
+                            window._isEngineLoopPaused = false;
                             console.log('%c[PLAYGAMA SDK] ▶️ Engine main loop resumed', 'color: #4caf50; font-weight: bold;');
                         }
                     } catch(e) {
@@ -382,23 +364,46 @@
         </script>
 
         <script id="engine-start" type="text/javascript" merge="keep">
-            function startEngine() {
-                var runningFromFileWarning = document.getElementById("running-from-file-warning");
-                if (window.location.href.startsWith("file://")) {
-                    runningFromFileWarning.style.display = "block";
-                } else {
-                    EngineLoader.load("canvas", "PotatoWar");
-                    if (runningFromFileWarning && runningFromFileWarning.parentNode) {
-                        runningFromFileWarning.parentNode.removeChild(runningFromFileWarning);
-                    }
+            let bridgeScript = null;
+            let bridgeTimeout = null;
+            let bridgeLoaded = false;
+            
+            function addLocalBridge() {
+                if (bridgeLoaded) return;
+                bridgeLoaded = true;
+                clearTimeout(bridgeTimeout);
+
+                if (bridgeScript && bridgeScript.parentNode) {
+                    bridgeScript.onload = null;
+                    bridgeScript.onerror = null;
+                    bridgeScript.parentNode.removeChild(bridgeScript);
                 }
+
+                window.bridge = null;
+                window.playgamaBridge = null;
+
+                const scriptElement = document.createElement('script');
+                scriptElement.src = './playgama-bridge.js';
+                scriptElement.onload = function() {
+                    initializeBridge();
+                };
+                document.body.appendChild(scriptElement);
             }
 
+            bridgeScript = document.createElement('script');
+            bridgeScript.src = 'https://bridge.playgama.com/v2/stable/playgama-bridge.js';
+            bridgeScript.onload = initializeBridge;
+            bridgeScript.onerror = addLocalBridge;
+
+            bridgeTimeout = setTimeout(() => {
+                console.warn('CDN bridge failed to load within 2 seconds, loading local bridge');
+                addLocalBridge();
+            }, 2000);
+
+            document.head.appendChild(bridgeScript);
+
             function initializeBridge() {
-                if (!window.bridge) {
-                    startEngine();
-                    return;
-                }
+                clearTimeout(bridgeTimeout);
                 bridge.engine = 'defold';
                 bridge.gameVersion = '1.0';
                 bridge.initialize()
@@ -423,23 +428,21 @@
                             }
                         }            
 
-                        startEngine();
+                        var runningFromFileWarning = document.getElementById("running-from-file-warning");
+                        if (window.location.href.startsWith("file://")) {
+                            runningFromFileWarning.style.display = "block";
+                        } else {
+                            EngineLoader.load("canvas", "PotatoWar");
+                            if (runningFromFileWarning && runningFromFileWarning.parentNode) {
+                                runningFromFileWarning.parentNode.removeChild(runningFromFileWarning);
+                            }
+                        }
                     })
                     .catch(error => {
                         console.error('Playgama Bridge initialization error:', error);
-                        startEngine();
+                        EngineLoader.load("canvas", "PotatoWar");
                     });
             }
-
-            // Load Playgama Bridge locally from the bundled package
-            const bridgeScript = document.createElement('script');
-            bridgeScript.src = './playgama-bridge.js';
-            bridgeScript.onload = initializeBridge;
-            bridgeScript.onerror = function() {
-                console.warn('Local playgama-bridge.js not found, starting engine directly');
-                startEngine();
-            };
-            document.head.appendChild(bridgeScript);
         </script>
     </body>
 </html>

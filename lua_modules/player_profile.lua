@@ -149,6 +149,7 @@ function M.load()
 	local path = get_save_path()
 	local loaded = (path and sys and sys.load) and sys.load(path) or nil
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
+		M.has_local_save = true
 		M.data.language = loaded.language
 		M.data.points = loaded.points or 0
 		M.data.stars = loaded.stars or 0
@@ -186,6 +187,7 @@ function M.load()
 		M.data.commander_xp = loaded.commander_xp or 0
 		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
 	else
+		M.has_local_save = false
 		M.data.language = nil
 		M.data.points = 0
 		M.data.stars = 0
@@ -218,11 +220,162 @@ function M.load()
 	return M.data
 end
 
+function M.apply_profile_data(loaded)
+	if not loaded or type(loaded) ~= "table" then return end
+	if loaded.language ~= nil then M.data.language = loaded.language end
+	if loaded.points ~= nil then M.data.points = tonumber(loaded.points) or M.data.points end
+	if loaded.stars ~= nil then M.data.stars = tonumber(loaded.stars) or M.data.stars end
+	if loaded.squad ~= nil and type(loaded.squad) == "table" and #loaded.squad >= 2 then
+		M.data.squad = loaded.squad
+	end
+	if loaded.unlocked_skins ~= nil and type(loaded.unlocked_skins) == "table" then
+		M.data.unlocked_skins = loaded.unlocked_skins
+	end
+	if loaded.equipped_skin ~= nil then M.data.equipped_skin = loaded.equipped_skin end
+	if loaded.campaign_hp ~= nil then M.data.campaign_hp = tonumber(loaded.campaign_hp) or M.data.campaign_hp end
+	if loaded.campaign_max_hp ~= nil then M.data.campaign_max_hp = tonumber(loaded.campaign_max_hp) or M.data.campaign_max_hp end
+	if loaded.meta_upgrades ~= nil and type(loaded.meta_upgrades) == "table" then
+		M.data.meta_upgrades = loaded.meta_upgrades
+	end
+	if loaded.campaign_map ~= nil then M.data.campaign_map = loaded.campaign_map end
+	if loaded.campaign_turn ~= nil then M.data.campaign_turn = tonumber(loaded.campaign_turn) or M.data.campaign_turn end
+	if loaded.tutorial_completed ~= nil then M.data.tutorial_completed = (loaded.tutorial_completed == true) end
+	if loaded.onboarding_stage ~= nil then M.data.onboarding_stage = tonumber(loaded.onboarding_stage) or M.data.onboarding_stage end
+	if loaded.campaign_stats ~= nil and type(loaded.campaign_stats) == "table" then
+		M.data.campaign_stats = loaded.campaign_stats
+	end
+	if loaded.settings ~= nil and type(loaded.settings) == "table" then
+		M.data.settings = loaded.settings
+	end
+	if loaded.weapon_levels ~= nil and type(loaded.weapon_levels) == "table" then
+		M.data.weapon_levels = loaded.weapon_levels
+	end
+	if loaded.blueprints ~= nil and type(loaded.blueprints) == "table" then
+		M.data.blueprints = loaded.blueprints
+	end
+	if loaded.commander_xp ~= nil then M.data.commander_xp = tonumber(loaded.commander_xp) or M.data.commander_xp end
+	if loaded.stats ~= nil and type(loaded.stats) == "table" then
+		M.data.stats = loaded.stats
+	end
+	if loaded.no_ads ~= nil then M.data.no_ads = (loaded.no_ads == true) end
+end
+
+local cloud_save_timer = nil
+
+function M.save_cloud_now()
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if sdk_ok and sdk and sdk.storage_set then
+		sdk.storage_set({ player_profile = M.data }, function()
+			print("[PROFILE] ✅ Cloud profile saved to Playgama Storage")
+		end, function(err)
+			print("[PROFILE] ⚠️ Cloud save to Playgama Storage failed:", tostring(err))
+		end)
+	end
+end
+
+function M.save_cloud_delayed()
+	if cloud_save_timer then
+		pcall(timer.cancel, cloud_save_timer)
+		cloud_save_timer = nil
+	end
+	local ok, handle = pcall(timer.delay, 0.5, false, function()
+		cloud_save_timer = nil
+		M.save_cloud_now()
+	end)
+	if not ok then
+		M.save_cloud_now()
+	else
+		cloud_save_timer = handle
+	end
+end
+
 function M.save()
 	local path = get_save_path()
 	if path and sys and sys.save then
 		sys.save(path, M.data)
 	end
+	M.save_cloud_delayed()
+end
+
+function M.load_cloud(callback)
+	local sdk_ok, sdk = pcall(require, "main.sdk")
+	if not (sdk_ok and sdk and sdk.storage_get) then
+		if callback then callback(false) end
+		return
+	end
+
+	print("[PROFILE] ☁️ Requesting cloud save from Storage SDK...")
+	sdk.storage_get({ "player_profile" }, function(err, cloud_data)
+		local cd = nil
+		if type(cloud_data) == "table" then
+			if cloud_data.player_profile ~= nil then
+				cd = cloud_data.player_profile
+			elseif cloud_data[1] ~= nil then
+				cd = cloud_data[1]
+				if type(cd) == "table" and cd.player_profile ~= nil then
+					cd = cd.player_profile
+				end
+			end
+		elseif type(cloud_data) == "string" then
+			cd = cloud_data
+		end
+
+		if type(cd) == "string" and cd ~= "" then
+			local json_ok, decoded = pcall(json.decode, cd)
+			if json_ok and type(decoded) == "table" then
+				cd = decoded
+			else
+				cd = nil
+			end
+		end
+
+		if type(cd) == "table" and next(cd) ~= nil then
+			local function calc_score(d)
+				if not d or type(d) ~= "table" then return 0 end
+				local score = 0
+				score = score + (tonumber(d.commander_xp) or 0) * 10
+				score = score + (tonumber(d.points) or 0)
+				score = score + (tonumber(d.stars) or 0) * 50
+				if d.stats and type(d.stats) == "table" then
+					score = score + (tonumber(d.stats.battles) or 0) * 20
+					score = score + (tonumber(d.stats.wins) or 0) * 50
+				end
+				if d.campaign_stats and type(d.campaign_stats) == "table" then
+					score = score + (tonumber(d.campaign_stats.battles_won) or 0) * 50
+					score = score + (tonumber(d.campaign_stats.sectors_conquered) or 0) * 100
+				end
+				if d.tutorial_completed then
+					score = score + 500
+				end
+				return score
+			end
+
+			local cloud_score = calc_score(cd)
+			local local_score = calc_score(M.data)
+			print(string.format("[PROFILE] ☁️ Cloud save received (score: %d, local: %d)", cloud_score, local_score))
+
+			if not M.has_local_save or cloud_score >= local_score or (cd.tutorial_completed and not M.data.tutorial_completed) then
+				print("[PROFILE] ☁️ Applying cloud save (cloud progress is >= local or fresh launch)...")
+				M.apply_profile_data(cd)
+				M.has_local_save = true
+				local path = get_save_path()
+				if path and sys and sys.save then
+					sys.save(path, M.data)
+				end
+				if callback then callback(true) end
+			else
+				print("[PROFILE] ℹ️ Local profile is ahead of cloud save. Keeping local and syncing to cloud.")
+				M.save_cloud_now()
+				if callback then callback(false) end
+			end
+		else
+			print("[PROFILE] ℹ️ No cloud save found in Storage.")
+			if callback then callback(false) end
+		end
+	end, function(err)
+		print("[PROFILE] ⚠️ Storage get error:", tostring(err))
+		if callback then callback(false) end
+	end)
 end
 
 function M.get_language()

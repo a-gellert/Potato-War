@@ -1,0 +1,285 @@
+-- gui/loading/loading.gui_script
+-- Professional tactical loading screen for Great Potato War:
+-- 1) Initial game boot with animated recruit mascot, loading bar & status updates
+-- 2) Seamless level transitions between matches with level briefing & tactical tips
+-- Fully covers entire screen space (any aspect ratio) with grand presentation
+
+local kit = require("lua_modules.ui_kit")
+local i18n = require("lua_modules.i18n")
+local sound_manager = require("lua_modules.sound_manager")
+
+local TIPS = {
+	ru = {
+		"Совет: Зажми и тяни, чтобы выбрать силу и угол выстрела.",
+		"Совет: Ветер сносит снаряды в полете — следи за стрелкой вверху.",
+		"Совет: Вода внизу — мгновенная гибель для любого бойца!",
+		"Совет: Прячься в воронках от взрывов, чтобы укрыться от вражеских ракет.",
+		"Совет: Разрушай укрытия врага гранатами и сталкивай его в воду.",
+		"Совет: Базука наносит огромный урон при прямом попадании.",
+		"Совет: Переключай оружие на панели внизу экрана [1-5].",
+	},
+	en = {
+		"Tip: Hold and drag to set power and launch angle for your shot.",
+		"Tip: Wind pushes flying shells — check the arrow at the top.",
+		"Tip: Water below is instant death for any potato soldier!",
+		"Tip: Hide inside blast craters to take cover from enemy fire.",
+		"Tip: Blast enemy fortifications to knock enemies into the water.",
+		"Tip: The bazooka deals massive damage on direct impact.",
+		"Tip: Switch weapons using the bar at the bottom [1-5].",
+	},
+	pt = {
+		"Dica: Segure e arraste para ajustar a força e o ângulo do tiro.",
+		"Dica: O vento desvia os projéteis — observe a seta no topo.",
+		"Dica: A água embaixo é morte certa para qualquer batata!",
+		"Dica: Esconda-se em crateras de explosão para se proteger.",
+	},
+	fr = {
+		"Conseil : Maintiens et glisse pour régler la puissance et l'angle du tir.",
+		"Conseil : Le vent dévie les tirs — surveille la flèche en haut.",
+		"Conseil : L'eau en bas est fatale pour toute patate !",
+		"Conseil : Abrite-toi dans les cratères pour esquiver les tirs ennemis.",
+	},
+	es = {
+		"Consejo: Mantén y arrastra para ajustar la fuerza y el ángulo del disparo.",
+		"Consejo: El viento desvía los proyectiles — vigila la flecha arriba.",
+		"Consejo: ¡El agua abajo es muerte instantánea para cualquier patata!",
+		"Consejo: Escóndete en los cráteres para protegerte del fuego enemigo.",
+	},
+	tr = {
+		"İpucu: Güç ve açıyı ayarlamak için basılı tut ve çek.",
+		"İpucu: Rüzgâr mermileri saptırır — üstteki oka dikkat et.",
+		"İpucu: Aşağıdaki su herhangi bir patates için anında ölümdür!",
+		"İpucu: Düşman ateşinden korunmak için patlama çukurlarına saklan.",
+	},
+}
+
+local STATUS_STEPS = {
+	ru = {
+		{ p = 0.0,  text = "Загрузка арсенала и снарядов..." },
+		{ p = 0.35, text = "Разведка местности и замер ветра..." },
+		{ p = 0.70, text = "Формирование боевого взвода..." },
+		{ p = 0.95, text = "Все системы готовы к бою!" },
+	},
+	en = {
+		{ p = 0.0,  text = "Loading ordnance & ammunition..." },
+		{ p = 0.35, text = "Surveying terrain & measuring wind..." },
+		{ p = 0.70, text = "Mustering potato squad..." },
+		{ p = 0.95, text = "All units ready for combat!" },
+	},
+}
+
+local function get_random_tip()
+	local lang = i18n.current_lang or "ru"
+	local list = TIPS[lang] or TIPS.en
+	return list[math.random(1, #list)]
+end
+
+local function get_status_text(progress)
+	local lang = (i18n.current_lang == "ru") and "ru" or "en"
+	local steps = STATUS_STEPS[lang] or STATUS_STEPS.en
+	local current = steps[1].text
+	for _, s in ipairs(steps) do
+		if progress >= s.p then
+			current = s.text
+		end
+	end
+	return current
+end
+
+function init(self)
+	gui.set_render_order(20) -- Always on top of HUD, menu, and game over
+
+	local root = kit.group(nil, 480, 270, 960, 540)
+	self.root = root
+
+	-- Fullscreen dark graphite backdrop spanning far beyond any resolution/aspect ratio
+	self.backdrop = kit.box(root, "white", 0, 0, 4000, 3000, vmath.vector4(0.06, 0.08, 0.10, 1.0))
+	gui.set_adjust_mode(self.backdrop, gui.ADJUST_STRETCH)
+
+	self.vignette = kit.box(root, "vignette", 0, 0, 2600, 1800, vmath.vector4(0, 0, 0, 0.75))
+	gui.set_adjust_mode(self.vignette, gui.ADJUST_STRETCH)
+
+	-- Rotating background sunburst rays and amber glow
+	self.rays = kit.box(root, "rays", 0, 0, 1400, 1400, vmath.vector4(0.95, 0.75, 0.20, 0.08))
+	self.glow = kit.box(root, "glow", 0, 0, 900, 600, vmath.vector4(0.95, 0.75, 0.20, 0.14))
+
+	-- Top title & level briefing (well-spaced across the top canvas)
+	self.title = kit.text(root, "GREAT POTATO WAR", 0, 205, 54, { font = "title", color = kit.C.gold, max_w = 880 })
+	self.level_title = kit.text(root, "", 0, 158, 26, { font = "title", color = kit.C.cyan, max_w = 820 })
+	self.level_sub = kit.text(root, "", 0, 126, 17, { font = "label", color = kit.C.muted, max_w = 800 })
+
+	-- Center potato mascot (enlarged and heroic)
+	self.mascot = kit.group(root, 0, -10)
+	self.mascot_shadow = kit.box(self.mascot, "glow", 0, -82, 190, 32, vmath.vector4(0.01, 0.02, 0.03, 0.65))
+	self.mascot_body = kit.icon(self.mascot, "recruit", 0, 0, 165, { texture = "game" })
+	self.mascot_face = kit.icon(self.mascot, "s_happy", 3, 30, 56, { texture = "game" })
+	self.mascot_hat = kit.icon(self.mascot, "hat_cap", 0, 84, 102, { texture = "game" })
+
+	-- Bottom progress bar (wide, filling space)
+	local bar_y = -148
+	self.status_text = kit.text(root, "", 0, bar_y + 30, 17, { font = "label", color = vmath.vector4(0.92, 0.95, 1.0, 1.0) })
+	self.bar = kit.bar(root, -35, bar_y, 700, 22, kit.C.gold)
+	self.bar_pct = kit.text(root, "0%", 345, bar_y, 17, { font = "label", align = "left", color = kit.C.gold })
+
+	-- Tactical Tip panel (stretched across the bottom)
+	self.tip_panel = kit.box(root, "panel_inset", 0, -215, 860, 48, vmath.vector4(0.10, 0.13, 0.16, 0.88))
+	self.tip_text = kit.text(self.tip_panel, "", 0, 0, 16, { font = "label", color = kit.C.muted, max_w = 820 })
+
+	self.progress = 0
+	self.target_progress = 0
+	self.is_loading = false
+	self.is_fading = false
+	self.anim_timer = 0
+	self.fade_alpha = 1.0
+
+	gui.set_enabled(root, false)
+end
+
+local function apply_alpha(self, alpha)
+	self.fade_alpha = alpha
+	pcall(function()
+		gui.set_color(self.backdrop, vmath.vector4(0.06, 0.08, 0.10, alpha))
+		gui.set_color(self.vignette, vmath.vector4(0, 0, 0, 0.75 * alpha))
+		gui.set_color(self.rays, vmath.vector4(0.95, 0.75, 0.20, 0.08 * alpha))
+		gui.set_color(self.glow, vmath.vector4(0.95, 0.75, 0.20, 0.14 * alpha))
+		gui.set_color(self.title, vmath.vector4(1.0, 0.85, 0.2, alpha))
+		gui.set_color(self.level_title, vmath.vector4(0.3, 0.85, 1.0, alpha))
+		gui.set_color(self.level_sub, vmath.vector4(0.65, 0.70, 0.75, alpha))
+		gui.set_color(self.mascot_body, vmath.vector4(1, 1, 1, alpha))
+		gui.set_color(self.mascot_face, vmath.vector4(1, 1, 1, alpha))
+		gui.set_color(self.mascot_hat, vmath.vector4(1, 1, 1, alpha))
+		gui.set_color(self.mascot_shadow, vmath.vector4(0.01, 0.02, 0.03, 0.65 * alpha))
+		gui.set_color(self.bar_pct, vmath.vector4(1.0, 0.85, 0.2, alpha))
+		gui.set_color(self.status_text, vmath.vector4(0.92, 0.94, 0.98, alpha))
+		gui.set_color(self.tip_panel, vmath.vector4(0.10, 0.13, 0.16, 0.88 * alpha))
+		gui.set_color(self.tip_text, vmath.vector4(0.70, 0.75, 0.80, alpha))
+		if self.bar and self.bar.node then
+			gui.set_color(self.bar.node, vmath.vector4(0.2, 0.2, 0.2, alpha))
+			gui.set_color(self.bar.fill, vmath.vector4(1.0, 0.85, 0.2, alpha))
+		end
+	end)
+end
+
+local function fade_out(self, duration, on_complete)
+	if self.is_fading then
+		return
+	end
+	self.is_fading = true
+	local elapsed = 0
+	local dur = duration or 0.35
+	local start_a = self.fade_alpha or 1.0
+	local handle
+	handle = timer.delay(0.016, true, function(t_self, h, dt)
+		elapsed = elapsed + dt
+		local t = math.min(1.0, elapsed / dur)
+		local a = start_a * (1.0 - t * t)
+		apply_alpha(self, a)
+		if t >= 1.0 then
+			timer.cancel(h)
+			self.is_fading = false
+			self.is_loading = false
+			gui.set_enabled(self.root, false)
+			if on_complete then
+				on_complete()
+			end
+		end
+	end)
+end
+
+function update(self, dt)
+	if not self.is_loading then
+		return
+	end
+
+	self.anim_timer = self.anim_timer + dt
+
+	-- Rotate subtle background rays
+	pcall(function()
+		gui.set_rotation(self.rays, vmath.vector3(0, 0, self.anim_timer * 12.0))
+	end)
+
+	-- Animate mascot hopping and breathing
+	local hop = math.abs(math.sin(self.anim_timer * 4.8)) * 18
+	local squash = 1.0 + 0.04 * math.sin(self.anim_timer * 4.8)
+	gui.set_position(self.mascot, vmath.vector3(0, -10 + hop, 0))
+	gui.set_scale(self.mascot, vmath.vector3(2.0 - squash * 0.96, squash, 1))
+	gui.set_scale(self.mascot_shadow, vmath.vector3(1.0 - (hop / 36), 1.0 - (hop / 36), 1))
+
+	-- Smooth progress interpolation
+	local speed = (self.target_progress >= 0.99) and 4.0 or 1.8
+	self.progress = self.progress + (self.target_progress - self.progress) * math.min(1.0, dt * speed)
+
+	self.bar.set(math.max(0.01, math.min(1.0, self.progress)))
+	gui.set_text(self.bar_pct, math.floor(self.progress * 100) .. "%")
+
+	-- Update status text
+	if not self.custom_status then
+		gui.set_text(self.status_text, get_status_text(self.progress))
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("show_boot") then
+		-- Initial boot sequence
+		self.is_loading = true
+		self.is_fading = false
+		self.progress = 0
+		self.target_progress = 1.0
+		self.anim_timer = 0
+		self.custom_status = false
+
+		gui.set_enabled(self.root, true)
+		apply_alpha(self, 1.0)
+		gui.set_text(self.title, i18n.t("title") or "GREAT POTATO WAR")
+		gui.set_text(self.level_title, "")
+		gui.set_text(self.level_sub, "")
+		gui.set_text(self.tip_text, get_random_tip())
+
+		-- Smoothly complete boot loader and notify callback / fade out
+		timer.delay(0.85, false, function()
+			fade_out(self, 0.35, function()
+				if message and message.callback_id then
+					msg.post(sender, message.callback_id)
+				end
+			end)
+		end)
+
+	elseif message_id == hash("start_loading") then
+		-- Between levels transition
+		self.is_loading = true
+		self.is_fading = false
+		self.progress = 0.05
+		self.target_progress = 0.85
+		self.anim_timer = 0
+		self.custom_status = message and message.status ~= nil
+
+		gui.set_enabled(self.root, true)
+		apply_alpha(self, 1.0)
+
+		gui.set_text(self.title, i18n.t("title") or "GREAT POTATO WAR")
+		gui.set_text(self.level_title, (message and message.title) or "")
+		gui.set_text(self.level_sub, (message and message.subtitle) or "")
+		if self.custom_status then
+			gui.set_text(self.status_text, message.status)
+		else
+			gui.set_text(self.status_text, get_status_text(0.1))
+		end
+		gui.set_text(self.tip_text, (message and message.tip) or get_random_tip())
+
+	elseif message_id == hash("finish_loading") then
+		-- Finalize progress to 100% and fade out smoothly
+		self.target_progress = 1.0
+		timer.delay(0.18, false, function()
+			fade_out(self, 0.30, function()
+				if message and message.callback_id then
+					msg.post(sender, message.callback_id)
+				end
+			end)
+		end)
+
+	elseif message_id == hash("hide_loading") then
+		self.is_loading = false
+		self.is_fading = false
+		gui.set_enabled(self.root, false)
+	end
+end

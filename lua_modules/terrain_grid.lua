@@ -182,15 +182,16 @@ function M.get_ground_y(wx, from_wy)
 		start_gy = math.min(M.height - 1, math.max(0, math.floor(from_wy / M.scale)))
 	end
 
-	-- If the query height is already inside solid rock, the actual ground surface is ABOVE this point.
-	-- Scanning upward finds the true top of the rock column, preventing walking into walls or elevator loops.
+	-- If the query height is penetrating solid rock, find the surface just above (up to 10 cells / 20px).
+	-- If it is a sheer wall/cliff rising higher, the ground here is at least this solid cell (never drop to water!).
 	if from_wy and M.grid[start_gy * M.width + gx + 1] == 1 then
-		for gy = start_gy + 1, M.height - 1 do
+		local max_up = math.min(M.height - 1, start_gy + 10)
+		for gy = start_gy + 1, max_up do
 			if M.grid[gy * M.width + gx + 1] == 0 then
 				return gy * M.scale
 			end
 		end
-		return M.height * M.scale
+		return (start_gy + 1) * M.scale
 	end
 	
 	for gy = start_gy, 0, -1 do
@@ -204,6 +205,7 @@ end
 -- Find smoothed ground Y position around given world X (filters out sawtooth/pixel jaggedness)
 function M.get_smooth_ground_y(wx, radius, from_wy)
 	radius = radius or 4.0
+	local center_gy = M.get_ground_y(wx, from_wy)
 	local samples = 5
 	local step = (radius * 2) / (samples - 1)
 	local total_y = 0
@@ -211,7 +213,11 @@ function M.get_smooth_ground_y(wx, radius, from_wy)
 
 	for i = 0, samples - 1 do
 		local sample_x = (wx - radius) + i * step
-		local gy = M.get_ground_y(sample_x, from_wy)
+		local gy = (i == 2) and center_gy or M.get_ground_y(sample_x, from_wy)
+		-- In narrow pits or near sheer vertical walls, do not let steep wall cliffs or crevices pull the ground upward or downward
+		if math.abs(gy - center_gy) > 4.0 then
+			gy = center_gy
+		end
 		local w = (i == 2) and 4 or ((i == 1 or i == 3) and 2 or 1)
 		total_y = total_y + gy * w
 		weight_sum = weight_sum + w
@@ -863,6 +869,8 @@ function M.generate(preset_type, campaign_level, is_defense)
 		carve_worm_tunnel(math.floor(w * 0.75), math.floor(h * 0.32), 34, 2.8, 18, 0.4, seed + 202)
 		carve_worm_tunnel(math.floor(w * 0.50), math.floor(h * 0.20), 32, 0.0, 20, 0.3, seed + 303)
 
+	else
+		-- "hills" (default rolling terrain with majestic peaks, bridge arch, and caves)
 		local is_lvl_1 = (campaign_level == 1)
 		local base_h = is_lvl_1 and math.floor(h * 0.28) or math.floor(h * 0.34)
 		for gx = 0, w - 1 do

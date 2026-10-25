@@ -17,6 +17,7 @@ local FILL_TIME = 0.7
 local function build_row(parent, y)
 	local r = { node = kit.group(parent, 0, y) }
 	r.body = kit.icon(r.node, "recruit", -186, 0, 40, { texture = "game" })
+	r.emotion = kit.icon(r.node, "s_happy", -186, 3, 16, { texture = "game" })
 	r.rank = kit.icon(r.node, "rank_1", -152, 0, 34)
 	r.name = kit.text(r.node, "", -130, 9, 14, { font = "label", align = "left", max_w = 130 })
 	r.bar = kit.bar(r.node, -50, -9, 160, 12, kit.C.xp)

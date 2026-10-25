@@ -232,4 +232,10 @@ images {
 images {
   image: "/main/assets/weapons/w_sniper.png"
 }
+images {
+  image: "/main/assets/key_cap.png"
+}
+images {
+  image: "/main/assets/ui/ic_left.png"
+}
 extrude_borders: 2

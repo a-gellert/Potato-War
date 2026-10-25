@@ -90,6 +90,9 @@ function on_message(self, message_id, message, sender)
 		open_window(self, "shop")
 	elseif message_id == hash("overlay_closed") then
 		menu_home.refresh(self)
+	elseif message_id == hash("refresh") then
+		menu_home.refresh(self)
+		menu_settings.refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
 	end

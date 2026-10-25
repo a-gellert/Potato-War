@@ -6,13 +6,17 @@ local constants = require("lua_modules.constants")
 local terrain_grid = require("lua_modules.terrain_grid")
 local game_state = require("lua_modules.game_state")
 local camera_controller = require("lua_modules.camera_controller")
+local tutorial = require("lua_modules.tutorial")
 
 local M = {}
 
 local FLYOVER_ZOOM = 0.82
 local VICTORY_ZOOM = 1.42
 local DAMAGE_ZOOM = 1.38
-local AIM_ZOOM = 0.78
+local AIM_ZOOM = 0.67 -- Zoomed out further while aiming to see wider trajectory
+local PROJECTILE_ZOOM = 1.55 -- 50% closer dramatic close-up tracking
+local TUTORIAL_AIM_ZOOM = 0.95
+local TUTORIAL_PROJECTILE_ZOOM = 1.60
 local VICTORY_JUMP_INTERVAL = 0.55
 
 function M.init(self)
@@ -167,6 +171,26 @@ end
 
 local function update_turn(self)
 	local p = game_state.active_potato
+	if tutorial.is_active() and tutorial.tutorial_level == 1 and tutorial.stage ~= "move" and tutorial.stage ~= "jump" then
+		-- In level 1 tutorial (aim & shoot): zoom in close-up and center on player & enemy
+		local target = nil
+		for _, other in ipairs(game_state.potatoes or {}) do
+			if other.team == constants.TEAM_RED and other.is_alive then
+				target = other
+				break
+			end
+		end
+		local cx = p.pos.x
+		local cy = p.pos.y
+		if target then
+			cx = p.pos.x * 0.55 + target.pos.x * 0.45
+			cy = (p.pos.y + target.pos.y) * 0.5 + 24
+		end
+		camera_controller.follow(cx, cy)
+		camera_controller.set_zoom(game_state.is_aiming and TUTORIAL_AIM_ZOOM or 1.22)
+		return
+	end
+
 	if game_state.is_aiming and not game_state.is_bot_turn() then
 		-- Zoom out while aiming and lead the camera towards the crosshair (60% potato + 40% aim point)
 		local target_x, target_y = p.pos.x, p.pos.y
@@ -195,11 +219,11 @@ function M.update(self, dt)
 	elseif self.damage_focus and self.damage_focus.timer > 0 then
 		update_damage_focus(self, dt)
 	elseif in_action and #self.active_projectiles > 0 then
-		-- Flying projectile tracking
+		-- Flying projectile tracking: smooth 50% closer zoom
 		local ok, ppos = pcall(go.get_position, self.active_projectiles[#self.active_projectiles])
 		if ok and ppos then
 			camera_controller.follow(ppos.x, ppos.y)
-			camera_controller.set_zoom(1.05)
+			camera_controller.set_zoom(tutorial.is_active() and TUTORIAL_PROJECTILE_ZOOM or PROJECTILE_ZOOM)
 		end
 	elseif in_action then
 		-- Projectiles exploded and settling: hold the camera, do NOT snap back to the shooter

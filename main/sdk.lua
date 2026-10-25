@@ -1,12 +1,61 @@
 -- main/sdk.lua
--- Unified SDK Wrapper: Playgama Bridge SDK (HTML5/Web & Desktop Mock) for Potato War
+-- Unified SDK Wrapper: Playgama Bridge SDK (HTML5/Web & Desktop Mock), Poki SDK, & Mobile/Unity Ads
+
+local unityads_ok, unityads = pcall(require, "main.unityads")
+if not unityads_ok or type(unityads) ~= "table" then
+	unityads = {
+		init = function() end,
+		is_supported = function() return false end,
+		show_interstitial = function(cb) if cb then cb() end end,
+		show_rewarded = function(on_r, on_c) if on_r then on_r() end if on_c then on_c(true) end end,
+		show_banner = function() end,
+		hide_banner = function() end,
+	}
+end
+
+local gameanalytics_ok, gameanalytics = pcall(require, "main.gameanalytics")
+if not gameanalytics_ok or type(gameanalytics) ~= "table" then
+	gameanalytics = {
+		init = function() end,
+		start_progression = function() end,
+		complete_progression = function() end,
+		fail_progression = function() end,
+		design_event = function() end,
+		ad_event = function() end,
+	}
+end
+
+local adjust_ok, adjust_module = pcall(require, "main.adjust")
+if not adjust_ok or type(adjust_module) ~= "table" then
+	adjust_module = {
+		init = function() end,
+		track_event = function() end,
+	}
+end
+
+local facebook_ok, facebook_module = pcall(require, "main.facebook")
+if not facebook_ok or type(facebook_module) ~= "table" then
+	facebook_module = {
+		init = function() end,
+		log_event = function() end,
+	}
+end
 
 local M = {}
+M.unityads = unityads
+M.admob = unityads -- Backwards compatibility alias
+M.gameanalytics = gameanalytics
+M.ga = gameanalytics
+M.adjust = adjust_module
+M.facebook = facebook_module
+M.fb = facebook_module
 
 ----------------------------------------------------------
 -- PLATFORM TYPES
 ----------------------------------------------------------
 M.PLATFORM_PLAYGAMA = "playgama"
+M.PLATFORM_ANDROID  = "android"
+M.PLATFORM_POKI     = "poki"
 M.PLATFORM_MOCK     = "mock"
 
 ----------------------------------------------------------
@@ -22,10 +71,13 @@ M.active_platform = M.PLATFORM_MOCK
 M.platform_audio_enabled = true
 M.platform_paused = false
 M.tab_hidden = false
-M.last_interstitial_time = 0 -- timestamp of last interstitial shown (os.time)
+M.last_interstitial_time = os.time()  -- timestamp of last interstitial shown (os.time), initialized on start for grace period
+M.has_poki = false
+M.has_playgama = false
+M.match_count = 0
 
--- Minimum seconds between interstitial ads (60 seconds)
-local AD_COOLDOWN = 60
+-- Minimum seconds between interstitial ads (120 seconds)
+local AD_COOLDOWN = 120
 local resume_gameplay_after_ad = false
 
 -- Bridge reference (Playgama)
@@ -63,7 +115,7 @@ local function log(...)
 		end
 		local msg = table.concat(parts, " ")
 		msg = msg:gsub("\\", "\\\\"):gsub("'", "\\'"):gsub("\n", " "):gsub("\r", "")
-		local js = "console.log('%c[SDK WRAPPER]', 'color: #8bc34a; font-weight: bold;', '" .. msg .. "');"
+		local js = "console.log('%c[SDK WRAPPER]', 'color: #00bcd4; font-weight: bold;', '" .. msg .. "');"
 		pcall(html5.run, js)
 	end
 end
@@ -80,6 +132,11 @@ function M.get_platform_id()
 		if ok and pid and pid ~= "" then
 			return tostring(pid)
 		end
+	end
+	if M.active_platform == M.PLATFORM_ANDROID then
+		return "android"
+	elseif M.active_platform == M.PLATFORM_POKI then
+		return "poki"
 	end
 	return "mock"
 end
@@ -108,11 +165,29 @@ end
 local function pause_audio()
 	log("🔇 Pausing/muting game audio")
 
-	-- 1. Defold Sound Groups Gain
+	-- 1. Defold Sound Groups Gain (master, music, sfx)
 	pcall(sound.set_group_gain, hash("master"), 0)
 	pcall(sound.set_group_gain, "master", 0)
+	pcall(sound.set_group_gain, hash("music"), 0)
+	pcall(sound.set_group_gain, "music", 0)
+	pcall(sound.set_group_gain, hash("sfx"), 0)
+	pcall(sound.set_group_gain, "sfx", 0)
 
-	-- 2. Web Audio Context suspend + HTML5 media mute (Web/HTML5)
+	-- 2. Stop music via sound / sound_manager module if present
+	local snd_ok, snd = pcall(require, "main.sound")
+	if snd_ok and snd then
+		snd.current_sfx_volume = 0
+		snd.current_music_volume = 0
+		if snd.stop_music then
+			pcall(snd.stop_music)
+		end
+	end
+	local sm_ok, sm = pcall(require, "lua_modules.sound_manager")
+	if sm_ok and sm and sm.pause_all then
+		pcall(sm.pause_all)
+	end
+
+	-- 3. Web Audio Context suspend + HTML5 media mute (Web/HTML5)
 	if html5 and html5.run then
 		pcall(html5.run, [[
 			(function() {
@@ -154,12 +229,33 @@ local function resume_audio()
 	end
 
 	log("🔊 Restoring game audio")
+	local state_ok, state = pcall(require, "main.state")
+	local sfx_vol = (state_ok and state.sfx_volume) or 1.0
+	local music_vol = (state_ok and state.music_volume) or 0.8
 
 	-- 1. Defold Sound Groups Gain
 	pcall(sound.set_group_gain, hash("master"), 1)
 	pcall(sound.set_group_gain, "master", 1)
+	pcall(sound.set_group_gain, hash("music"), music_vol)
+	pcall(sound.set_group_gain, "music", music_vol)
+	pcall(sound.set_group_gain, hash("sfx"), sfx_vol)
+	pcall(sound.set_group_gain, "sfx", sfx_vol)
 
-	-- 2. Web Audio Context resume (Web/HTML5)
+	-- 2. Restore sound module state if present
+	local snd_ok, snd = pcall(require, "main.sound")
+	if snd_ok and snd then
+		snd.current_sfx_volume = sfx_vol
+		snd.current_music_volume = music_vol
+		if snd.play_music and music_vol > 0.001 then
+			pcall(snd.play_music)
+		end
+	end
+	local sm_ok, sm = pcall(require, "lua_modules.sound_manager")
+	if sm_ok and sm and sm.resume_all then
+		pcall(sm.resume_all)
+	end
+
+	-- 3. Web Audio Context resume (Web/HTML5)
 	if html5 and html5.run then
 		pcall(html5.run, [[
 			(function() {
@@ -361,12 +457,18 @@ local function setup_playgama_listeners()
 							if current_reward_cb then
 								local cb = current_reward_cb
 								current_reward_cb = nil
-								pcall(cb)
+								local ok_cb, cb_err = pcall(cb)
+								if not ok_cb then
+									log("⚠️ Error executing rewarded callback:", cb_err)
+								end
 							end
 							if current_reward_close_cb then
 								local cb = current_reward_close_cb
 								current_reward_close_cb = nil
-								pcall(cb, true)
+								local ok_close, close_err = pcall(cb, true)
+								if not ok_close then
+									log("⚠️ Error executing rewarded close callback:", close_err)
+								end
 							end
 							current_reward_cb = nil
 							return
@@ -384,12 +486,18 @@ local function setup_playgama_listeners()
 					if earned and current_reward_cb then
 						local cb = current_reward_cb
 						current_reward_cb = nil
-						pcall(cb)
+						local ok_cb, cb_err = pcall(cb)
+						if not ok_cb then
+							log("⚠️ Error executing rewarded callback:", cb_err)
+						end
 					end
 					if current_reward_close_cb then
 						local cb = current_reward_close_cb
 						current_reward_close_cb = nil
-						pcall(cb, earned)
+						local ok_close, close_err = pcall(cb, earned)
+						if not ok_close then
+							log("⚠️ Error executing rewarded close callback:", close_err)
+						end
 					end
 					current_reward_cb = nil
 				end
@@ -400,6 +508,12 @@ local function setup_playgama_listeners()
 				local state = parse_state_arg(arg1, arg2)
 				log("🏷️ Playgama banner_state_changed:", state)
 				M.banner_showing = (state == "shown")
+			end)
+
+			-- Advanced banners listener
+			bridge.advertisement.on("advanced_banners_state_changed", function(arg1, arg2)
+				local state = (arg2 ~= nil) and arg2 or arg1
+				log("🏷️ Playgama advanced_banners_state_changed:", state)
 			end)
 		end
 
@@ -417,7 +531,7 @@ local function setup_playgama_listeners()
 			end)
 		end
 
-		-- 3. Platform Audio & Pause Listeners
+		-- 3. Platform Audio & Pause Listeners (Playgama Bridge 2.x standard)
 		if bridge.platform and bridge.platform.on then
 			bridge.platform.on("audio_state_changed", function(arg1, arg2)
 				local is_enabled = parse_bool_arg(arg1, arg2, true)
@@ -713,15 +827,56 @@ end
 ----------------------------------------------------------
 -- INITIALIZATION
 ----------------------------------------------------------
-function M.init()
+function M.init(custom_config)
 	if M.initialized then return end
 	M.initialized = true
-	M.last_interstitial_time = os.time() -- Cooldown starts on init so first ad has cooldown period
+	M.last_interstitial_time = os.time()
 
 	local sys_info = sys.get_sys_info()
+	local is_android = (sys_info.system_name == "Android")
+	local is_ios = (sys_info.system_name == "iPhone OS")
 	local is_web = (sys_info.system_name == "HTML5") or (html5 ~= nil and html5.run ~= nil)
 
-	-- Resolve Defold Lua bridge binding from multiple sources
+	-- Check config for target platform SDK switch:
+	-- Supports [sdk] target = playgama | poki | mock
+	-- Defaults to playgama
+	local configured_target = sys.get_config_string("sdk.target", "")
+	if configured_target == "" then
+		configured_target = sys.get_config_string("project.sdk", "")
+	end
+	if configured_target == "" then
+		configured_target = sys.get_config_string("custom.sdk", "")
+	end
+	configured_target = string.lower(configured_target or "")
+	if configured_target == "" then
+		configured_target = "playgama"
+	end
+	log("⚙️ SDK Target from config:", configured_target)
+
+	-- 1. Mobile Native Build (Android / iOS) -> Unity Ads
+	if is_android or is_ios then
+		M.active_platform = M.PLATFORM_ANDROID
+		log("📱 Mobile build detected (" .. sys_info.system_name .. ") — Initializing Unity Ads / Mobile")
+		unityads.init(custom_config)
+		gameanalytics.init()
+		adjust_module.init()
+		facebook_module.init()
+		return
+	end
+
+	-- Check Poki availability
+	local poki_detected = false
+	if _G.poki_sdk ~= nil and type(_G.poki_sdk) == "table" then
+		poki_detected = true
+	elseif html5 and html5.run then
+		local ok_poki, res_poki = pcall(html5.run, "(function() { return (typeof window !== 'undefined' && typeof window.PokiSDK !== 'undefined') ? '1' : '0'; })()")
+		if ok_poki and res_poki == "1" then
+			poki_detected = true
+		end
+	end
+	M.has_poki = poki_detected
+
+	-- Resolve Playgama Bridge Lua binding
 	local mod = nil
 	if _G._bridge and type(_G._bridge) == "table" then
 		mod = _G._bridge
@@ -745,15 +900,35 @@ function M.init()
 		end
 	end
 
-	-- Web/HTML5 OR Bridge found -> Playgama Bridge Platform
-	if is_web or mod ~= nil then
+	local playgama_in_js = false
+	if html5 and html5.run then
+		local ok_pg, res_pg = pcall(html5.run, "(function() { var b = window.bridge || window.playgamaBridge; return (b && (b.platform || b.advertisement || b.game)) ? '1' : '0'; })()")
+		if ok_pg and res_pg == "1" then
+			playgama_in_js = true
+		end
+	end
+	M.has_playgama = (mod ~= nil) or playgama_in_js
+
+	-- 2. Forced Poki target in config
+	if configured_target == "poki" and (M.has_poki or is_web) then
+		M.active_platform = M.PLATFORM_POKI
+		log("🌐 Poki SDK active via config (has_poki_sdk: " .. tostring(_G.poki_sdk ~= nil) .. ")")
+		gameanalytics.init()
+		return
+	end
+
+	-- 3. Playgama Target (default or configured_target == "playgama")
+	if configured_target == "playgama" and (is_web or mod ~= nil or M.has_playgama) then
 		bridge = mod
 		M.active_platform = M.PLATFORM_PLAYGAMA
 		local platform_id = M.get_platform_id()
 		log("🌐 Playgama Bridge active (Platform: " .. tostring(platform_id) .. ", has_lua_bridge: " .. tostring(bridge ~= nil) .. ")")
 		setup_playgama_listeners()
+		gameanalytics.init()
+		adjust_module.init()
+		facebook_module.init()
 
-		-- Check initial platform audio state from Defold Lua bridge
+		-- 3a. Check initial platform audio state from Defold Lua bridge
 		if bridge and bridge.platform then
 			local is_audio_fn = bridge.platform.is_audio_enabled or bridge.platform.isAudioEnabled
 			if is_audio_fn then
@@ -768,7 +943,7 @@ function M.init()
 			end
 		end
 
-		-- Check initial platform audio & pause state from browser JS bridge
+		-- 3b. Check initial platform audio & pause state from browser JS bridge
 		if html5 and html5.run then
 			local ok_js, res_js = pcall(html5.run, [[
 				(function() {
@@ -803,8 +978,68 @@ function M.init()
 					pause_gameplay()
 				end
 			end
+		end
 
-			-- Continuous background synchronization
+		if html5 and html5.run then
+			local test_helpers_js = [[
+				(function() {
+					window.testRewardedAd = function(placement) {
+						placement = placement || 'test_rewarded';
+						console.log('%c[TEST AD] 🎬 Testing rewarded ad: "' + placement + '"', 'color: #ff5722; font-weight: bold;');
+						var b = window.bridge || window.playgamaBridge;
+						if (b && b.advertisement) {
+							console.log('[TEST AD] isRewardedSupported:', b.advertisement.isRewardedSupported);
+							console.log('[TEST AD] rewardedState:', b.advertisement.rewardedState);
+							if (typeof b.advertisement.showRewarded === 'function') {
+								b.advertisement.showRewarded(placement);
+							} else if (typeof b.advertisement.show_rewarded === 'function') {
+								b.advertisement.show_rewarded(placement);
+							}
+						} else {
+							console.warn('[TEST AD] window.bridge not available');
+						}
+					};
+
+					window.testInterstitialAd = function(placement) {
+						placement = placement || 'test_interstitial';
+						console.log('%c[TEST AD] 📺 Testing interstitial ad: "' + placement + '"', 'color: #9c27b0; font-weight: bold;');
+						var b = window.bridge || window.playgamaBridge;
+						if (b && b.advertisement) {
+							console.log('[TEST AD] isInterstitialSupported:', b.advertisement.isInterstitialSupported);
+							console.log('[TEST AD] interstitialState:', b.advertisement.interstitialState);
+							if (typeof b.advertisement.showInterstitial === 'function') {
+								b.advertisement.showInterstitial(placement);
+							} else if (typeof b.advertisement.show_interstitial === 'function') {
+								b.advertisement.show_interstitial(placement);
+							}
+						} else {
+							console.warn('[TEST AD] window.bridge not available');
+						}
+					};
+
+					window.getBridgeStatus = function() {
+						var b = window.bridge || window.playgamaBridge;
+						var cg = window.CrazyGames && window.CrazyGames.SDK;
+						var status = {
+							hasBridge: !!b,
+							platformId: (b && b.platform && (typeof b.platform.id === 'function' ? b.platform.id() : b.platform.id)) || 'unknown',
+							isInitialized: (b && b.isInitialized),
+							isRewardedSupported: (b && b.advertisement && b.advertisement.isRewardedSupported),
+							rewardedState: (b && b.advertisement && b.advertisement.rewardedState),
+							isInterstitialSupported: (b && b.advertisement && b.advertisement.isInterstitialSupported),
+							interstitialState: (b && b.advertisement && b.advertisement.interstitialState),
+							hasCrazyGamesSDK: !!cg
+						};
+						console.table ? console.table(status) : console.log('[BRIDGE STATUS]', status);
+						return status;
+					};
+
+					console.log('%c[PLAYGAMA SDK] 🛠️ Debug helpers ready: window.testRewardedAd(), window.testInterstitialAd(), window.getBridgeStatus()', 'color: #00e676; font-weight: bold;');
+				})();
+			]]
+			pcall(html5.run, test_helpers_js)
+
+			-- Continuous background synchronization for Platform Audio, Pause, and Visibility
 			safe_timer_delay(0.05, true, function()
 				local ok, res = pcall(html5.run, "(function() { return (window._isAudioEnabled === false ? '0' : '1') + '|' + (window._isPlatformPaused === true ? '1' : '0') + '|' + (window._gameVisibilityState === 'hidden' ? '1' : '0'); })()")
 				if ok and res and res ~= "" then
@@ -838,15 +1073,20 @@ function M.init()
 				end
 			end)
 		end
+
 		safe_timer_delay(1.0, false, function()
 			M.check_pending_purchases()
 		end)
 		return
 	end
 
-	-- Fallback to Mock on desktop editor without bridge
+	-- 4. Fallback Mock Desktop / Editor
 	M.active_platform = M.PLATFORM_MOCK
 	log("💻 Running in Editor / Desktop fallback mock")
+	unityads.init(custom_config)
+	gameanalytics.init()
+	adjust_module.init()
+	facebook_module.init()
 	safe_timer_delay(1.0, false, function()
 		M.check_pending_purchases()
 	end)
@@ -861,7 +1101,7 @@ local function send_platform_message(msg_name, options)
 
 	log("📤 send_platform_message: '" .. tostring(msg_name) .. "'")
 
-	-- Channel 1: Defold Lua Bridge extension
+	-- Channel 1: Defold Lua / C++ Bridge extension
 	if bridge and bridge.platform then
 		local send_fn = bridge.platform.send_message or bridge.platform.sendMessage
 		if send_fn then
@@ -870,6 +1110,8 @@ local function send_platform_message(msg_name, options)
 			end, function(err)
 				log("⚠️ [Defold Bridge] Message error callback:", msg_name, tostring(err))
 			end)
+		else
+			log("⚠️ bridge.platform.send_message function not found")
 		end
 	end
 
@@ -898,7 +1140,39 @@ local function send_platform_message(msg_name, options)
 								.catch(function(e) { console.warn('[PLAYGAMA SDK] ⚠️ sendMessage error (' + msg + '):', e); });
 						} else if (typeof b.sendMessage === 'function') {
 							b.sendMessage(msg, opts);
+							console.log('[PLAYGAMA SDK] ✅ window.bridge.sendMessage("' + msg + '") called');
 						}
+						if (msg === 'game_ready' || msg === 'in_game_loading_stopped') {
+							var el = document.getElementById('loading-overlay');
+							if (el) el.remove();
+						}
+					} else {
+						console.warn('[PLAYGAMA SDK] window.bridge not defined yet for message:', msg);
+					}
+
+					// Direct CrazyGames SDK support (v2/v3)
+					try {
+						var cg = (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game) || (window.crazygames && window.crazygames.game);
+						if (cg) {
+							if (msg === 'in_game_loading_started') {
+								if (typeof cg.loadingStart === 'function') cg.loadingStart();
+								console.log('[CrazyGames SDK] ⏳ loadingStart() called');
+							} else if (msg === 'in_game_loading_stopped' || msg === 'game_ready') {
+								if (typeof cg.loadingStop === 'function') cg.loadingStop();
+								console.log('[CrazyGames SDK] ⌛ loadingStop() called');
+							} else if (msg === 'gameplay_started' || msg === 'level_started' || msg === 'level_resumed') {
+								if (typeof cg.gameplayStart === 'function') cg.gameplayStart();
+								console.log('[CrazyGames SDK] ▶️ gameplayStart() called (' + msg + ')');
+							} else if (msg === 'gameplay_stopped' || msg === 'level_completed' || msg === 'level_failed' || msg === 'level_paused') {
+								if (typeof cg.gameplayStop === 'function') cg.gameplayStop();
+								console.log('[CrazyGames SDK] ⏹️ gameplayStop() called (' + msg + ')');
+							} else if (msg === 'happy_time' || msg === 'player_got_achievement') {
+								if (typeof cg.happytime === 'function') cg.happytime();
+								console.log('[CrazyGames SDK] 🎉 happytime() called');
+							}
+						}
+					} catch(cgErr) {
+						console.warn('[CrazyGames SDK Direct] Error:', cgErr);
 					}
 				} catch(err) {
 					console.error('[PLAYGAMA SDK] ❌ Exception in sendMessage (' + msg + '):', err);
@@ -924,6 +1198,16 @@ function M.send_game_ready()
 	log("📤 send_game_ready() triggered — dispatching game_ready and in_game_loading_stopped events")
 	send_platform_message("game_ready")
 	send_platform_message("in_game_loading_stopped")
+
+	-- Poki SDK gameLoadingFinished
+	pcall(function()
+		if _G.poki_sdk and _G.poki_sdk.game_loading_finished then
+			_G.poki_sdk.game_loading_finished()
+		end
+	end)
+	if html5 and html5.run then
+		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameLoadingFinished === 'function') PokiSDK.gameLoadingFinished(); } catch(e){} })();")
+	end
 end
 
 ----------------------------------------------------------
@@ -931,10 +1215,20 @@ end
 ----------------------------------------------------------
 function M.in_game_loading_started()
 	send_platform_message("in_game_loading_started")
+	pcall(function()
+		if _G.poki_sdk and _G.poki_sdk.game_loading_start then
+			_G.poki_sdk.game_loading_start()
+		end
+	end)
 end
 
 function M.in_game_loading_stopped()
 	send_platform_message("in_game_loading_stopped")
+	pcall(function()
+		if _G.poki_sdk and _G.poki_sdk.game_loading_finished then
+			_G.poki_sdk.game_loading_finished()
+		end
+	end)
 end
 
 ----------------------------------------------------------
@@ -950,6 +1244,16 @@ function M.gameplay_start(world, level)
 	if level then opts.level = tostring(level) end
 
 	send_platform_message("gameplay_started", opts)
+
+	-- Poki SDK
+	pcall(function()
+		if _G.poki_sdk and _G.poki_sdk.gameplay_start then
+			_G.poki_sdk.gameplay_start()
+		end
+	end)
+	if html5 and html5.run then
+		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameplayStart === 'function') PokiSDK.gameplayStart(); } catch(e){} })();")
+	end
 end
 
 function M.gameplay_stop(world, level)
@@ -962,6 +1266,16 @@ function M.gameplay_stop(world, level)
 	if level then opts.level = tostring(level) end
 
 	send_platform_message("gameplay_stopped", opts)
+
+	-- Poki SDK
+	pcall(function()
+		if _G.poki_sdk and _G.poki_sdk.gameplay_stop then
+			_G.poki_sdk.gameplay_stop()
+		end
+	end)
+	if html5 and html5.run then
+		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameplayStop === 'function') PokiSDK.gameplayStop(); } catch(e){} })();")
+	end
 end
 
 ----------------------------------------------------------
@@ -972,6 +1286,7 @@ function M.round_start(round_or_level)
 	log("🚩 round_start:", M.current_round)
 
 	send_platform_message("level_started", { level = M.current_round })
+	gameanalytics.start_progression("world", tostring(M.current_round))
 end
 
 function M.round_end(victory, round_or_level)
@@ -980,6 +1295,11 @@ function M.round_end(victory, round_or_level)
 
 	local event_name = victory and "level_completed" or "level_failed"
 	send_platform_message(event_name, { level = r })
+	if victory then
+		gameanalytics.complete_progression("world", tostring(r))
+	else
+		gameanalytics.fail_progression("world", tostring(r))
+	end
 end
 
 function M.level_paused()
@@ -990,6 +1310,9 @@ function M.level_resumed()
 	send_platform_message("level_resumed")
 end
 
+----------------------------------------------------------
+-- ACHIEVEMENTS / CELEBRATION / HAPPY TIME
+----------------------------------------------------------
 function M.happy_time(intensity)
 	intensity = intensity or 1.0
 	log("🎉 happy_time (intensity: " .. tostring(intensity) .. ")")
@@ -999,26 +1322,108 @@ function M.happy_time(intensity)
 	end
 end
 
-----------------------------------------------------------
--- INTERSTITIAL ADS (COMMERCIAL BREAK)
-----------------------------------------------------------
-M.match_count = 0
+function M.tutorial_started()
+	log("📖 tutorial_started")
+	send_platform_message("level_started", { level = "tutorial" })
+	gameanalytics.start_progression("tutorial")
+end
 
---- Trigger interstitial ad every 2 completed matches
-function M.on_match_finished(callback)
-	M.match_count = (M.match_count or 0) + 1
-	log("🎮 Match completed. Matches since last interstitial:", M.match_count)
-	if M.match_count >= 2 then
-		M.match_count = 0
-		log("📺 2 matches reached! Showing interstitial ad...")
-		M.commercial_break(callback, "every_2_matches")
+function M.tutorial_completed()
+	log("🎓 tutorial_completed")
+	send_platform_message("level_completed", { level = "tutorial" })
+	gameanalytics.complete_progression("tutorial")
+end
+
+function M.chest_opened(chest_id, chest_name)
+	local name = tostring(chest_name or chest_id or "chest")
+	log("📦 chest_opened:", name)
+	send_platform_message("player_got_achievement", { type = "chest_opened", name = name })
+	gameanalytics.design_event("chest:opened:" .. tostring(chest_id or name))
+end
+
+function M.hero_upgraded(hero_id, new_level)
+	local tag = tostring(hero_id) .. "_lvl" .. tostring(new_level)
+	log("⭐ hero_upgraded:", tag)
+	send_platform_message("player_got_achievement", { type = "hero_upgraded", id = tostring(hero_id), level = tonumber(new_level) or 1 })
+	gameanalytics.design_event("hero:upgraded:" .. tostring(hero_id), new_level)
+end
+
+function M.measure(category, what, action)
+	log("📊 measure:", category, what, action)
+	if not M.initialized then M.init() end
+
+	if bridge and bridge.platform and bridge.platform.send_custom_message then
+		bridge.platform.send_custom_message(tostring(category), { what = tostring(what), action = tostring(action) })
+	end
+end
+
+M.matches_since_ad = 0
+M.total_matches = 0
+M.first_interstitial_shown = false
+
+--- Handles interstitial ad triggers for level closing and match completions.
+--- Follows the rules:
+--- 1. Interstitial after 3rd battle, then after every 2nd battle.
+--- 2. Interstitial also on level close.
+--- 3. Strict minimum cooldown of 120 seconds between any interstitial ads.
+---
+--- @param callback function|nil Callback to invoke when ad closes or is skipped
+--- @param is_level_exit boolean|nil Whether the level is being closed/exited (default true)
+--- @param is_match_finish boolean|nil Whether this occurred upon a completed match (default false)
+function M.on_level_closed(callback, is_level_exit, is_match_finish)
+	if not M.initialized then M.init() end
+
+	if is_level_exit == nil then is_level_exit = true end
+	if is_match_finish == nil then is_match_finish = false end
+
+	if is_match_finish then
+		M.total_matches = (M.total_matches or 0) + 1
+		M.matches_since_ad = (M.matches_since_ad or 0) + 1
+	end
+
+	local threshold = M.first_interstitial_shown and 2 or 3
+	local elapsed = os.time() - (M.last_interstitial_time or 0)
+
+	log("🚪 on_level_closed - is_exit:", tostring(is_level_exit), "is_match_finish:", tostring(is_match_finish),
+		"matches_since_ad:", (M.matches_since_ad or 0) .. "/" .. threshold,
+		"elapsed:", string.format("%.0f", elapsed) .. "s / " .. AD_COOLDOWN .. "s")
+
+	-- 1. HARD CONSTRAINT: Minimum interval of 120 seconds between ads
+	if elapsed < AD_COOLDOWN then
+		log("⏳ Interstitial cooldown active (" .. string.format("%.0f", elapsed) .. "s / " .. AD_COOLDOWN .. "s) — skipping ad")
+		if callback then callback() end
+		return
+	end
+
+	-- 2. Cooldown elapsed (>= 120s). Check if trigger conditions are met:
+	-- - Condition A: Level closed / exited (is_level_exit == true)
+	-- - Condition B: Match threshold reached (matches_since_ad >= threshold)
+	local should_show = false
+	local placement = "interstitial"
+
+	if is_level_exit then
+		should_show = true
+		placement = "level_closed"
+	elseif is_match_finish and (M.matches_since_ad or 0) >= threshold then
+		should_show = true
+		placement = "match_end_" .. (threshold == 3 and "first_3" or "every_2")
+	end
+
+	if should_show then
+		log("📺 Interstitial trigger satisfied (" .. placement .. "). Showing ad...")
+		M.commercial_break(callback, placement, true)
 	else
-		log("⏳ Matches until next interstitial: " .. tostring(2 - M.match_count))
+		log("⏳ Matches until next interstitial:", (threshold - (M.matches_since_ad or 0)))
 		if callback then callback() end
 	end
 end
 
-function M.commercial_break(callback, placement)
+--- Convenience / backwards-compatible wrapper for match end
+function M.on_match_finished(callback, is_level_exit)
+	return M.on_level_closed(callback, is_level_exit ~= false, true)
+end
+
+function M.commercial_break(callback, placement, force)
 	if not M.initialized then M.init() end
 
 	if M.has_no_ads() then
@@ -1032,8 +1437,39 @@ function M.commercial_break(callback, placement)
 		return
 	end
 
+	local elapsed = os.time() - (M.last_interstitial_time or 0)
+	if not force and M.last_interstitial_time > 0 and elapsed < AD_COOLDOWN then
+		log("⏳ Interstitial cooldown active (" .. string.format("%.0f", elapsed) .. "s / " .. AD_COOLDOWN .. "s) — skipping commercial_break")
+		if callback then callback() end
+		return
+	end
+
+	-- Ad initiated: mark timestamp and reset match count
+	M.last_interstitial_time = os.time()
+	M.matches_since_ad = 0
+	M.first_interstitial_shown = true
+
 	local placement_str = tostring(placement or "interstitial")
 	pause_audio()
+
+	-- Log detailed diagnostics to browser JS DevTools console
+	if html5 and html5.run then
+		local js_diag = string.format([[
+			(function() {
+				var p = %q;
+				var b = window.bridge || window.playgamaBridge;
+				var cg = window.CrazyGames && window.CrazyGames.SDK;
+				console.log('%%c[PLAYGAMA SDK] 📺 commercial_break initiated (placement: "' + p + '")', 'color: #9c27b0; font-weight: bold;', {
+					hasBridge: !!b,
+					platformId: (b && b.platform && (typeof b.platform.id === 'function' ? b.platform.id() : b.platform.id)) || 'unknown',
+					isInterstitialSupported: (b && b.advertisement && b.advertisement.isInterstitialSupported),
+					interstitialState: (b && b.advertisement && b.advertisement.interstitialState),
+					hasCrazyGamesSDK: !!cg
+				});
+			})();
+		]], placement_str)
+		pcall(html5.run, js_diag)
+	end
 
 	-- Portal requirement: Stop active gameplay before showing ad
 	if M.gameplay_active then
@@ -1042,8 +1478,46 @@ function M.commercial_break(callback, placement)
 		M.gameplay_stop()
 	end
 
-	-- 1. Playgama Bridge (Web)
-	if M.active_platform == M.PLATFORM_PLAYGAMA then
+	-- 1. Poki Platform
+	if M.active_platform == M.PLATFORM_POKI then
+		log("📺 Showing Poki commercialBreak...")
+		M.ad_showing = true
+		M.last_interstitial_time = os.time()
+		local called = false
+		local function on_poki_done()
+			if called then return end
+			called = true
+			M.ad_showing = false
+			resume_audio()
+			if resume_gameplay_after_ad then
+				resume_gameplay_after_ad = false
+				M.gameplay_start()
+			end
+			if callback then callback() end
+		end
+
+		local dispatched = false
+		if _G.poki_sdk and _G.poki_sdk.commercial_break then
+			local ok = pcall(function()
+				_G.poki_sdk.commercial_break(on_poki_done)
+			end)
+			if ok then dispatched = true end
+		end
+		if not dispatched and html5 and html5.run then
+			local ok_js = pcall(function()
+				html5.run("(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.commercialBreak === 'function') { PokiSDK.commercialBreak().then(function(){}).catch(function(){}); } } catch(e){} })();")
+			end)
+			if ok_js then
+				safe_timer_delay(0.5, false, on_poki_done)
+				dispatched = true
+			end
+		end
+		if not dispatched then
+			on_poki_done()
+		end
+
+	-- 2. Playgama Bridge (Web)
+	elseif M.active_platform == M.PLATFORM_PLAYGAMA then
 		log("📺 Showing Playgama interstitial ad (placement: " .. placement_str .. ")...")
 		M.last_interstitial_time = os.time()
 		current_interstitial_cb = callback
@@ -1088,7 +1562,6 @@ function M.commercial_break(callback, placement)
 			if ok_call and res == "1" then call_success = true end
 		end
 
-		-- Always poll the JS state transitions in Web/HTML5 for reliable callback
 		if html5 and html5.run then
 			local poll_timer = nil
 			poll_timer = safe_timer_delay(0.05, true, function(_, handle)
@@ -1123,7 +1596,17 @@ function M.commercial_break(callback, placement)
 			if callback then callback() end
 		end
 
-	-- 2. Mock Desktop / Editor
+	-- 3. Android / iOS (Unity Ads)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
+		log("📺 Showing Unity Ads interstitial ad...")
+		M.last_interstitial_time = os.time()
+		if resume_gameplay_after_ad then
+			resume_gameplay_after_ad = false
+			M.gameplay_start()
+		end
+		if callback then callback() end
+
+	-- 4. Mock
 	else
 		log("💻 Mock commercial_break")
 		M.last_interstitial_time = os.time()
@@ -1137,21 +1620,23 @@ end
 
 M.show_interstitial = M.commercial_break
 
---- Show interstitial ad only if cooldown (AD_COOLDOWN = 60s) has elapsed since last one.
+--- Show interstitial ad only if cooldown (AD_COOLDOWN = 120s) has elapsed since last one.
 function M.try_commercial_break(callback, placement)
-	local elapsed = os.time() - M.last_interstitial_time
+	local elapsed = os.time() - (M.last_interstitial_time or 0)
 	if elapsed < AD_COOLDOWN then
 		log("⏳ Interstitial cooldown active (" .. string.format("%.0f", elapsed) .. "s / " .. AD_COOLDOWN .. "s) — skipping ad")
 		if callback then callback() end
 		return
 	end
-	M.commercial_break(callback, placement)
+	M.commercial_break(callback, placement, true)
 end
 
 function M.is_interstitial_supported()
 	if not M.initialized then M.init() end
 	if bridge and bridge.advertisement and bridge.advertisement.is_interstitial_supported then
 		return bridge.advertisement.is_interstitial_supported()
+	elseif M.active_platform == M.PLATFORM_ANDROID then
+		return true
 	end
 	return true
 end
@@ -1163,7 +1648,7 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 	if not M.initialized then M.init() end
 
 	local placement = (placement_or_size and placement_or_size ~= "") and tostring(placement_or_size) or "rewarded"
-	log("🎁 rewarded_break() requested — placement: '" .. placement .. "'")
+	log("🎁 rewarded_break() requested — placement: '" .. placement .. "', active_platform: " .. tostring(M.active_platform) .. ", platform_id: " .. tostring(M.get_platform_id()))
 
 	if M.ad_showing then
 		log("⚠️ Ad already showing, ignoring duplicate rewarded_break call")
@@ -1173,7 +1658,26 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 
 	pause_audio()
 
-	-- Stop active gameplay before showing ad
+	-- Log detailed diagnostics to browser JS DevTools console
+	if html5 and html5.run then
+		local js_diag = string.format([[
+			(function() {
+				var p = %q;
+				var b = window.bridge || window.playgamaBridge;
+				var cg = window.CrazyGames && window.CrazyGames.SDK;
+				console.log('%%c[PLAYGAMA SDK] 🎁 rewarded_break initiated (placement: "' + p + '")', 'color: #e91e63; font-weight: bold;', {
+					hasBridge: !!b,
+					platformId: (b && b.platform && (typeof b.platform.id === 'function' ? b.platform.id() : b.platform.id)) || 'unknown',
+					isRewardedSupported: (b && b.advertisement && b.advertisement.isRewardedSupported),
+					rewardedState: (b && b.advertisement && b.advertisement.rewardedState),
+					hasCrazyGamesSDK: !!cg
+				});
+			})();
+		]], placement)
+		pcall(html5.run, js_diag)
+	end
+
+	-- Portal requirement: Stop active gameplay before showing ad
 	if M.gameplay_active then
 		log("⏸️ Pausing gameplay before rewarded ad")
 		resume_gameplay_after_ad = true
@@ -1185,9 +1689,73 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 		reward_timeout_timer = nil
 	end
 
-	-- 1. Playgama Bridge
-	if M.active_platform == M.PLATFORM_PLAYGAMA then
-		log("🎁 Showing Playgama rewarded ad (placement: " .. tostring(placement) .. ")...")
+	-- 1. Poki Platform
+	if M.active_platform == M.PLATFORM_POKI then
+		log("🎁 Showing Poki rewardedBreak...")
+		M.ad_showing = true
+		local called = false
+		local function finish_reward(success)
+			if called then return end
+			called = true
+			M.ad_showing = false
+			resume_audio()
+			if resume_gameplay_after_ad then
+				resume_gameplay_after_ad = false
+				M.gameplay_start()
+			end
+			if success and on_reward then
+				pcall(on_reward)
+			end
+			if on_close then
+				pcall(on_close, success == true)
+			end
+		end
+
+		local dispatched = false
+		if _G.poki_sdk and _G.poki_sdk.rewarded_break then
+			local ok = pcall(function()
+				_G.poki_sdk.rewarded_break(function(self, success)
+					finish_reward(success == true)
+				end)
+			end)
+			if ok then dispatched = true end
+		end
+
+		if not dispatched and html5 and html5.run then
+			local ok_js = pcall(function()
+				html5.run([[(function() {
+					try {
+						if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.rewardedBreak === 'function') {
+							PokiSDK.rewardedBreak().then(function(success) {
+								window._pokiRewardedResult = success ? '1' : '0';
+							}).catch(function() {
+								window._pokiRewardedResult = '0';
+							});
+						}
+					} catch(e){}
+				})();]])
+			end)
+			if ok_js then
+				dispatched = true
+				local poll_timer = nil
+				poll_timer = safe_timer_delay(0.05, true, function(_, handle)
+					local ok_ev, res = pcall(html5.run, "window._pokiRewardedResult || ''")
+					if ok_ev and res and res ~= "" then
+						safe_timer_cancel(handle)
+						pcall(html5.run, "window._pokiRewardedResult = '';")
+						finish_reward(res == "1")
+					end
+				end)
+			end
+		end
+
+		if not dispatched then
+			finish_reward(true)
+		end
+
+	-- 2. Playgama Bridge & Web Platform
+	elseif M.active_platform == M.PLATFORM_PLAYGAMA then
+		log("🎁 Showing Playgama / Web rewarded ad (placement: " .. tostring(placement) .. ")...")
 		current_reward_cb = on_reward
 		current_reward_close_cb = on_close
 		reward_granted = false
@@ -1232,7 +1800,14 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 								return "1";
 							}
 						}
-					} catch(e) {}
+						var cg = window.CrazyGames && window.CrazyGames.SDK;
+						if (cg && cg.ad && typeof cg.ad.requestAd === 'function') {
+							cg.ad.requestAd('rewarded');
+							return "1";
+						}
+					} catch(e) {
+						console.error('[SDK WRAPPER] JS showRewarded error:', e);
+					}
 					return "0";
 				})();
 			]], placement)
@@ -1260,7 +1835,10 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 							if current_reward_cb then
 								local cb = current_reward_cb
 								current_reward_cb = nil
-								pcall(cb)
+								local ok_cb, cb_err = pcall(cb)
+								if not ok_cb then
+									log("⚠️ Error executing rewarded callback:", cb_err)
+								end
 							end
 						end
 					end
@@ -1286,12 +1864,18 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 						if earned and current_reward_cb then
 							local cb = current_reward_cb
 							current_reward_cb = nil
-							pcall(cb)
+							local ok_cb, cb_err = pcall(cb)
+							if not ok_cb then
+								log("⚠️ Error executing rewarded callback:", cb_err)
+							end
 						end
 						if current_reward_close_cb then
 							local cb = current_reward_close_cb
 							current_reward_close_cb = nil
-							pcall(cb, earned)
+							local ok_close, close_err = pcall(cb, earned)
+							if not ok_close then
+								log("⚠️ Error executing rewarded close callback:", close_err)
+							end
 						end
 						current_reward_cb = nil
 					end
@@ -1311,6 +1895,11 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 				end
 
 				local earned = reward_granted
+				if html5 and html5.run then
+					local ok_eval, res = pcall(html5.run, "(function() { return window._rewardedEarned ? '1' : '0'; })()")
+					if ok_eval and res == "1" then earned = true end
+				end
+
 				if earned and current_reward_cb then
 					local cb = current_reward_cb
 					current_reward_cb = nil
@@ -1326,7 +1915,17 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 			end
 		end)
 
-	-- 2. Mock
+	-- 3. Android / iOS (Unity Ads)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
+		log("🎁 Showing Unity Ads rewarded ad...")
+		if resume_gameplay_after_ad then
+			resume_gameplay_after_ad = false
+			M.gameplay_start()
+		end
+		if on_reward then on_reward() end
+		if on_close then on_close(true) end
+
+	-- 4. Mock
 	else
 		log("💻 Mock rewarded_break (granting reward)")
 		if resume_gameplay_after_ad then
@@ -1344,6 +1943,8 @@ function M.is_rewarded_supported()
 	if not M.initialized then M.init() end
 	if bridge and bridge.advertisement and bridge.advertisement.is_rewarded_supported then
 		return bridge.advertisement.is_rewarded_supported()
+	elseif M.active_platform == M.PLATFORM_ANDROID then
+		return true
 	end
 	return true
 end
@@ -1360,6 +1961,8 @@ function M.show_banner(position, placement)
 		pcall(function()
 			bridge.advertisement.show_banner(position, placement)
 		end)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
+		log("💻 (Mobile) show_banner skipped")
 	else
 		log("💻 Mock show_banner")
 	end
@@ -1373,6 +1976,8 @@ function M.hide_banner()
 		pcall(function()
 			bridge.advertisement.hide_banner()
 		end)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
+		log("💻 (Mobile) hide_banner skipped")
 	else
 		log("💻 Mock hide_banner")
 	end
@@ -1452,7 +2057,7 @@ function M.is_leaderboard_supported()
 end
 
 ----------------------------------------------------------
--- CLOUD STORAGE (PLAYGAMA BRIDGE STORAGE)
+-- CLOUD STORAGE (PLAYGAMA STORAGE WITH LOCAL & CRAZYGAMES FALLBACK)
 ----------------------------------------------------------
 function M.storage_get(keys, on_success, on_failure)
 	if not M.initialized then M.init() end
@@ -1462,49 +2067,207 @@ function M.storage_get(keys, on_success, on_failure)
 		keys_list = { keys }
 	end
 
-	local responded = false
+	log("📦 storage_get requested for keys:", table.concat(keys_list, ", "))
 
-	-- Channel 1: Bridge Lua extension
-	if bridge and bridge.storage and bridge.storage.get then
-		pcall(function()
-			bridge.storage.get(keys_list, function(arg1, arg2)
-				if responded then return end
-				responded = true
-				local data = (type(arg2) == "table") and arg2 or ((type(arg1) == "table") and arg1 or nil)
-				log("📦 Playgama storage_get success, keys loaded:", data and next(data) ~= nil)
-				if on_success then on_success(nil, data) end
-			end, function(arg1, arg2)
-				local err = arg2 or arg1
-				log("⚠️ Playgama storage_get failure:", tostring(err))
-				if not responded then
-					responded = true
-					if on_failure then on_failure(err) end
-				end
-			end)
-		end)
+	local responded = false
+	local function finish_success(data)
+		if responded then return end
+		responded = true
+		log("📦 storage_get finished successfully, has data:", (data and next(data) ~= nil) == true)
+		if on_success then
+			on_success(nil, data)
+		end
 	end
 
-	-- Channel 2: Direct browser JS fallback
-	if html5 and html5.run and not responded then
-		local key = (keys_list and keys_list[1]) or "player_profile"
+	local function finish_failure(err)
+		if responded then return end
+		responded = true
+		log("⚠️ storage_get failed:", tostring(err))
+		if on_failure then
+			on_failure(err)
+		elseif on_success then
+			on_success(err, nil)
+		end
+	end
+
+	local key = (keys_list and keys_list[1]) or "player_profile"
+	local sys_info = sys.get_sys_info()
+	local is_web = (sys_info.system_name == "HTML5") or (html5 ~= nil and html5.run ~= nil)
+
+	-- Desktop editor / mock fallback
+	if not is_web then
+		local app_title = sys.get_config_string("project.title", "potato_war")
+		local path = sys.get_save_file(app_title, "bridge_storage_data")
+		local loaded = (path and sys and sys.load) and sys.load(path) or {}
+		local result = {}
+		for _, k in ipairs(keys_list) do
+			if loaded[k] ~= nil then
+				result[k] = loaded[k]
+			end
+		end
+		log("📦 Desktop storage_get loaded keys:", next(result) ~= nil)
+		if next(result) ~= nil then
+			finish_success(result)
+			return
+		end
+	end
+
+	-- Safety timeout: if storage doesn't respond in 3 seconds, proceed gracefully
+	local timeout_handle = safe_timer_delay(3.0, false, function()
+		if not responded then
+			log("⏳ storage_get timed out — continuing with local profile")
+			finish_success(nil)
+		end
+	end)
+
+	local function run_web_js_fallback()
+		if not (html5 and html5.run) then
+			safe_timer_cancel(timeout_handle)
+			finish_success(nil)
+			return
+		end
+
+		log("🌐 Running Web JS storage_get fallback for key:", key)
 		local js = string.format([[
 			(function() {
+				window._storageGetResult = "";
+				window._storageGetStatus = "pending";
 				var k = %q;
-				try {
-					var b = window.bridge || window.playgamaBridge;
-					if (b && b.storage && typeof b.storage.get === 'function') {
-						b.storage.get([k]).then(function(res) {
-							window._lastStorageGet = res ? JSON.stringify(res) : "";
-						}).catch(function(e) { window._lastStorageGet = ""; });
+				var b = window.bridge || window.playgamaBridge;
+				var cg = (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.data) || (window.crazygames && window.crazygames.data);
+
+				function tryCrazyGames() {
+					try {
+						if (cg && typeof cg.getItem === 'function') {
+							var item = cg.getItem(k);
+							if (item !== null && item !== undefined && item !== "") {
+								return typeof item === 'object' ? JSON.stringify(item) : String(item);
+							}
+						}
+					} catch(e) {}
+					return null;
+				}
+
+				function tryLocalStorage() {
+					try {
+						if (typeof window !== 'undefined' && window.localStorage) {
+							var item = window.localStorage.getItem(k);
+							if (item !== null && item !== undefined && item !== "") {
+								return item;
+							}
+						}
+					} catch(e) {}
+					return null;
+				}
+
+				function tryBridge() {
+					if (!b) return Promise.reject("no bridge");
+					var initPromise = b.isInitialized ? Promise.resolve() : (b.initialize ? b.initialize() : Promise.resolve());
+					return initPromise.then(function() {
+						if (b.storage && typeof b.storage.get === 'function') {
+							return b.storage.get([k], true).then(function(res) {
+								var val = Array.isArray(res) ? res[0] : (res && res[k] !== undefined ? res[k] : res);
+								if (val !== null && val !== undefined && val !== "") {
+									return typeof val === 'object' ? JSON.stringify(val) : String(val);
+								}
+								throw new Error("empty");
+							});
+						}
+						throw new Error("no storage");
+					});
+				}
+
+				tryBridge().then(function(str) {
+					window._storageGetResult = str;
+					window._storageGetStatus = "done";
+				}).catch(function() {
+					var cgVal = tryCrazyGames();
+					if (cgVal) {
+						window._storageGetResult = cgVal;
+						window._storageGetStatus = "done";
+						return;
 					}
-				} catch(e) {}
+					var lsVal = tryLocalStorage();
+					if (lsVal) {
+						window._storageGetResult = lsVal;
+						window._storageGetStatus = "done";
+						return;
+					}
+					window._storageGetResult = "";
+					window._storageGetStatus = "done";
+				});
 			})();
 		]], key)
 		pcall(html5.run, js)
+
+		local poll_timer
+		poll_timer = safe_timer_delay(0.05, true, function(_, handle)
+			local ok_st, st = pcall(html5.run, "window._storageGetStatus || ''")
+			if ok_st and (st == "done" or st == "error") then
+				safe_timer_cancel(handle)
+				safe_timer_cancel(timeout_handle)
+				if st == "done" then
+					local ok_val, val = pcall(html5.run, "window._storageGetResult || ''")
+					if ok_val and val and val ~= "" and val ~= "null" and val ~= "undefined" then
+						local json_ok, decoded = pcall(json.decode, val)
+						local payload = {}
+						payload[key] = (json_ok and decoded) and decoded or val
+						log("📦 Web JS fallback successfully retrieved key:", key)
+						finish_success(payload)
+					else
+						finish_success(nil)
+					end
+				else
+					finish_success(nil)
+				end
+			end
+		end)
 	end
 
-	if not responded and on_success then
-		on_success(nil, nil)
+	-- Channel 1: Bridge Lua extension (Web WASM / Native)
+	local channel1_attempted = false
+	if bridge and bridge.storage and bridge.storage.get then
+		channel1_attempted = true
+		local ok, err = pcall(function()
+			bridge.storage.get(keys_list, function(arg1, arg2)
+				local raw_data = nil
+				if type(arg1) == "table" and arg1.player_profile ~= nil then
+					raw_data = arg1
+				elseif type(arg2) == "table" and arg2.player_profile ~= nil then
+					raw_data = arg2
+				elseif type(arg2) == "table" or type(arg2) == "string" then
+					raw_data = arg2
+				elseif type(arg1) == "table" or type(arg1) == "string" then
+					raw_data = arg1
+				end
+
+				if type(raw_data) == "string" and raw_data ~= "" then
+					local json_ok, decoded = pcall(json.decode, raw_data)
+					if json_ok and type(decoded) == "table" then
+						raw_data = decoded
+					end
+				end
+
+				if raw_data and (type(raw_data) == "table" and next(raw_data) ~= nil) then
+					safe_timer_cancel(timeout_handle)
+					finish_success(raw_data)
+				else
+					run_web_js_fallback()
+				end
+			end, function(arg1, arg2)
+				local err_msg = arg2 or arg1
+				log("⚠️ bridge.storage.get returned error, attempting JS fallback:", tostring(err_msg))
+				run_web_js_fallback()
+			end)
+		end)
+		if not ok then
+			log("⚠️ bridge.storage.get exception:", err)
+			run_web_js_fallback()
+		end
+	end
+
+	if not channel1_attempted then
+		run_web_js_fallback()
 	end
 end
 
@@ -1531,21 +2294,42 @@ function M.storage_set(data_or_key, value_or_cb, on_success_or_failure, on_failu
 		failure_cb = on_failure
 	end
 
-	-- Channel 1: Bridge Defold
+	log("📦 storage_set saving data...")
+
+	local sys_info = sys.get_sys_info()
+	local is_web = (sys_info.system_name == "HTML5") or (html5 ~= nil and html5.run ~= nil)
+
+	-- Desktop editor / mock fallback
+	if not is_web then
+		local app_title = sys.get_config_string("project.title", "potato_war")
+		local path = sys.get_save_file(app_title, "bridge_storage_data")
+		local loaded = (path and sys and sys.load) and sys.load(path) or {}
+		for k, v in pairs(data) do
+			loaded[k] = v
+		end
+		if path and sys and sys.save then
+			sys.save(path, loaded)
+		end
+		log("📦 Desktop storage_set saved successfully")
+		if success_cb then success_cb() end
+		return
+	end
+
+	-- Channel 1: Bridge Defold (C++ / WASM extension)
 	if bridge and bridge.storage and bridge.storage.set then
 		pcall(function()
 			bridge.storage.set(data, function(arg1, arg2)
-				log("✅ Playgama storage_set success")
+				log("✅ Playgama storage_set success via Lua bridge")
 				if success_cb then success_cb() end
 			end, function(arg1, arg2)
 				local err = arg2 or arg1
-				log("⚠️ Playgama storage_set failure:", tostring(err))
+				log("⚠️ Playgama storage_set failure via Lua bridge:", tostring(err))
 				if failure_cb then failure_cb(err) end
 			end)
 		end)
 	end
 
-	-- Channel 2: Direct Web JS
+	-- Channel 2: Direct Web JS (window.bridge, CrazyGames SDK & localStorage)
 	if html5 and html5.run then
 		for k, v in pairs(data) do
 			local val_json = ""
@@ -1561,18 +2345,43 @@ function M.storage_set(data_or_key, value_or_cb, on_success_or_failure, on_failu
 					try {
 						var k = %q;
 						var v = %s;
+						var vStr = (typeof v === 'object') ? JSON.stringify(v) : String(v);
+
+						// 1. window.localStorage (guaranteed persistent local mirror)
+						try {
+							if (typeof window !== 'undefined' && window.localStorage) {
+								window.localStorage.setItem(k, vStr);
+							}
+						} catch(lsErr) {}
+
+						// 2. Playgama Bridge
 						var b = window.bridge || window.playgamaBridge;
-						if (b && b.storage && typeof b.storage.set === 'function') {
-							b.storage.set([k], [v]).catch(function(e) {});
+						if (b) {
+							var initP = b.isInitialized ? Promise.resolve() : (b.initialize ? b.initialize() : Promise.resolve());
+							initP.then(function() {
+								if (b.storage && typeof b.storage.set === 'function') {
+									b.storage.set([k], [v]).catch(function(e) {
+										console.warn('[SDK WRAPPER] JS bridge.storage.set error:', e);
+									});
+								}
+							}).catch(function(){});
 						}
-					} catch(e) {}
+
+						// 3. CrazyGames SDK Data
+						var cg = (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.data) || (window.crazygames && window.crazygames.data);
+						if (cg && typeof cg.setItem === 'function') {
+							cg.setItem(k, vStr);
+						}
+					} catch(e) {
+						console.warn('[SDK WRAPPER] storage_set JS exception:', e);
+					}
 				})();
 			]], tostring(k), val_json)
 			pcall(html5.run, js)
 		end
 	end
 
-	if not (bridge and bridge.storage and bridge.storage.set) then
+	if not (bridge and bridge.storage and bridge.storage.set) and is_web then
 		if success_cb then success_cb() end
 	end
 end
@@ -1587,10 +2396,11 @@ function M.storage_delete(keys, on_success, on_failure)
 
 	if bridge and bridge.storage and bridge.storage.delete then
 		pcall(function()
-			bridge.storage.delete(keys_list, function()
+			bridge.storage.delete(keys_list, function(arg1, arg2)
 				log("🗑️ Playgama storage_delete success")
 				if on_success then on_success() end
-			end, function(err)
+			end, function(arg1, arg2)
+				local err = arg2 or arg1
 				log("⚠️ Playgama storage_delete failure:", tostring(err))
 				if on_failure then on_failure(err) end
 			end)
@@ -1755,6 +2565,13 @@ function M.get_device_info()
 			is_desktop = (dev_type == "desktop" or dev_type == nil),
 			type = dev_type or "desktop"
 		}
+	elseif M.active_platform == M.PLATFORM_ANDROID then
+		return {
+			is_mobile = true,
+			is_tablet = false,
+			is_desktop = false,
+			type = "mobile"
+		}
 	else
 		local sys_info = sys.get_sys_info()
 		local is_mob = (sys_info.system_name == "Android" or sys_info.system_name == "iPhone OS")
@@ -1772,6 +2589,10 @@ function M.get_platform()
 
 	if bridge and bridge.platform and bridge.platform.id then
 		return bridge.platform.id()
+	elseif M.active_platform == M.PLATFORM_ANDROID then
+		return "android"
+	elseif M.active_platform == M.PLATFORM_POKI then
+		return "poki"
 	end
 	return "mock"
 end
@@ -1779,7 +2600,26 @@ end
 function M.get_language()
 	if not M.initialized then M.init() end
 
-	-- 1. Playgama Bridge Lua binding
+	-- 1. Poki SDK (Lua / Web) if in Poki mode
+	if M.active_platform == M.PLATFORM_POKI and _G.poki_sdk then
+		local ok, lang = pcall(function()
+			if _G.poki_sdk.get_language then
+				local pl = _G.poki_sdk.get_language()
+				if pl and type(pl) == "string" and pl ~= "" then return pl end
+			end
+			if _G.poki_sdk.get_url_param then
+				local up = _G.poki_sdk.get_url_param("lang") or _G.poki_sdk.get_url_param("locale") or _G.poki_sdk.get_url_param("language")
+				if up and type(up) == "string" and up ~= "" then return up end
+			end
+			return nil
+		end)
+		if ok and lang and lang ~= "" then
+			log("🌐 Language from poki_sdk:", lang)
+			return lang
+		end
+	end
+
+	-- 2. Playgama Bridge Lua binding (native WASM bridge)
 	if bridge and bridge.platform and bridge.platform.language then
 		local ok, lang = pcall(bridge.platform.language)
 		if ok and lang and lang ~= "" then
@@ -1788,16 +2628,31 @@ function M.get_language()
 		end
 	end
 
-	-- 2. JS-level bridge (HTML5)
+	-- 3. JS-level bridge (HTML5 only: Playgama / Poki / Navigator)
 	if html5 and html5.run then
 		local ok, lang = pcall(html5.run, [[(function() {
 			try {
+				if (typeof PokiSDK !== 'undefined') {
+					if (typeof PokiSDK.getLanguage === 'function') {
+						var pl = PokiSDK.getLanguage();
+						if (pl && typeof pl === 'string' && pl.length >= 2) return pl;
+					}
+					if (typeof PokiSDK.getURLParam === 'function') {
+						var up = PokiSDK.getURLParam('lang') || PokiSDK.getURLParam('locale') || PokiSDK.getURLParam('language');
+						if (up && typeof up === 'string' && up.length >= 2) return up;
+					}
+				}
 				var b = window.bridge || window.playgamaBridge;
 				if (b && b.platform && typeof b.platform.language === 'function') {
 					return b.platform.language() || '';
 				}
 				if (b && b.platform && typeof b.platform.language === 'string') {
 					return b.platform.language || '';
+				}
+				if (window.location && window.location.search) {
+					var sp = new URLSearchParams(window.location.search);
+					var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang');
+					if (ql && typeof ql === 'string' && ql.length >= 2) return ql;
 				}
 			} catch(e) {}
 			return navigator.language || navigator.userLanguage || '';
@@ -1808,11 +2663,12 @@ function M.get_language()
 		end
 	end
 
-	-- 3. Defold sys_info fallback
+	-- 4. Defold sys_info fallback (mobile / desktop)
 	local sys_info = sys.get_sys_info()
 	return sys_info.device_language or "en"
 end
 
+--- Returns normalized 2-letter language code ('ru', 'tr', 'es', 'pt', 'fr', 'en')
 function M.get_language_code()
 	local raw = M.get_language()
 	if raw then
@@ -1847,7 +2703,6 @@ end
 ----------------------------------------------------------
 -- PAYMENTS & IN-APP PURCHASES (PLAYGAMA BRIDGE)
 ----------------------------------------------------------
-
 M.DEFAULT_PRODUCTS = {
 	{
 		id = "coins_pack_1000",
@@ -1945,6 +2800,14 @@ M.DEFAULT_PRODUCTS = {
 		amount = 1,
 	},
 }
+
+function M.has_no_ads()
+	local profile_ok, profile = pcall(require, "lua_modules.player_profile")
+	if profile_ok and profile and profile.data and profile.data.no_ads then
+		return true
+	end
+	return false
+end
 
 function M.is_payments_supported()
 	if not M.initialized then M.init() end

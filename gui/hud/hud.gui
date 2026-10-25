@@ -62,10 +62,6 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
-  position {
-    x: 0.0
-    y: 0.0
-  }
   scale {
     x: 0.7
     y: 0.7
@@ -143,10 +139,8 @@ nodes {
   id: "timer_ring_bg"
   parent: "timer_circle"
   inherit_alpha: true
-  outerBounds: PIEBOUNDS_ELLIPSE
   innerRadius: 31.0
   perimeterVertices: 64
-  pieFillAngle: 360.0
   alpha: 0.55
 }
 nodes {
@@ -161,10 +155,8 @@ nodes {
   id: "timer_ring"
   parent: "timer_circle"
   inherit_alpha: true
-  outerBounds: PIEBOUNDS_ELLIPSE
   innerRadius: 31.0
   perimeterVertices: 64
-  pieFillAngle: 360.0
   alpha: 0.9
 }
 nodes {
@@ -699,22 +691,36 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 1.1
-    y: 1.1
-  }
   size {
-    x: 20.0
-    y: 20.0
+    x: 28.0
+    y: 28.0
   }
-  type: TYPE_TEXT
-  text: "<"
-  font: "system_font"
+  type: TYPE_BOX
+  texture: "game/ic_left"
   id: "txt_left"
   parent: "btn_left"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 47.0
+  }
+  rotation {
+    z: -90.0
+  }
+  size {
+    x: 24.0
+    y: 24.0
+  }
+  color {
+    y: 0.0
+    z: 0.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
+  id: "tut_arrow_left"
+  parent: "btn_left"
+  inherit_alpha: true
 }
 nodes {
   size {
@@ -739,18 +745,41 @@ nodes {
   }
 }
 nodes {
+  rotation {
+    z: 90.0
+  }
   size {
-    x: 20.0
-    y: 20.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
+  id: "txt_jump"
+  parent: "btn_jump"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    y: 44.0
+    z: 0.2
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  color {
+    y: 0.85
+    z: 0.2
   }
   type: TYPE_TEXT
-  text: "W"
+  text: "\342\226\274"
   font: "system_font"
-  id: "txt_jump"
+  id: "tut_arrow_jump"
   parent: "btn_jump"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0
+  enabled: false
 }
 nodes {
   position {
@@ -778,22 +807,39 @@ nodes {
   }
 }
 nodes {
-  scale {
-    x: 1.1
-    y: 1.1
+  rotation {
+    z: 180.0
   }
   size {
-    x: 20.0
-    y: 20.0
+    x: 28.0
+    y: 28.0
   }
-  type: TYPE_TEXT
-  text: ">"
-  font: "system_font"
+  type: TYPE_BOX
+  texture: "game/ic_left"
   id: "txt_right"
   parent: "btn_right"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 47.0
+  }
+  rotation {
+    z: -90.0
+  }
+  size {
+    x: 24.0
+    y: 24.0
+  }
+  color {
+    y: 0.0
+    z: 0.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
+  id: "tut_arrow_right"
+  parent: "btn_right"
+  inherit_alpha: true
 }
 nodes {
   position {
@@ -855,6 +901,74 @@ nodes {
 }
 nodes {
   size {
+    x: 24.0
+    y: 24.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.25
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "tut_drag_anchor"
+  inherit_alpha: true
+  alpha: 0.6
+  enabled: false
+}
+nodes {
+  size {
+    x: 10.0
+    y: 10.0
+  }
+  color {
+    x: 1.0
+    y: 0.9
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "tut_drag_dot1"
+  inherit_alpha: true
+  alpha: 0.6
+  enabled: false
+}
+nodes {
+  size {
+    x: 10.0
+    y: 10.0
+  }
+  color {
+    x: 1.0
+    y: 0.9
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "tut_drag_dot2"
+  inherit_alpha: true
+  alpha: 0.6
+  enabled: false
+}
+nodes {
+  size {
+    x: 10.0
+    y: 10.0
+  }
+  color {
+    x: 1.0
+    y: 0.9
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/circle"
+  id: "tut_drag_dot3"
+  inherit_alpha: true
+  alpha: 0.6
+  enabled: false
+}
+nodes {
+  size {
     x: 64.0
     y: 64.0
   }
@@ -868,16 +982,16 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 416.0
+    y: 430.0
   }
   size {
-    x: 840.0
-    y: 64.0
+    x: 340.0
+    y: 74.0
   }
   color {
     x: 0.1
-    y: 0.16
-    z: 0.24
+    y: 0.14
+    z: 0.18
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -885,34 +999,219 @@ nodes {
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
+    x: 7.0
+    y: 7.0
+    z: 7.0
+    w: 7.0
   }
-  alpha: 0.95
+  alpha: 0.92
   enabled: false
 }
 nodes {
+  position {
+    y: 18.0
+    z: 0.1
+  }
   scale {
-    x: 0.56
-    y: 0.56
+    x: 0.44
+    y: 0.44
   }
   size {
-    x: 1440.0
-    y: 100.0
+    x: 600.0
+    y: 30.0
   }
   color {
-    y: 0.9
+    y: 0.88
     z: 0.25
   }
   type: TYPE_TEXT
-  line_break: true
-  text: "\360\237\216\257 \320\235\320\260\320\277\321\200\320\260\320\262\321\214 \320\277\321\200\320\270\321\206\320\265\320\273 \320\275\320\260 \320\262\321\200\320\260\320\263\320\260 \320\270 \320\276\321\202\320\277\321\203\321\201\321\202\320\270 \320\264\320\273\321\217 \320\262\321\213\321\201\321\202\321\200\320\265\320\273\320\260!"
+  text: "MOVE"
+  font: "system_font"
+  id: "tutorial_hint_title"
+  parent: "tutorial_hint_panel"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -14.0
+    z: 0.1
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 800.0
+    y: 30.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
   font: "system_font"
   id: "tutorial_hint_text"
   parent: "tutorial_hint_panel"
   inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -8.0
+    z: 0.2
+  }
+  type: TYPE_BOX
+  id: "tutorial_wasd"
+  parent: "tutorial_hint_panel"
+  enabled: false
+}
+nodes {
+  position {
+    y: 24.0
+    z: 0.1
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  type: TYPE_BOX
+  texture: "game/key_cap"
+  id: "tut_key_w"
+  parent: "tutorial_wasd"
+}
+nodes {
+  position {
+    y: 3.0
+    z: 0.1
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+  }
+  color {
+    x: 0.18
+    y: 0.18
+    z: 0.16
+  }
+  type: TYPE_TEXT
+  text: "W"
+  font: "system_font"
+  id: "tut_key_w_text"
+  parent: "tut_key_w"
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -48.0
+    y: -24.0
+    z: 0.1
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  type: TYPE_BOX
+  texture: "game/key_cap"
+  id: "tut_key_a"
+  parent: "tutorial_wasd"
+}
+nodes {
+  position {
+    y: 3.0
+    z: 0.1
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+  }
+  color {
+    x: 0.18
+    y: 0.18
+    z: 0.16
+  }
+  type: TYPE_TEXT
+  text: "A"
+  font: "system_font"
+  id: "tut_key_a_text"
+  parent: "tut_key_a"
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -24.0
+    z: 0.1
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  type: TYPE_BOX
+  texture: "game/key_cap"
+  id: "tut_key_s"
+  parent: "tutorial_wasd"
+}
+nodes {
+  position {
+    y: 3.0
+    z: 0.1
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+  }
+  color {
+    x: 0.18
+    y: 0.18
+    z: 0.16
+  }
+  type: TYPE_TEXT
+  text: "S"
+  font: "system_font"
+  id: "tut_key_s_text"
+  parent: "tut_key_s"
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 48.0
+    y: -24.0
+    z: 0.1
+  }
+  size {
+    x: 44.0
+    y: 44.0
+  }
+  type: TYPE_BOX
+  texture: "game/key_cap"
+  id: "tut_key_d"
+  parent: "tutorial_wasd"
+}
+nodes {
+  position {
+    y: 3.0
+    z: 0.1
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+  }
+  color {
+    x: 0.18
+    y: 0.18
+    z: 0.16
+  }
+  type: TYPE_TEXT
+  text: "D"
+  font: "system_font"
+  id: "tut_key_d_text"
+  parent: "tut_key_d"
   outline_alpha: 0.0
   shadow_alpha: 0.0
 }
@@ -940,6 +1239,10 @@ nodes {
   enabled: false
 }
 nodes {
+  position {
+    y: 2.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
@@ -947,11 +1250,6 @@ nodes {
   size {
     x: 120.0
     y: 18.0
-  }
-  position {
-    x: 0.0
-    y: 2.0
-    z: 0.1
   }
   color {
     x: 0.92
@@ -968,14 +1266,13 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
+  position {
+    y: -5.0
+    z: 0.1
+  }
   size {
     x: 52.0
     y: 2.5
-  }
-  position {
-    x: 0.0
-    y: -5.0
-    z: 0.1
   }
   color {
     x: 0.08
@@ -989,14 +1286,13 @@ nodes {
   inherit_alpha: true
 }
 nodes {
+  position {
+    x: -26.0
+    z: 0.2
+  }
   size {
     x: 52.0
     y: 2.5
-  }
-  position {
-    x: -26.0
-    y: 0.0
-    z: 0.2
   }
   color {
     x: 0.15
@@ -1006,33 +1302,26 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "marker_player_hp_fill"
-  parent: "marker_player_hp_bg"
   pivot: PIVOT_W
+  parent: "marker_player_hp_bg"
   inherit_alpha: true
 }
 nodes {
-  scale {
-    x: 0.38
-    y: 0.38
-  }
   position {
-    x: 0.0
-    y: 15.0
-    z: 0.1
+    y: 12.0
   }
-  color {
-    x: 0.18
-    y: 0.85
-    z: 0.95
+  rotation {
+    z: -90.0
   }
-  type: TYPE_TEXT
-  text: "▼"
-  font: "system_font"
+  size {
+    x: 16.0
+    y: 16.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
   id: "marker_player_arrow"
   parent: "marker_player_bg"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
 }
 nodes {
   size {
@@ -1058,6 +1347,10 @@ nodes {
   enabled: false
 }
 nodes {
+  position {
+    y: 2.0
+    z: 0.1
+  }
   scale {
     x: 0.38
     y: 0.38
@@ -1065,11 +1358,6 @@ nodes {
   size {
     x: 120.0
     y: 18.0
-  }
-  position {
-    x: 0.0
-    y: 2.0
-    z: 0.1
   }
   color {
     x: 0.95
@@ -1086,14 +1374,13 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
+  position {
+    y: -5.0
+    z: 0.1
+  }
   size {
     x: 56.0
     y: 2.5
-  }
-  position {
-    x: 0.0
-    y: -5.0
-    z: 0.1
   }
   color {
     x: 0.08
@@ -1107,14 +1394,13 @@ nodes {
   inherit_alpha: true
 }
 nodes {
+  position {
+    x: -28.0
+    z: 0.2
+  }
   size {
     x: 56.0
     y: 2.5
-  }
-  position {
-    x: -28.0
-    y: 0.0
-    z: 0.2
   }
   color {
     x: 0.95
@@ -1124,33 +1410,26 @@ nodes {
   type: TYPE_BOX
   texture: "game/white_pixel"
   id: "marker_enemy_hp_fill"
-  parent: "marker_enemy_hp_bg"
   pivot: PIVOT_W
+  parent: "marker_enemy_hp_bg"
   inherit_alpha: true
 }
 nodes {
-  scale {
-    x: 0.38
-    y: 0.38
-  }
   position {
-    x: 0.0
-    y: 15.0
-    z: 0.1
+    y: 12.0
   }
-  color {
-    x: 1.0
-    y: 0.32
-    z: 0.28
+  rotation {
+    z: -90.0
   }
-  type: TYPE_TEXT
-  text: "▼"
-  font: "system_font"
+  size {
+    x: 16.0
+    y: 16.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
   id: "marker_enemy_arrow"
   parent: "marker_enemy_bg"
   inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
 }
 nodes {
   position {

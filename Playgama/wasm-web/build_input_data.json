@@ -17,5 +17,9 @@
     "url" : "https://github.com/britzl/defold-orthographic/archive/master.zip",
     "commit-sha1" : "387370806f7689114ade6d77f98a4341e6b5c062",
     "payload-sha1" : "96cb51bbc0957995bc89cf87c4eecfd372a1af63"
+  }, {
+    "url" : "https://github.com/defold/extension-poki-sdk/archive/refs/tags/4.1.0.zip",
+    "commit-sha1" : "f6da316a7623e92aeeddacd8b80c1147997fa4bd",
+    "payload-sha1" : "40dfee813a2642b0acafabaea5cedd968651fd19"
   } ]
 }

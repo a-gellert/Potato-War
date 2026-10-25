@@ -22,15 +22,28 @@ local function on_splash(p)
 	liquid_sound()
 	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 4, radius = 24, silent = true })
 	msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
-	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y + 12, amount = 30, label = i18n.pick({ ru = "💦 ВОДА!", en = "💦 WATER!", pt = "💦 ÁGUA!", fr = "💦 EAU !", es = "💦 ¡AGUA!", tr = "💦 SU!" }) })
+	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y + 12, amount = 30, status = "water", label = i18n.pick({ ru = "ВОДА!", en = "WATER!", pt = "ÁGUA!", fr = "EAU !", es = "¡AGUA!", tr = "SU!" }) })
 end
 
 local function on_drowned(p)
-	camera_controller.shake(14, 0.40)
+	camera_controller.shake(8, 0.25)
 	liquid_sound()
 	sound_manager.play("death", { vary = 0.08 })
-	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 6, radius = 36, silent = true })
-	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = constants.WATER_LEVEL + 26, amount = 999, label = i18n.pick({ ru = "🔥 ФРИТЮРНИЦА!", en = "🔥 DEEP FRYER!", pt = "🔥 FRITADEIRA!", fr = "🔥 FRITEUSE !", es = "🔥 ¡FREIDORA!", tr = "🔥 FRİTÖZ!" }) })
+	-- Localized "Бульк" floating message without explosion
+	msg.post("/gui_hud#gui", "show_damage", {
+		x = p.pos.x,
+		y = constants.WATER_LEVEL + 26,
+		amount = 0,
+		status = "water",
+		label = i18n.pick({
+			ru = "Бульк!",
+			en = "Splash!",
+			pt = "Tchibum!",
+			fr = "Plouf !",
+			es = "¡Chof!",
+			tr = "Cumburlop!"
+		})
+	})
 	msg.post(p.url, "drowned")
 	p.url = nil
 
@@ -40,6 +53,11 @@ local function on_drowned(p)
 			msg.post("/gui_hud#gui", "show_achievement_toast", { icon = ach.icon, title = ach.title, points = ach.points })
 		end
 	end
+
+	-- Conclude the turn upon drowning
+	msg.post("/aim_guide#aim_guide", "hide_aim")
+	game_state.set_state(constants.STATE_SETTLING)
+	game_state.settle_timer = 0
 end
 
 local function on_moved(p, was_grounded)
