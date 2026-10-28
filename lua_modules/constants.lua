@@ -39,7 +39,7 @@ M.PLAYER_HP = 120
 
 -- Aim Sensitivity (50% reduction from base 1.0)
 M.AIM_SENSITIVITY_MOUSE = 0.5
-M.AIM_SENSITIVITY_TOUCH = 0.5
+M.AIM_SENSITIVITY_TOUCH = 0.25
 
 -- Teams
 M.TEAM_BLUE = 1

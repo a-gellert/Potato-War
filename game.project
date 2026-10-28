@@ -13,6 +13,13 @@ high_dpi = 1
 [android]
 input_method = HiddenInputField
 minimum_sdk_version = 24
+app_icon_192x192 = /main/assets/logo2 (1).png
+app_icon_144x144 = /main/assets/logo2 (1).png
+app_icon_96x96 = /main/assets/logo2 (1).png
+app_icon_72x72 = /main/assets/logo2 (1).png
+app_icon_48x48 = /main/assets/logo2 (1).png
+app_icon_36x36 = /main/assets/logo2 (1).png
+package = com.turnbased.artillery.potato.war
 
 [html5]
 scale_mode = stretch
@@ -47,7 +54,6 @@ max_component_count = 64
 
 [sdk]
 target = playgama
-
 
 [applovin]
 bigo_android = 1
