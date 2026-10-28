@@ -1,13 +1,13 @@
 -- main/sdk.lua
--- Unified SDK Wrapper: Playgama Bridge SDK (HTML5/Web & Desktop Mock), Poki SDK, & Mobile/Unity Ads
+-- Unified SDK Wrapper: Playgama Bridge SDK (HTML5/Web & Desktop Mock), Poki SDK, & Mobile/AppLovin MAX
 
-local unityads_ok, unityads = pcall(require, "main.unityads")
-if not unityads_ok or type(unityads) ~= "table" then
-	unityads = {
+local mobile_ads_ok, mobile_ads = pcall(require, "main.applovin_ads")
+if not mobile_ads_ok or type(mobile_ads) ~= "table" then
+	mobile_ads = {
 		init = function() end,
 		is_supported = function() return false end,
-		show_interstitial = function(cb) if cb then cb() end end,
-		show_rewarded = function(on_r, on_c) if on_r then on_r() end if on_c then on_c(true) end end,
+		show_interstitial = function() return false end,
+		show_rewarded = function() return false end,
 		show_banner = function() end,
 		hide_banner = function() end,
 	}
@@ -42,8 +42,9 @@ if not facebook_ok or type(facebook_module) ~= "table" then
 end
 
 local M = {}
-M.unityads = unityads
-M.admob = unityads -- Backwards compatibility alias
+M.mobile_ads = mobile_ads
+M.unityads = mobile_ads -- Backwards compatibility alias
+M.admob = mobile_ads -- Backwards compatibility alias
 M.gameanalytics = gameanalytics
 M.ga = gameanalytics
 M.adjust = adjust_module
@@ -856,8 +857,8 @@ function M.init(custom_config)
 	-- 1. Mobile Native Build (Android / iOS) -> Unity Ads
 	if is_android or is_ios then
 		M.active_platform = M.PLATFORM_ANDROID
-		log("📱 Mobile build detected (" .. sys_info.system_name .. ") — Initializing Unity Ads / Mobile")
-		unityads.init(custom_config)
+		log("📱 Mobile build detected (" .. sys_info.system_name .. ") — Initializing AppLovin MAX")
+		mobile_ads.init()
 		gameanalytics.init()
 		adjust_module.init()
 		facebook_module.init()
@@ -1083,7 +1084,7 @@ function M.init(custom_config)
 	-- 4. Fallback Mock Desktop / Editor
 	M.active_platform = M.PLATFORM_MOCK
 	log("💻 Running in Editor / Desktop fallback mock")
-	unityads.init(custom_config)
+	mobile_ads.init()
 	gameanalytics.init()
 	adjust_module.init()
 	facebook_module.init()
@@ -1596,15 +1597,24 @@ function M.commercial_break(callback, placement, force)
 			if callback then callback() end
 		end
 
-	-- 3. Android / iOS (Unity Ads)
-	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
-		log("📺 Showing Unity Ads interstitial ad...")
+	-- 3. Android / iOS (AppLovin MAX)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or mobile_ads.is_supported()) then
+		log("📺 Showing AppLovin MAX interstitial ad...")
 		M.last_interstitial_time = os.time()
-		if resume_gameplay_after_ad then
-			resume_gameplay_after_ad = false
-			M.gameplay_start()
+		M.ad_showing = true
+		local function on_max_done()
+			M.ad_showing = false
+			resume_audio()
+			if resume_gameplay_after_ad then
+				resume_gameplay_after_ad = false
+				M.gameplay_start()
+			end
+			if callback then callback() end
 		end
-		if callback then callback() end
+		if not mobile_ads.show_interstitial(on_max_done, placement_str) then
+			log("⚠️ MAX interstitial not ready — skipping")
+			on_max_done()
+		end
 
 	-- 4. Mock
 	else
@@ -1915,15 +1925,28 @@ function M.rewarded_break(on_reward, on_close, placement_or_size)
 			end
 		end)
 
-	-- 3. Android / iOS (Unity Ads)
-	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
-		log("🎁 Showing Unity Ads rewarded ad...")
-		if resume_gameplay_after_ad then
-			resume_gameplay_after_ad = false
-			M.gameplay_start()
+	-- 3. Android / iOS (AppLovin MAX)
+	elseif (M.active_platform == M.PLATFORM_ANDROID or mobile_ads.is_supported()) then
+		log("🎁 Showing AppLovin MAX rewarded ad...")
+		M.ad_showing = true
+		local function finish_reward(earned)
+			M.ad_showing = false
+			resume_audio()
+			if resume_gameplay_after_ad then
+				resume_gameplay_after_ad = false
+				M.gameplay_start()
+			end
+			if earned and on_reward then
+				pcall(on_reward)
+			end
+			if on_close then
+				pcall(on_close, earned == true)
+			end
 		end
-		if on_reward then on_reward() end
-		if on_close then on_close(true) end
+		if not mobile_ads.show_rewarded(finish_reward, placement) then
+			log("⚠️ MAX rewarded ad not ready — no reward")
+			finish_reward(false)
+		end
 
 	-- 4. Mock
 	else
@@ -1961,8 +1984,8 @@ function M.show_banner(position, placement)
 		pcall(function()
 			bridge.advertisement.show_banner(position, placement)
 		end)
-	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
-		log("💻 (Mobile) show_banner skipped")
+	elseif (M.active_platform == M.PLATFORM_ANDROID or mobile_ads.is_supported()) then
+		mobile_ads.show_banner()
 	else
 		log("💻 Mock show_banner")
 	end
@@ -1976,8 +1999,8 @@ function M.hide_banner()
 		pcall(function()
 			bridge.advertisement.hide_banner()
 		end)
-	elseif (M.active_platform == M.PLATFORM_ANDROID or unityads.is_supported()) then
-		log("💻 (Mobile) hide_banner skipped")
+	elseif (M.active_platform == M.PLATFORM_ANDROID or mobile_ads.is_supported()) then
+		mobile_ads.hide_banner()
 	else
 		log("💻 Mock hide_banner")
 	end
