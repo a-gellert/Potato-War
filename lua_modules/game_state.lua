@@ -615,7 +615,7 @@ function M.next_turn()
 	local blue_potato = nil
 
 	for _, p in ipairs(M.potatoes) do
-		if p.is_alive then
+		if p.is_alive and not p.is_dying then
 			if p.team == constants.TEAM_BLUE then
 				blue_alive = blue_alive + 1
 				blue_potato = p
@@ -723,9 +723,9 @@ function M.update(dt, active_projectiles_count)
 		-- Check if all potatoes have stopped moving
 		local all_settled = true
 		for _, p in ipairs(M.potatoes) do
-			if p.is_alive then
+			if p.is_alive or p.is_dying then
 				local speed = math.sqrt(p.vel.x * p.vel.x + p.vel.y * p.vel.y)
-				if speed > 6.0 or not p.is_grounded then
+				if speed > 6.0 or not p.is_grounded or p.is_dying then
 					all_settled = false
 					break
 				end
@@ -738,6 +738,14 @@ function M.update(dt, active_projectiles_count)
 		end
 
 		if camera_ready and ((all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT) then
+			for _, p in ipairs(M.potatoes) do
+				if p.is_dying then
+					p.is_dying = false
+					if p.url then
+						msg.post(p.url, "die")
+					end
+				end
+			end
 			M.next_turn()
 		end
 	end
