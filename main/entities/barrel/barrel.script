@@ -77,7 +77,7 @@ local function explode(self)
 
 	-- 4. Apply damage and blast to potatoes
 	for _, p in ipairs(game_state.potatoes) do
-		if p.is_alive then
+		if p.is_alive or p.is_dying then
 			local dmg = physics_sim.apply_blast(p, bx, by, self.radius, self.blast_force, self.max_damage)
 			if dmg > 0 and p.url then
 				msg.post(p.url, "apply_damage", { damage = dmg })

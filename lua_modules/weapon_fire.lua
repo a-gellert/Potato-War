@@ -114,7 +114,10 @@ local function fire_melee(weapon)
 				if dmg == 0 then
 					dmg = max_damage
 					p.hp = math.max(0, p.hp - dmg)
-					if p.hp <= 0 then p.is_alive = false end
+					if p.hp <= 0 then
+						p.is_alive = false
+						p.is_dying = true
+					end
 					p.vel.x = p.vel.x + facing * (weapon.blast_force or 400) * 0.7
 					p.vel.y = p.vel.y + (weapon.blast_force or 400) * 0.5
 					p.is_grounded = false

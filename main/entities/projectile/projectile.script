@@ -118,7 +118,7 @@ end
 local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 	if dmg > 0 and p.url then
 		local was_full_hp = (p.hp >= (p.max_hp or 100))
-		local is_kill = (p.hp <= dmg)
+		local is_kill = (p.hp <= 0)
 		local dist = math.abs(p.pos.x - self.origin_x)
 
 		msg.post(p.url, "apply_damage", { damage = dmg })
@@ -180,12 +180,15 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		
 		-- Apply direct hit or blast damage
 		for _, p in ipairs(game_state.potatoes) do
-			if p.is_alive then
+			if p.is_alive or p.is_dying then
 				local dmg = 0
 				if direct_hit_potato and p.id == direct_hit_potato.id then
 					dmg = self.weapon.max_damage
 					p.hp = math.max(0, p.hp - dmg)
-					if p.hp <= 0 then p.is_alive = false end
+					if p.hp <= 0 then
+						p.is_alive = false
+						p.is_dying = true
+					end
 					p.vel.y = p.vel.y + (self.weapon.blast_force or 100) * 0.4
 					p.is_grounded = false
 				else
@@ -241,9 +244,9 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		-- Screen shake proportional to weapon blast
 		camera_controller.shake(self.weapon.blast_radius * 0.35, 0.35)
 
-		-- Apply damage and impulse to all living potatoes
+		-- Apply damage and impulse to all living or dying potatoes
 		for _, p in ipairs(game_state.potatoes) do
-			if p.is_alive then
+			if p.is_alive or p.is_dying then
 				local dmg = 0
 				local max_dmg = self.weapon.max_damage
 				-- Tutorial fail-safe: the player cannot hurt themselves on the training ground, but enemy can retaliate
@@ -254,13 +257,17 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 					physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
 					p.hp = hp_before
 					p.is_alive = true
+					p.is_dying = false
 				elseif direct_hit_potato and p.id == direct_hit_potato.id then
 					dmg = max_dmg
 					if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
 						p.hp = math.max(15, p.hp - dmg)
 					else
 						p.hp = math.max(0, p.hp - dmg)
-						if p.hp <= 0 then p.is_alive = false end
+						if p.hp <= 0 then
+							p.is_alive = false
+							p.is_dying = true
+						end
 					end
 					local dir_x = (self.vel.x >= 0) and 1 or -1
 					p.vel.x = p.vel.x + dir_x * (self.weapon.blast_force or 150) * 0.5
@@ -271,6 +278,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 					if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
 						p.hp = math.max(15, p.hp)
 						p.is_alive = true
+						p.is_dying = false
 					end
 				end
 				apply_potato_damage(self, p, dmg, hit_x, hit_y)

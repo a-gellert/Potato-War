@@ -67,7 +67,7 @@ local EMOTION_MAP = {
 }
 
 local function set_emotion(self, emotion_id, duration)
-	if not self.is_alive then return end
+	if not self.is_alive and not self.is_dying then return end
 	self.current_emotion = emotion_id or "idle"
 	local anim = EMOTION_MAP[self.current_emotion] or self.current_emotion or "s_bored"
 	local ok, err = pcall(function()
@@ -137,6 +137,8 @@ function init(self)
 	go.set_position(vmath.vector3(3, -2, 0), self.rig)
 
 	self.is_alive = (self.hp > 0)
+	self.is_dying = false
+	self.is_dead = false
 	self.is_active = false
 	self.hp_bar_timer = 0
 	self.alert_timer = 0
@@ -187,7 +189,7 @@ local BASE_SCALE = 0.3125
 function update(self, dt)
 	if self.scale_anim_timer and self.scale_anim_timer > 0 then
 		self.scale_anim_timer = self.scale_anim_timer - dt
-	elseif self.is_alive then
+	elseif (self.is_alive or self.is_dying) and not self.is_dead then
 		self.breath_timer = (self.breath_timer or 0) + dt * (self.is_active and 4.2 or 2.6)
 		local s = math.sin(self.breath_timer) * (self.is_active and 0.045 or 0.025)
 		go.set("#sprite", "scale", vmath.vector3(BASE_SCALE * (1.0 - s * 0.7), BASE_SCALE * (1.0 + s), 1.0))
@@ -308,20 +310,19 @@ local function process_turn_start(self)
 	if took_dot then
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
+		pcall(function() msg.post("#hp_text", "enable") end)
 		self.hp_bar_timer = 3.0
 
 		if self.hp <= 0 then
 			self.is_alive = false
-			sound_manager.play("death", { vary = 0.08 })
-			sprite.play_flipbook("#sprite", hash("tombstone"))
-			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
-			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
-			go.set_rotation(vmath.quat_rotation_z(0))
+			self.is_dying = true
 			msg.post("#reticle", "disable")
 			rig_post(self, "hide")
-			msg.post("#hp_bg", "disable")
-			msg.post("#hp_fill", "disable")
-	pcall(function() msg.post("#hp_text", "disable") end)
+			set_emotion(self, "hurt", 1.4)
+			sound_manager.play("hurt", { vary = 0.1 })
+			timer.delay(0.35, false, function()
+				msg.post(".", "die")
+			end)
 		end
 	end
 end
@@ -515,7 +516,7 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("on_land") then
-		if self.is_alive then
+		if self.is_alive or self.is_dying then
 			sound_manager.play("land", { vary = 0.1 })
 			self.scale_anim_timer = 0.28
 			go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.32, BASE_SCALE * 0.68, 1.0), go.EASING_OUTBOUNCE, 0.26)
@@ -534,21 +535,24 @@ function on_message(self, message_id, message, sender)
 		end
 
 	elseif message_id == hash("apply_damage") then
-		if not self.is_alive then return end
+		if not self.is_alive and not self.is_dying then return end
 
 		self.hp = math.max(0, self.hp - (message.damage or 0))
 		update_hp_bar(self)
-		sound_manager.play(self.hp <= 0 and "death" or "hurt", { vary = 0.1 })
+		sound_manager.play("hurt", { vary = 0.1 })
 
 		msg.post("#hp_bg", "enable")
 		msg.post("#hp_fill", "enable")
+		pcall(function() msg.post("#hp_text", "enable") end)
 		self.hp_bar_timer = 3.0
 		self.scale_anim_timer = 0.22
 		set_emotion(self, "hurt", 1.4)
 
 		go.animate("#sprite", "scale", go.PLAYBACK_ONCE_PINGPONG, vmath.vector3(BASE_SCALE * 1.30, BASE_SCALE * 0.72, 1.0), go.EASING_INOUTSINE, 0.20)
 		go.animate("#sprite", "tint", go.PLAYBACK_ONCE_PINGPONG, vmath.vector4(2.2, 0.6, 0.6, 1), go.EASING_OUTQUAD, 0.16, 0, function()
-			go.set("#sprite", "tint", self.skin_tint)
+			if not self.is_dead then
+				go.set("#sprite", "tint", self.skin_tint)
+			end
 		end)
 
 		-- Particle burst: potato crumbs & hit sparks
@@ -581,20 +585,36 @@ function on_message(self, message_id, message, sender)
 
 		if self.hp <= 0 then
 			self.is_alive = false
-			sprite.play_flipbook("#sprite", hash("tombstone"))
-			go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
-			go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
-			go.set_rotation(vmath.quat_rotation_z(0))
+			self.is_dying = true
 			msg.post("#reticle", "disable")
 			rig_post(self, "hide")
-			msg.post("#emotion", "disable")
-			msg.post("#hat_sprite", "disable")
-			msg.post("#hp_bg", "disable")
-			msg.post("#hp_fill", "disable")
 		end
+
+	elseif message_id == hash("die") then
+		if self.is_dead then return end
+		self.is_alive = false
+		self.is_dying = false
+		self.is_dead = true
+
+		sound_manager.play("death", { vary = 0.08 })
+		go.cancel_animations("#sprite", "scale")
+		go.cancel_animations("#sprite", "tint")
+		sprite.play_flipbook("#sprite", hash("tombstone"))
+		go.set("#sprite", "scale", vmath.vector3(1.35, 1.35, 1.0))
+		go.set("#sprite", "tint", vmath.vector4(1, 1, 1, 1))
+		go.set_rotation(vmath.quat_rotation_z(0))
+		msg.post("#reticle", "disable")
+		rig_post(self, "hide")
+		msg.post("#emotion", "disable")
+		msg.post("#hat_sprite", "disable")
+		msg.post("#hp_bg", "disable")
+		msg.post("#hp_fill", "disable")
+		pcall(function() msg.post("#hp_text", "disable") end)
 
 	elseif message_id == hash("drowned") then
 		self.is_alive = false
+		self.is_dying = false
+		self.is_dead = true
 		self.hp = 0
 		msg.post("#reticle", "disable")
 		rig_post(self, "hide")
@@ -602,6 +622,7 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hat_sprite", "disable")
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
+		pcall(function() msg.post("#hp_text", "disable") end)
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
 			go.delete()
 		end)
