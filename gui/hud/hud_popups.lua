@@ -11,7 +11,9 @@ local TOAST_Y = 350
 local TOAST_HIDDEN_Y = 322
 
 local function damage_color(label, is_heal, is_crit, status)
-	if is_heal or status == "water" then
+	if status == "chat" then
+		return vmath.vector4(0.92, 0.96, 1.0, 1.0) -- Bot shout: plain white-blue
+	elseif is_heal or status == "water" then
 		return vmath.vector4(0.18, 1.0, 0.45, 1.0) -- Vibrant emerald green
 	elseif status == "poisoned" then
 		return vmath.vector4(0.35, 1.0, 0.30, 1.0) -- Poison green

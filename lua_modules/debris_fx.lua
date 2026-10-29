@@ -88,4 +88,39 @@ function M.burst(factory_url, x, y, radius, biome)
 	end
 end
 
+-- Lingering smoke rising from the crater plus a few slow embers; bigger blasts smoke longer
+function M.smoke_column(factory_url, x, y, radius)
+	local puffs = math.min(7, 2 + math.floor(radius / 14))
+	for i = 1, puffs do
+		local shade = 0.22 + math.random() * 0.16
+		factory.create(factory_url, vmath.vector3(x + (math.random() - 0.5) * radius * 0.7, y + radius * 0.2, 0.46), nil, {
+			vx = (math.random() - 0.5) * 24,
+			vy = 22 + math.random() * 26,
+			life = 1.3 + math.random() * 0.9 + radius * 0.008,
+			grav = -0.02,
+			drag = 0.6,
+			size = 0.5 + radius * 0.012 + math.random() * 0.3,
+			grow = 2.6,
+			fade_start = 0.25,
+			spin = (math.random() - 0.5) * 60,
+			anim = hash("smoke"),
+			tint = vmath.vector4(shade, shade * 0.95, shade * 0.9, 0.55 - i * 0.03),
+		})
+	end
+	for _ = 1, math.min(6, math.floor(radius / 10)) do
+		factory.create(factory_url, vmath.vector3(x + (math.random() - 0.5) * radius * 0.5, y + 4, 0.5), nil, {
+			vx = (math.random() - 0.5) * 70,
+			vy = 40 + math.random() * 60,
+			life = 0.9 + math.random() * 0.7,
+			grav = -0.08,
+			drag = 1.2,
+			size = 0.25 + math.random() * 0.2,
+			grow = 0.4,
+			fade_start = 0.4,
+			anim = hash("spark"),
+			tint = vmath.vector4(2.0, 0.9 + math.random() * 0.4, 0.3, 1.0),
+		})
+	end
+end
+
 return M

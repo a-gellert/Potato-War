@@ -20,7 +20,7 @@ end
 local function on_splash(p)
 	camera_controller.shake(8, 0.25)
 	liquid_sound()
-	msg.post("/main#main", "spawn_explosion", { x = p.pos.x, y = constants.WATER_LEVEL + 4, radius = 24, silent = true })
+	msg.post("/main#main", "spawn_splash", { x = p.pos.x, size = 1.2 })
 	msg.post(p.url, "apply_damage", { damage = 0 }) -- trigger pain flash without double damage
 	msg.post("/gui_hud#gui", "show_damage", { x = p.pos.x, y = p.pos.y + 12, amount = 30, status = "water", label = i18n.pick({ ru = "ВОДА!", en = "WATER!", pt = "ÁGUA!", fr = "EAU !", es = "¡AGUA!", tr = "SU!" }) })
 end
@@ -28,6 +28,7 @@ end
 local function on_drowned(p)
 	camera_controller.shake(8, 0.25)
 	liquid_sound()
+	msg.post("/main#main", "spawn_splash", { x = p.pos.x, size = 1.4 })
 	sound_manager.play("death", { vary = 0.08 })
 	-- Localized "Бульк" floating message without explosion
 	msg.post("/gui_hud#gui", "show_damage", {
@@ -60,9 +61,30 @@ local function on_drowned(p)
 	game_state.settle_timer = 0
 end
 
-local function on_moved(p, was_grounded)
+-- Landing faster than a plain jump shakes the camera; half of it already kicks up dust
+local HARD_LANDING = 340
+
+local function landing_dust(p, impact)
+	local k = math.min(1.0, (impact - HARD_LANDING * 0.5) / 300)
+	for side = -1, 1, 2 do
+		msg.post("/main#main", "spawn_puff", {
+			x = p.pos.x + side * 8, y = p.pos.y - constants.POTATO_RADIUS + 2,
+			vx = side * (40 + 50 * k), vy = 6 + math.random() * 8,
+			life = 0.5 + 0.2 * k, grav = -0.02, size = 0.35 + 0.25 * k, grow = 2.2, drag = 4.0,
+			anim = "smoke", tint = vmath.vector4(0.8, 0.72, 0.6, 0.55),
+		})
+	end
+	if impact > HARD_LANDING then
+		camera_controller.shake(2 + 4 * k, 0.18)
+	end
+end
+
+local function on_moved(p, was_grounded, event, impact)
 	if not was_grounded and p.is_grounded then
 		msg.post(p.url, "on_land")
+	end
+	if (event == "land" or event == "bounce") and (impact or 0) > HARD_LANDING * 0.5 then
+		landing_dust(p, impact)
 	end
 	-- Face in the direction of horizontal motion while airborne
 	if not p.is_grounded and math.abs(p.vel.x) > 15.0 then
@@ -79,7 +101,7 @@ function M.update(dt)
 	for _, p in ipairs(game_state.potatoes) do
 		if p.is_alive then
 			local was_grounded = p.is_grounded
-			local result = physics_sim.update_potato(p, dt, terrain_grid, game_state.wind_vector)
+			local result, impact = physics_sim.step_potato(p, dt, terrain_grid, game_state.wind_vector)
 			if p.url then
 				if result == "tutorial_rescue" then
 					go.set_position(p.pos, p.url)
@@ -90,7 +112,7 @@ function M.update(dt)
 				elseif result == "drowned" then
 					on_drowned(p)
 				else
-					on_moved(p, was_grounded)
+					on_moved(p, was_grounded, result, impact)
 				end
 			end
 		end

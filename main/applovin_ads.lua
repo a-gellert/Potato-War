@@ -5,6 +5,15 @@
 
 local M = {}
 
+local firebase_ok, firebase_analytics = pcall(require, "main.firebase_analytics")
+if not firebase_ok or type(firebase_analytics) ~= "table" then
+	firebase_analytics = {
+		init = function() end,
+		log_ad_impression = function() end,
+		log_event = function() end,
+	}
+end
+
 -- Delays before reloading after a failed load (seconds), capped at the last value
 local RETRY_DELAYS = { 2, 4, 8, 16, 32, 64 }
 -- A reward event may arrive slightly after the "hidden" event on some networks
@@ -65,6 +74,7 @@ local function on_max_event(self, name, params)
 	if name == "OnSdkInitializedEvent" then
 		log("Initialized, country:", tostring(params.countryCode))
 		initialized = true
+		firebase_analytics.init()
 		load_ad(ad_units.interstitial)
 		load_ad(ad_units.rewarded)
 
@@ -96,6 +106,10 @@ local function on_max_event(self, name, params)
 		reward_earned = false
 		finish_rewarded()
 		load_ad(ad_unit_id)
+
+	elseif name == "OnRewardedAdRevenuePaidEvent" or name == "OnInterstitialAdRevenuePaidEvent" or name == "OnBannerAdRevenuePaidEvent" then
+		log("Ad revenue paid:", name, tostring(params.adUnitIdentifier), tostring(params.revenue))
+		firebase_analytics.log_ad_impression(params)
 	end
 end
 

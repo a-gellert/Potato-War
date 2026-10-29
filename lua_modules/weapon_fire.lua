@@ -120,6 +120,32 @@ local function fire_melee(weapon)
 	end
 end
 
+-- Flash and a puff of smoke at the muzzle, along the shot direction
+local function muzzle_fx(weapon, x, y, vx, vy)
+	local speed = math.sqrt(vx * vx + vy * vy)
+	if speed < 1 then
+		return
+	end
+	local dx, dy = vx / speed, vy / speed
+	local mx, my = x + dx * 16, y + dy * 16
+	local is_gun = weapon.fixed_power or weapon.fire_mode == "spread" or weapon.fire_mode == "multi_shot"
+	msg.post(".", "spawn_puff", {
+		x = mx, y = my, vx = dx * 30, vy = dy * 30,
+		life = 0.12, grav = 0, size = is_gun and 0.55 or 0.4, grow = 0.4, drag = 0,
+		anim = "spark", tint = vmath.vector4(2.0, 1.5, 0.6, 1.0),
+	})
+	for i = 1, is_gun and 3 or 2 do
+		msg.post(".", "spawn_puff", {
+			x = mx, y = my,
+			vx = dx * (50 + 40 * i) + (math.random() - 0.5) * 20,
+			vy = dy * (50 + 40 * i) + 8 + math.random() * 10,
+			life = 0.45 + math.random() * 0.25, grav = -0.03, size = 0.3 + 0.08 * i, grow = 2.4, drag = 4.5,
+			anim = "smoke", tint = vmath.vector4(0.85, 0.85, 0.85, 0.5),
+		})
+	end
+	camera_controller.shake(is_gun and 3 or 1.5, 0.1)
+end
+
 -- Handles the "fire_weapon" message
 function M.fire(self, message)
 	local weapon = weapons.get(message.weapon_id or "grenade")
@@ -139,6 +165,10 @@ function M.fire(self, message)
 				break
 			end
 		end
+	end
+
+	if weapon.fire_mode ~= "melee" and weapon.fire_mode ~= "airstrike" then
+		muzzle_fx(weapon, message.origin_x, message.origin_y, message.vel_x or 0, message.vel_y or 0)
 	end
 
 	if weapon.fire_mode == "melee" then

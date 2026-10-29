@@ -503,6 +503,38 @@ function on_input(self, action_id, action)
 	return false
 end
 
+-- Droplets thrown up where something fell into the water (lava in the volcano biome)
+local function spawn_splash(x, size)
+	local lava = (game_state.current_biome == "volcano")
+	local base = lava and vmath.vector4(2.0, 0.75, 0.2, 0.95) or vmath.vector4(0.6, 0.85, 1.1, 0.9)
+	local y = constants.WATER_LEVEL + 3
+	for i = 1, math.floor(8 + 8 * size) do
+		local angle = math.rad(55 + math.random() * 70)
+		local speed = (150 + math.random() * 170) * (0.6 + 0.4 * size)
+		local tint = vmath.vector4(base)
+		tint.w = base.w * (0.6 + math.random() * 0.4)
+		factory.create("#debris_factory", vmath.vector3(x + (math.random() - 0.5) * 18 * size, y, 0.48), nil, {
+			vx = math.cos(angle) * speed,
+			vy = math.sin(angle) * speed,
+			life = 0.7 + math.random() * 0.4,
+			grav = 1.0,
+			size = (0.45 + math.random() * 0.5) * size,
+			anim = hash(i % 3 == 0 and "spark" or "circle"),
+			tint = tint,
+			fade_start = 0.5,
+		})
+	end
+	-- Foam ring on the surface
+	for side = -1, 1, 2 do
+		factory.create("#debris_factory", vmath.vector3(x + side * 6, y + 2, 0.47), nil, {
+			vx = side * 70 * size, vy = 0, life = 0.55, grav = 0, drag = 3.5,
+			size = 0.6 * size, grow = 2.4, fade_start = 0.2,
+			anim = hash("smoke"),
+			tint = lava and vmath.vector4(1.6, 0.6, 0.25, 0.7) or vmath.vector4(0.9, 0.97, 1.0, 0.75),
+		})
+	end
+end
+
 local function remove_by_url(list, target)
 	if not target then
 		return
@@ -599,6 +631,9 @@ function on_message(self, message_id, message, sender)
 			anim = hash(message.anim or "smoke"),
 			tint = message.tint or vmath.vector4(1, 1, 1, 0.7),
 		})
+
+	elseif message_id == hash("spawn_splash") then
+		spawn_splash(message.x, message.size or 1.0)
 
 	elseif message_id == hash("potato_damaged") then
 		if message.damage and message.damage > 0 and message.x and message.y then

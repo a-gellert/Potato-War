@@ -7,6 +7,18 @@ local game_state = require("lua_modules.game_state")
 
 local M = {}
 
+-- Every launch speed is the raw aim power times this boost (player drag, bot solver, previews)
+M.LAUNCH_BOOST = 1.30
+
+-- Longest physics step: a falling potato moves ~5px per step, well under its radius,
+-- so thin bridges and islands can't be skipped between two frames
+M.POTATO_STEP = 1 / 120
+M.PROJECTILE_STEP = 1 / 60
+local MAX_SUBSTEPS = 8
+
+-- Shot preview and bot simulation share one step so they trace the same arc
+M.SIM_DT = 1 / 60
+
 -- Helper to extract x/y components from table or vmath vector
 local function get_wind_components(wind_vector)
 	if not wind_vector then
@@ -15,6 +27,25 @@ local function get_wind_components(wind_vector)
 	local wx = wind_vector.x or 0
 	local wy = wind_vector.y or 0
 	return wx, wy
+end
+
+-- Exact step under constant acceleration: the arc is the same at any frame rate
+local function integrate(x, y, vx, vy, ax, ay, dt)
+	local nx = x + (vx + 0.5 * ax * dt) * dt
+	local ny = y + (vy + 0.5 * ay * dt) * dt
+	return nx, ny, vx + ax * dt, vy + ay * dt
+end
+
+-- Constant acceleration of a shell of this weapon in this wind
+local function shell_accel(weapon, wind_vector)
+	local wx, wy = get_wind_components(wind_vector)
+	local wind_sens = weapon.wind_sensitivity or 1.0
+	return wx * wind_sens, wy * wind_sens - constants.GRAVITY * (weapon.gravity_mult or 1.0)
+end
+
+-- Frame-rate independent damping factor for a per-second rate
+local function damp(rate, dt)
+	return math.exp(-rate * dt)
 end
 
 -- Update a potato unit's physics (accounting for mass, wind drift, and statuses)
@@ -32,19 +63,19 @@ function M.update_potato(p, dt, terrain, wind_vector)
 	if not p.is_grounded then
 		p.vel.y = math.max(-constants.MAX_FALL_SPEED, p.vel.y - constants.GRAVITY * dt)
 		local drag_rate = is_glued and 4.0 or 2.0
-		p.vel.x = p.vel.x * math.max(0, 1.0 - drag_rate * dt) -- air drag
+		p.vel.x = p.vel.x * damp(drag_rate, dt) -- air drag
 		-- Wind only affects projectiles; potatoes are immune to wind drift
 	else
 		-- Ground friction (stronger if glued)
 		local ground_fric = is_glued and 28.0 or 16.0
-		p.vel.x = p.vel.x * math.max(0, 1.0 - ground_fric * dt)
+		p.vel.x = p.vel.x * damp(ground_fric, dt)
 		if math.abs(p.vel.x) < 2.0 then
 			p.vel.x = 0
 		end
 
 		-- Concussed wobble on ground
 		if is_concussed and math.abs(p.vel.x) > 1.0 then
-			p.vel.x = p.vel.x + (math.random() - 0.5) * 6.0
+			p.vel.x = p.vel.x + (math.random() - 0.5) * 360.0 * dt
 		end
 	end
 
@@ -250,6 +281,31 @@ function M.update_potato(p, dt, terrain, wind_vector)
 	p.pos.y = new_y
 end
 
+-- update_potato in short substeps. Returns the terminal event ("drowned", "tutorial_rescue")
+-- as soon as it happens, otherwise the hardest "land"/"bounce" of the frame and its speed.
+function M.step_potato(p, dt, terrain, wind_vector)
+	local steps = math.min(MAX_SUBSTEPS, math.max(1, math.ceil(dt / M.POTATO_STEP)))
+	local sub = math.min(dt, MAX_SUBSTEPS * M.POTATO_STEP) / steps
+	-- A walking hop lasts the whole frame, not just the first substep
+	local walking = p.is_walking
+	local event, impact = nil, 0
+	for _ = 1, steps do
+		p.is_walking = walking
+		local res, speed = M.update_potato(p, sub, terrain, wind_vector)
+		if res == "drowned" or res == "tutorial_rescue" then
+			return res
+		end
+		if (res == "land" or res == "bounce") and (speed or 0) >= impact then
+			event, impact = res, speed or 0
+		end
+		if not p.is_alive then
+			break
+		end
+	end
+	p.is_walking = false
+	return event, impact
+end
+
 -- Walk potato along terrain slope (accounts for glued, concussed, and class speed multipliers)
 function M.walk_potato(p, dir, dt, terrain)
 	if not p.is_alive then
@@ -368,43 +424,74 @@ function M.jump_potato(p, allow_midair_count)
 	return false
 end
 
+-- Damage and knockback a blast would deal to a potato at (px, py); 0 when out of reach.
+-- Pure function: bots use it to weigh shots, apply_blast to resolve real ones.
+function M.estimate_blast(px, py, mass, blast_x, blast_y, blast_radius, blast_force, max_damage)
+	local dx = px - blast_x
+	local dy = py - blast_y
+	local dist = math.sqrt(dx * dx + dy * dy)
+	local effective_radius = blast_radius + constants.POTATO_RADIUS * 0.85
+	if dist >= effective_radius then
+		return 0, 0, 0
+	end
+
+	local factor = math.max(0.15, 1.0 - (dist / effective_radius))
+	local dmg = math.max(5, math.floor(max_damage * factor))
+
+	local len = math.max(0.01, dist)
+	local dir_x = dx / len
+	local dir_y = (dy + 10) / (len + 10)
+	local n_len = math.sqrt(dir_x * dir_x + dir_y * dir_y)
+	local eff_force = (blast_force * factor) / math.max(0.5, mass or 1.0)
+	return dmg, dir_x / n_len * eff_force, dir_y / n_len * eff_force
+end
+
 -- Apply explosive blast to a potato (mass dampens knockback)
 function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damage)
 	if not p.is_alive then
 		return 0
 	end
 
-	local dx = p.pos.x - blast_x
-	local dy = p.pos.y - blast_y
-	local dist = math.sqrt(dx * dx + dy * dy)
-
-	local effective_radius = blast_radius + constants.POTATO_RADIUS * 0.85
-
-	if dist < effective_radius then
-		local factor = math.max(0.15, 1.0 - (dist / effective_radius))
-		local dmg = math.max(5, math.floor(max_damage * factor))
-
-		local len = math.max(0.01, dist)
-		local dir_x = dx / len
-		local dir_y = (dy + 10) / (len + 10)
-		local n_len = math.sqrt(dir_x * dir_x + dir_y * dir_y)
-		dir_x = dir_x / n_len
-		dir_y = dir_y / n_len
-
-		local mass = math.max(0.5, p.mass or 1.0)
-		local eff_force = (blast_force * factor) / mass
-
-		p.vel.x = p.vel.x + dir_x * eff_force
-		p.vel.y = p.vel.y + dir_y * eff_force
-		p.is_grounded = false
-
-		p.hp = math.max(0, p.hp - dmg)
-		if p.hp <= 0 then
-			p.is_alive = false
-		end
-		return dmg
+	local dmg, kx, ky = M.estimate_blast(p.pos.x, p.pos.y, p.mass, blast_x, blast_y, blast_radius, blast_force, max_damage)
+	if dmg == 0 then
+		return 0
 	end
-	return 0
+
+	p.vel.x = p.vel.x + kx
+	p.vel.y = p.vel.y + ky
+	p.is_grounded = false
+
+	p.hp = math.max(0, p.hp - dmg)
+	if p.hp <= 0 then
+		p.is_alive = false
+	end
+	return dmg
+end
+
+-- Rough flight of a knocked-back potato: true when it would end up in the water.
+-- Mirrors update_potato's gravity and air drag, ignores bounces.
+function M.knockback_drowns(px, py, vx, vy, terrain)
+	local dt = 1 / 30
+	local x, y = px, py
+	for _ = 1, 75 do
+		vy = math.max(-constants.MAX_FALL_SPEED, vy - constants.GRAVITY * dt)
+		vx = vx * damp(2.0, dt)
+		x = x + vx * dt
+		y = y + vy * dt
+		local r = constants.POTATO_RADIUS
+		if x < r or x > constants.WORLD_WIDTH - r then
+			-- The world edge stops the potato; it then drops straight down
+			x = math.max(r, math.min(constants.WORLD_WIDTH - r, x))
+			vx = 0
+		end
+		if y <= constants.WATER_LEVEL + 4 then
+			return true
+		end
+		if vy < 0 and terrain.is_solid(x, y - constants.POTATO_RADIUS) then
+			return false
+		end
+	end
+	return false
 end
 
 -- Check segment-to-circle intersection for fast moving projectiles
@@ -435,6 +522,25 @@ local function check_segment_circle(x0, y0, x1, y1, cx, cy, radius)
 	end
 	return false
 end
+
+-- Velocity after a bouncy shell hits a surface with normal (nx, ny)
+local function bounce_velocity(weapon, vx, vy, nx, ny)
+	local dot = vx * nx + vy * ny
+	if dot < 0 then
+		local k = 1.0 + weapon.bounciness
+		local f = weapon.friction or 0.8
+		return (vx - k * dot * nx) * f, (vy - k * dot * ny) * f
+	end
+	return vx, vy
+end
+
+-- A bounced shell this slow lies down on the ground
+local function comes_to_rest(vx, vy, ny)
+	local speed = math.sqrt(vx * vx + vy * vy)
+	return (speed < 35.0 and ny > 0.35) or (speed < 15.0)
+end
+
+local HIT_PAD = 3 -- shells hit a potato this many px outside its body
 
 -- Update projectile physics, collisions, and dynamic wind
 function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
@@ -475,6 +581,9 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 	end
 
 	proj.age = (proj.age or 0) + dt
+	local x0 = proj.pos.x
+	local y0 = proj.pos.y
+	local next_x, next_y
 	local homing = proj.weapon.homing
 	if homing and proj.target and proj.target.is_alive and proj.age >= homing.delay then
 		-- Homing missile: turns towards its target at a limited rate, ignoring wind and gravity
@@ -487,23 +596,16 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 		cur = cur + turn
 		proj.vel.x = math.cos(cur) * speed
 		proj.vel.y = math.sin(cur) * speed
+		next_x = x0 + proj.vel.x * dt
+		next_y = y0 + proj.vel.y * dt
 	else
-		-- Dynamic Wind force application
-		local wind_sens = proj.weapon.wind_sensitivity or 1.0
-		local wx, wy = get_wind_components(wind_vector or proj.wind_vector)
-		proj.vel.x = proj.vel.x + wx * wind_sens * dt
-		proj.vel.y = proj.vel.y + wy * wind_sens * dt
-
-		-- Gravity
-		local grav = constants.GRAVITY * (proj.weapon.gravity_mult or 1.0)
-		proj.vel.y = proj.vel.y - grav * dt
+		-- Gravity and wind are constant: exact arc, same as the preview and the bot simulation
+		local ax, ay = shell_accel(proj.weapon, wind_vector or proj.wind_vector)
+		local vx, vy
+		next_x, next_y, vx, vy = integrate(x0, y0, proj.vel.x, proj.vel.y, ax, ay, dt)
+		proj.vel.x = vx
+		proj.vel.y = vy
 	end
-
-	-- Step path
-	local x0 = proj.pos.x
-	local y0 = proj.pos.y
-	local next_x = x0 + proj.vel.x * dt
-	local next_y = y0 + proj.vel.y * dt
 
 	-- Water check
 	if next_y < constants.WATER_LEVEL then
@@ -517,7 +619,7 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 
 	for _, p in ipairs(potatoes) do
 		if p.is_alive and (proj.owner_id == nil or p.id ~= proj.owner_id or proj.fuse_timer < proj.weapon.fuse_time - 0.1) then
-			local hit_radius = constants.POTATO_RADIUS + 3
+			local hit_radius = constants.POTATO_RADIUS + HIT_PAD
 			if p.is_target or (p.team == constants.TEAM_RED and game_state and game_state.mode == constants.MODE_TUTORIAL) then
 				hit_radius = constants.POTATO_RADIUS + 18 -- Fail-safe: generous hitbox for tutorial target
 			end
@@ -560,18 +662,15 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 			end
 			return "explode", thx, thy
 		elseif proj.weapon.bounciness and proj.weapon.bounciness > 0.1 then
-			local dot = proj.vel.x * nx + proj.vel.y * ny
-			if dot < 0 then
-				proj.vel.x = (proj.vel.x - (1.0 + proj.weapon.bounciness) * dot * nx) * proj.weapon.friction
-				proj.vel.y = (proj.vel.y - (1.0 + proj.weapon.bounciness) * dot * ny) * proj.weapon.friction
-			end
+			local vx, vy = bounce_velocity(proj.weapon, proj.vel.x, proj.vel.y, nx, ny)
+			proj.vel.x = vx
+			proj.vel.y = vy
 
 			proj.pos.x = thx + nx * 1.0
 			proj.pos.y = thy + ny * 1.0
 			proj.bounces = (proj.bounces or 0) + 1
 
-			local speed = math.sqrt(proj.vel.x * proj.vel.x + proj.vel.y * proj.vel.y)
-			if (speed < 35.0 and ny > 0.35) or (speed < 15.0) then
+			if comes_to_rest(vx, vy, ny) then
 				proj.is_resting = true
 				proj.vel.x = 0
 				proj.vel.y = 0
@@ -598,16 +697,11 @@ function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain,
 	local vx = vel_x
 	local vy = vel_y
 	local dt = 0.045
-	local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
-	local wind_sens = weapon.wind_sensitivity or 1.0
-	local wx, wy = get_wind_components(wind_vector)
+	local ax, ay = shell_accel(weapon, wind_vector)
 
 	for i = 1, max_points do
-		vx = vx + wx * wind_sens * dt
-		vy = vy - grav * dt + wy * wind_sens * dt
-
-		local nx = curr_x + vx * dt
-		local ny = curr_y + vy * dt
+		local nx, ny
+		nx, ny, vx, vy = integrate(curr_x, curr_y, vx, vy, ax, ay, dt)
 
 		if ny < constants.WATER_LEVEL or nx < 0 or nx > constants.WORLD_WIDTH then
 			table.insert(points, { x = nx, y = math.max(constants.WATER_LEVEL, ny) })
@@ -628,88 +722,105 @@ function M.calculate_trajectory(start_x, start_y, vel_x, vel_y, weapon, terrain,
 	return points
 end
 
--- Full simulated shot trajectory with wind prediction for Bot AI
-function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potatoes, owner_id, wind_vector)
+-- Full simulated shot for the bot AI and the homing lock-on. Follows update_projectile's rules:
+-- same arc, hit radius, owner grace time, bounces, resting and drilling.
+-- Returns impact_x, impact_y, hit_type ("potato" | "terrain" | "water" | "fuse" | "timeout"),
+-- hit_potato, path (only when want_path) and the flight time in seconds.
+function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potatoes, owner_id, wind_vector, want_path)
 	potatoes = potatoes or {}
 	local curr_x = start_x
 	local curr_y = start_y
 	local vx = vel_x
 	local vy = vel_y
-	local dt = 0.035
-	local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
-	local wind_sens = weapon.wind_sensitivity or 1.0
-	local wx, wy = get_wind_components(wind_vector)
-	local fuse_timer = weapon.fuse_time or 3.0
-	local max_steps = math.ceil(math.min(3.5, fuse_timer + 0.5) / dt)
-	local bounciness = weapon.bounciness or 0
-	local friction = weapon.friction or 0.8
+	local dt = M.SIM_DT
+	local ax, ay = shell_accel(weapon, wind_vector)
+	local fuse_time = weapon.fuse_time or 3.0
+	local fuse_timer = fuse_time
+	local max_steps = math.ceil(math.min(4.5, fuse_time + 0.1) / dt)
+	local bouncy = (weapon.bounciness or 0) > 0.1
 	local bounces = 0
 	local is_resting = false
-	local path = { { x = curr_x, y = curr_y } }
+	local path = want_path and { { x = curr_x, y = curr_y } } or nil
+	local t = 0
 
-	for step = 1, max_steps do
-		fuse_timer = fuse_timer - dt
-		if fuse_timer <= 0 then
-			return curr_x, curr_y, "fuse", nil, path
+	local function mark(x, y)
+		if path then
+			path[#path + 1] = { x = x, y = y }
 		end
+	end
 
-		-- Check potato hit
-		for _, p in ipairs(potatoes) do
-			if p.is_alive and (owner_id == nil or p.id ~= owner_id or fuse_timer < (weapon.fuse_time or 3.0) - 0.2) then
-				local pdx = curr_x - p.pos.x
-				local pdy = curr_y - p.pos.y
-				if pdx * pdx + pdy * pdy < (constants.POTATO_RADIUS + 6) * (constants.POTATO_RADIUS + 6) then
-					return curr_x, curr_y, "potato", p, path
-				end
-			end
+	for _ = 1, max_steps do
+		fuse_timer = fuse_timer - dt
+		t = t + dt
+		if fuse_timer <= 0 then
+			return curr_x, curr_y, "fuse", nil, path, t
 		end
 
 		if is_resting then
-			local gy = terrain.get_smooth_ground_y(curr_x, 3.0, curr_y + 6.0)
-			curr_y = gy + 4.0
+			for _, p in ipairs(potatoes) do
+				if p.is_alive and (owner_id == nil or p.id ~= owner_id or fuse_timer < fuse_time - 0.2) then
+					local pdx = curr_x - p.pos.x
+					local pdy = curr_y - p.pos.y
+					local r = constants.POTATO_RADIUS + 4
+					if pdx * pdx + pdy * pdy < r * r then
+						return curr_x, curr_y, "potato", p, path, t
+					end
+				end
+			end
 		else
-			vx = vx + wx * wind_sens * dt
-			vy = vy - grav * dt + wy * wind_sens * dt
-
-			local next_x = curr_x + vx * dt
-			local next_y = curr_y + vy * dt
+			local next_x, next_y
+			next_x, next_y, vx, vy = integrate(curr_x, curr_y, vx, vy, ax, ay, dt)
 
 			if next_y < constants.WATER_LEVEL then
-				table.insert(path, { x = next_x, y = constants.WATER_LEVEL })
-				return next_x, constants.WATER_LEVEL, "water", nil, path
+				mark(next_x, constants.WATER_LEVEL)
+				return next_x, constants.WATER_LEVEL, "water", nil, path, t
+			end
+
+			local hit_p, closest, phx, phy = nil, math.huge, 0, 0
+			for _, p in ipairs(potatoes) do
+				if p.is_alive and (owner_id == nil or p.id ~= owner_id or fuse_timer < fuse_time - 0.1) then
+					local hit, qx, qy, d = check_segment_circle(curr_x, curr_y, next_x, next_y, p.pos.x, p.pos.y, constants.POTATO_RADIUS + HIT_PAD)
+					if hit and d < closest then
+						hit_p, closest, phx, phy = p, d, qx, qy
+					end
+				end
 			end
 
 			local hit, hx, hy, nx, ny = terrain.raycast(curr_x, curr_y, next_x, next_y)
-			if hit then
-				table.insert(path, { x = hx, y = hy })
-				if bounciness > 0.1 and bounces < 4 then
-					local dot = vx * nx + vy * ny
-					if dot < 0 then
-						vx = (vx - (1.0 + bounciness) * dot * nx) * friction
-						vy = (vy - (1.0 + bounciness) * dot * ny) * friction
-					end
-					curr_x = hx + nx * 1.5
-					curr_y = hy + ny * 1.5
-					bounces = bounces + 1
+			local terrain_dist = hit and math.sqrt((hx - curr_x) ^ 2 + (hy - curr_y) ^ 2) or math.huge
+			if hit_p and closest <= terrain_dist then
+				mark(phx, phy)
+				return phx, phy, "potato", hit_p, path, t
+			end
 
-					local speed = math.sqrt(vx * vx + vy * vy)
-					if (speed < 35.0 and ny > 0.35) or (speed < 15.0) then
+			if hit then
+				mark(hx, hy)
+				if weapon.on_hit == "drill" then
+					local speed = math.max(0.01, math.sqrt(vx * vx + vy * vy))
+					local dist = weapon.drill_dist or 65
+					return hx + vx / speed * dist, hy + vy / speed * dist, "terrain", nil, path, t
+				elseif bouncy and bounces < 6 then
+					vx, vy = bounce_velocity(weapon, vx, vy, nx, ny)
+					curr_x = hx + nx * 1.0
+					curr_y = hy + ny * 1.0
+					bounces = bounces + 1
+					if comes_to_rest(vx, vy, ny) then
 						is_resting = true
-						vx = 0
-						vy = 0
+						vx, vy = 0, 0
+						curr_y = terrain.get_smooth_ground_y(curr_x, 3.0, curr_y + 6.0) + 4.0
 					end
 				else
-					return hx, hy, "terrain", nil, path
+					return hx, hy, "terrain", nil, path, t
 				end
 			else
 				curr_x = next_x
 				curr_y = next_y
-				table.insert(path, { x = curr_x, y = curr_y })
+				mark(curr_x, curr_y)
 			end
 		end
 	end
 
-	return curr_x, curr_y, "timeout", nil, path
+	return curr_x, curr_y, "timeout", nil, path, t
 end
 
 return M

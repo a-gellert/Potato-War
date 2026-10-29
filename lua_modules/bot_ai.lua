@@ -1,16 +1,16 @@
 -- lua_modules/bot_ai.lua
--- Intelligent Tactical Bot AI Architecture for Potato War
--- Features:
--- 1. Perception & Situation Analysis (Pits/Crater detection, Direct Aim / Threat LOS evaluation, Water/Cliff safety)
--- 2. Tactical Movement Planning (Escaping jumpable pits, Standoff positioning for breaching, Seeking cover from direct aim)
--- 3. Ballistic Attack & Safety Engine (Strict self-damage avoidance, High-angle lobbing out of pits, Safe wall breaching)
--- 4. Human-like behaviors (Deliberation, dynamic obstacle climbing, aim preview)
+-- Tactical bot AI for Potato War.
+-- 1. Perception: pits, line of sight, water and cliff hazards (analyze_situation)
+-- 2. Positioning: scores reachable standing spots by personality, cover, range and height (plan_move)
+-- 3. Attack: simulates candidate shots with the real projectile physics and scores the outcome
+--    by expected damage, kills, knock-into-water and friendly fire (solve_attack)
+-- 4. Human touch: aim error by difficulty that shrinks while a bot zeroes in on the same target,
+--    personality quirks and short battle shouts (apply_error, plan.chat)
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
 local physics_sim = require("lua_modules.physics_sim")
 local level_config = require("lua_modules.level_config")
-local classes = require("lua_modules.classes")
 local inventory_manager = require("lua_modules.inventory_manager")
 
 local M = {}
@@ -43,54 +43,148 @@ function M.resolve_archetype(bot)
 	return arch
 end
 
--- Select optimal enemy target using Utility Scoring:
--- Score = (Enemy Dmg Potential * W1) + (Water/Drown Chance * W2) - (Self/Ally Danger * W3) - (Ammo Value)
-function M.select_target(bot, enemies, terrain)
-	local arch = M.resolve_archetype(bot)
-	local best_target = nil
-	local highest_utility = -999999
+-- Difficulty profiles.
+-- angle_err (degrees) / power_err (share): aim error of a first shot at a new target
+-- zero_in: how fast the error shrinks on repeated shots at the same target
+-- wind: share of the real wind the bot accounts for (easy bots ignore it)
+-- weapons: how many of the best-looking weapons get a full ballistic search
+-- targets: how many enemies the search aims at
+-- travel: farthest standing spot (px) the bot considers walking to
+local SKILLS = {
+	easy   = { angle_err = 9.0, power_err = 0.13, zero_in = 0.35, wind = 0.0, weapons = 2, targets = 1, travel = 70,  drown = false },
+	normal = { angle_err = 4.5, power_err = 0.07, zero_in = 0.6,  wind = 0.7, weapons = 3, targets = 2, travel = 130, drown = true },
+	hard   = { angle_err = 1.5, power_err = 0.03, zero_in = 0.9,  wind = 1.0, weapons = 5, targets = 2, travel = 170, drown = true },
+	pvp    = { angle_err = 1.0, power_err = 0.02, zero_in = 1.0,  wind = 1.0, weapons = 6, targets = 3, travel = 170, drown = true },
+}
 
-	for _, enemy in ipairs(enemies) do
-		if enemy.is_alive then
-			local dx = enemy.pos.x - bot.pos.x
-			local dy = enemy.pos.y - bot.pos.y
-			local dist = math.sqrt(dx * dx + dy * dy)
-			local enemy_gy = terrain and terrain.get_smooth_ground_y(enemy.pos.x, 4.0) or enemy.pos.y
+function M.skill_profile(difficulty, is_pvp)
+	if is_pvp then
+		return SKILLS.pvp
+	end
+	return SKILLS[level_config.normalize_skill(difficulty or "normal")] or SKILLS.normal
+end
 
-			-- Base damage utility: higher utility for finishing off wounded targets
-			local kill_urgency = (enemy.hp <= 45) and 180 or (100 - enemy.hp * 0.4)
-			local dist_penalty = dist * 0.35
+-- Weapons the bot may consider (airstrike is planned separately)
+local CANDIDATES = {
+	weapons.TYPES.GRENADE, weapons.TYPES.BAZOOKA, weapons.TYPES.SHOTGUN, weapons.TYPES.RIFLE,
+	weapons.TYPES.BURST, weapons.TYPES.MOLOTOV, weapons.TYPES.PEPPER, weapons.TYPES.GARLIC,
+	weapons.TYPES.DRILL, weapons.TYPES.BEETLE, weapons.TYPES.HOLY_GRENADE, weapons.TYPES.DYNAMITE,
+	weapons.TYPES.CLUSTER, weapons.TYPES.HOMING, weapons.TYPES.KNIFE,
+}
 
-			-- Water proximity bonus (push/drown chance: W2)
-			local drown_bonus = 0
-			if enemy_gy < constants.WATER_LEVEL + 40.0 then
-				drown_bonus = 320
-			elseif enemy_gy < constants.WATER_LEVEL + 70.0 then
-				drown_bonus = 140
-			end
+-- Personality taste: multiplies the value of a shot made with the weapon
+local ARCH_AFFINITY = {
+	berserk = { knife = 1.35, shotgun = 1.25, bazooka = 1.15, burst = 1.1, dynamite = 1.1 },
+	sniper  = { rifle = 1.35, bazooka = 1.15, homing = 1.15, burst = 1.1 },
+	coward  = { grenade = 1.2, cluster = 1.2, beetle = 1.2, drill = 1.15, molotov = 1.1, knife = 0.6, shotgun = 0.8 },
+	clumsy  = { grenade = 1.2, holy_grenade = 1.3, molotov = 1.2, dynamite = 1.25 },
+}
 
-			-- Archetype bias
-			local arch_bias = 0
-			if arch == M.ARCHETYPES.BERSERK then
-				dist_penalty = dist * 0.6 -- Strong preference for closest enemy
-				if dist < 120 then arch_bias = 220 end
-			elseif arch == M.ARCHETYPES.SNIPER then
-				if dist > 180 then arch_bias = 160 end
-			elseif arch == M.ARCHETYPES.COWARD then
-				if dist < 90 then dist_penalty = 200 end -- Avoid close threats
-			elseif arch == M.ARCHETYPES.CLUMSY then
-				arch_bias = (math.random() - 0.5) * 80
-			end
+local CLASS_AFFINITY = {
+	sniper = { rifle = 1.25 },
+	artillery = { bazooka = 1.2 }, artillery_2 = { bazooka = 1.2 }, rocketeer = { bazooka = 1.2, homing = 1.2 },
+	sapper = { drill = 1.25, garlic = 1.2 }, sapper_2 = { drill = 1.25, garlic = 1.2 },
+	commando = { knife = 1.2, burst = 1.2, molotov = 1.15 },
+	medic = { pepper = 1.2, molotov = 1.15 }, surgeon = { pepper = 1.2, molotov = 1.15 },
+	assault = { burst = 1.2, shotgun = 1.2 }, assault_2 = { burst = 1.2, shotgun = 1.2 },
+}
 
-			local utility = kill_urgency + drown_bonus + arch_bias - dist_penalty
-			if utility > highest_utility then
-				highest_utility = utility
-				best_target = enemy
-			end
+-- Rare weapons are kept for shots that are clearly better than a plain grenade
+local RARITY_COST = { common = 2, rare = 5, epic = 9, legendary = 14 }
+
+-- Weapon each bot fired last (weak keys: a new match starts clean). Repeating it is worth a bit
+-- less, so bots vary their arsenal instead of spamming the single strongest gun.
+local last_weapon = setmetatable({}, { __mode = "k" })
+local REPEAT_FACTOR = 0.8
+local MOOD_SPREAD = 0.2 -- per-turn random liking of each weapon, +-10%
+
+-- Preferred distance to the target by personality (px)
+local RANGE_BAND = {
+	berserk = { 50, 170 },
+	sniper  = { 260, 600 },
+	coward  = { 220, 480 },
+	clumsy  = { 90, 360 },
+}
+
+local EYE = 8 -- shots leave and lines of sight start this high above a potato's center
+
+local function can_use(bot, w_id)
+	if not (bot and bot.id and inventory_manager.inventories[bot.id]) then
+		return true
+	end
+	return inventory_manager.has_weapon(bot.id, w_id)
+end
+
+local function dist2(ax, ay, bx, by)
+	return (ax - bx) * (ax - bx) + (ay - by) * (ay - by)
+end
+
+local function enemies_of(bot, potatoes)
+	local list = {}
+	for _, p in ipairs(potatoes) do
+		if p.is_alive and p.team ~= bot.team then
+			list[#list + 1] = p
 		end
 	end
+	return list
+end
 
-	return best_target
+-- Clear line from one eye point to another (a hit right at the end counts as clear)
+local function has_los(terrain, x0, y0, x1, y1)
+	local hit, hx, hy = terrain.raycast(x0, y0, x1, y1)
+	return not hit or (math.abs(hx - x1) < 22 and math.abs(hy - y1) < 22)
+end
+
+-- Select optimal enemy target using Utility Scoring:
+-- finishing off wounded targets, enemies by the water, personality range preference
+function M.rank_targets(bot, enemies, terrain)
+	local arch = M.resolve_archetype(bot)
+	local ranked = {}
+	for _, enemy in ipairs(enemies) do
+		local dx = enemy.pos.x - bot.pos.x
+		local dy = enemy.pos.y - bot.pos.y
+		local dist = math.sqrt(dx * dx + dy * dy)
+		local enemy_gy = terrain and terrain.get_smooth_ground_y(enemy.pos.x, 4.0) or enemy.pos.y
+
+		local kill_urgency = (enemy.hp <= 45) and 180 or (100 - enemy.hp * 0.4)
+		local dist_penalty = dist * 0.35
+
+		local drown_bonus = 0
+		if enemy_gy < constants.WATER_LEVEL + 40.0 then
+			drown_bonus = 320
+		elseif enemy_gy < constants.WATER_LEVEL + 70.0 then
+			drown_bonus = 140
+		end
+
+		local arch_bias = 0
+		if arch == M.ARCHETYPES.BERSERK then
+			dist_penalty = dist * 0.6
+			if dist < 120 then arch_bias = 220 end
+		elseif arch == M.ARCHETYPES.SNIPER then
+			if dist > 180 then arch_bias = 160 end
+		elseif arch == M.ARCHETYPES.COWARD then
+			if dist < 90 then dist_penalty = 200 end
+		elseif arch == M.ARCHETYPES.CLUMSY then
+			arch_bias = (math.random() - 0.5) * 80
+		end
+
+		-- Grudge: the potato that hurt this bot last gets extra attention
+		if bot.last_attacker_id and bot.last_attacker_id == enemy.id then
+			arch_bias = arch_bias + 90
+		end
+
+		ranked[#ranked + 1] = { p = enemy, utility = kill_urgency + drown_bonus + arch_bias - dist_penalty }
+	end
+	table.sort(ranked, function(a, b) return a.utility > b.utility end)
+	local list = {}
+	for i, r in ipairs(ranked) do
+		list[i] = r.p
+	end
+	return list
+end
+
+function M.select_target(bot, enemies, terrain)
+	return M.rank_targets(bot, enemies, terrain)[1]
 end
 
 -- 1. PERCEPTION: Analyze bot's local environment, trap status, and enemy threats
@@ -153,10 +247,8 @@ function M.analyze_situation(bot, enemies, terrain)
 		sit.is_pit = true
 		if not sit.can_jump_left and not sit.can_jump_right then
 			sit.is_deep_pit = true
-			-- Direction of lower rim for breaching/escaping
 			sit.escape_dir = (sit.left_wall_h <= sit.right_wall_h) and -1 or 1
 		else
-			sit.is_deep_pit = false
 			if sit.can_jump_left and sit.can_jump_right then
 				sit.escape_dir = (sit.left_wall_h <= sit.right_wall_h) and -1 or 1
 			elseif sit.can_jump_left then
@@ -167,15 +259,11 @@ function M.analyze_situation(bot, enemies, terrain)
 		end
 	end
 
-	-- B. Threat analysis: Is the bot under direct aim ("прямое наведение") from enemies?
+	-- B. Threat analysis: which enemies have a direct line of fire on the bot
 	for _, enemy in ipairs(enemies) do
-		if enemy.is_alive then
-			local hit, hx, hy = terrain.raycast(enemy.pos.x, enemy.pos.y + 8, bot.pos.x, bot.pos.y + 8)
-			-- If clear raycast from enemy eye to bot, enemy has direct aim!
-			if not hit or (math.abs(hx - bot.pos.x) < 22 and math.abs(hy - (bot.pos.y + 8)) < 22) then
-				sit.is_under_direct_aim = true
-				sit.exposed_enemy_count = sit.exposed_enemy_count + 1
-			end
+		if enemy.is_alive and has_los(terrain, enemy.pos.x, enemy.pos.y + EYE, bot.pos.x, bot.pos.y + EYE) then
+			sit.is_under_direct_aim = true
+			sit.exposed_enemy_count = sit.exposed_enemy_count + 1
 		end
 	end
 
@@ -189,654 +277,459 @@ function M.analyze_situation(bot, enemies, terrain)
 	return sit
 end
 
--- 2. TACTICAL MOVEMENT: Escaping pits, safe standoff for breaching, or seeking cover from direct aim
-function M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
-	difficulty = level_config.normalize_skill(difficulty or "normal")
-	if not target then
-		return { dir = 0, steps = 0, should_jump = false, intent = "idle" }
-	end
+------------------------------------------------------------------------------------------
+-- 2. POSITIONING
+------------------------------------------------------------------------------------------
 
-	situation = situation or M.analyze_situation(bot, enemies, terrain)
+local WALK_SAMPLE = 6     -- px between ground samples along a path
+local MAX_JUMP_RISE = 55  -- a rise the potato can still hop onto
+local SAFE_ABOVE_WATER = 14
 
-	local dx = target.pos.x - bot.pos.x
-	local dir_to_target = dx > 0 and 1 or -1
-	local dist_to_target = math.abs(dx)
-
-	-- 1. SITUATION: Trapped in a jumpable pit
-	if situation.is_pit and not situation.is_deep_pit then
-		local esc_dir = situation.escape_dir
-		local rim_dist = (esc_dir == -1) and situation.dist_left or situation.dist_right
-		local steps = math.max(3, math.min(9, math.ceil(rim_dist / 6.0)))
-		return {
-			dir = esc_dir,
-			steps = steps,
-			should_jump = true,
-			intent = "escape_pit",
-		}
-	end
-
-	-- 2. SITUATION: Trapped in a DEEP pit (cannot jump out directly)
-	-- To safely breach the wall, back away from the target wall to gain standoff distance!
-	if situation.is_deep_pit then
-		local breach_wall_dir = dir_to_target -- breach wall facing the enemy
-		local dist_to_breach_wall = (breach_wall_dir == 1) and situation.dist_right or situation.dist_left
-		local dist_to_opposite = (breach_wall_dir == 1) and situation.dist_left or situation.dist_right
-
-		-- If too close to the wall we need to blast, back away towards opposite wall!
-		if dist_to_breach_wall < 42.0 and dist_to_opposite > 15.0 then
-			local back_steps = math.max(2, math.min(6, math.floor(dist_to_opposite / 7.0)))
-			return {
-				dir = -breach_wall_dir, -- back up
-				steps = back_steps,
-				should_jump = false,
-				intent = "standoff_breach",
-			}
-		else
-			-- Already have reasonable standoff distance
-			return {
-				dir = 0,
-				steps = 0,
-				should_jump = false,
-				intent = "hold_breach_standoff",
-			}
+-- Ground heights walking from x0 in direction dir for up to `range` px.
+-- Stops before water, sheer drops and walls too high to jump. Returns reachable spots.
+local function reachable_spots(terrain, x0, y0, dir, range)
+	local spots = {}
+	local prev_y = terrain.get_smooth_ground_y(x0, 4.0, y0 + 8)
+	local walked = 0
+	local x = x0
+	local r = constants.POTATO_RADIUS
+	while walked < range do
+		x = x + dir * WALK_SAMPLE
+		walked = walked + WALK_SAMPLE
+		if x < r + 4 or x > constants.WORLD_WIDTH - r - 4 then
+			break
 		end
-	end
-
-	-- 3. SITUATION: On open ground and under DIRECT AIM ("уход от прямого наведения")
-	-- Search candidate positions along terrain to find cover (break line of sight from enemies)
-	if situation.is_under_direct_aim and difficulty ~= "easy" then
-		local best_cand_x = nil
-		local best_score = -999999
-
-		local test_offsets = { -80, -60, -45, -30, -18, 18, 30, 45, 60, 80 }
-		for _, offset in ipairs(test_offsets) do
-			local cand_x = bot.pos.x + offset
-			if cand_x > 35 and cand_x < constants.WORLD_WIDTH - 35 then
-				local cand_gy = terrain.get_smooth_ground_y(cand_x, 5.0)
-				-- Skip water hazard
-				if cand_gy > constants.WATER_LEVEL + 32.0 then
-					-- Check path steepness from bot to candidate
-					local step_diff = cand_gy - bot.pos.y
-					if math.abs(step_diff) < 45.0 then
-						local score = 0
-
-						-- Cover check: raycast from each alive enemy
-						local in_cover_count = 0
-						for _, enemy in ipairs(enemies) do
-							if enemy.is_alive then
-								local hit, hx, hy = terrain.raycast(enemy.pos.x, enemy.pos.y + 8, cand_x, cand_gy + 8)
-								if hit and (math.abs(hx - cand_x) > 25 or math.abs(hy - (cand_gy + 8)) > 25) then
-									in_cover_count = in_cover_count + 1
-								end
-							end
-						end
-
-						if in_cover_count > 0 then
-							score = score + in_cover_count * 120 -- massive cover bonus!
-						else
-							score = score - 60 -- still in open view
-						end
-
-						-- Height bonus: higher ground provides better tactical angle
-						score = score + math.min(25, (cand_gy - bot.pos.y) * 0.8)
-
-						-- Cliff / steep drop penalty
-						local ground_ahead = terrain.get_smooth_ground_y(cand_x + (offset > 0 and 25 or -25), 4.0)
-						if (cand_gy - ground_ahead) > 28.0 then
-							score = score - 150
-						end
-
-						-- Moderate distance preference to target
-						local cand_dist = math.abs(cand_x - target.pos.x)
-						if cand_dist >= 90 and cand_dist <= 260 then
-							score = score + 30
-						end
-
-						if score > best_score then
-							best_score = score
-							best_cand_x = cand_x
-						end
-					end
-				end
-			end
+		local gy = terrain.get_smooth_ground_y(x, 4.0, prev_y + MAX_JUMP_RISE + 8)
+		if gy - prev_y > MAX_JUMP_RISE then
+			break -- wall
 		end
-
-		if best_cand_x and best_score > 40 then
-			local move_dx = best_cand_x - bot.pos.x
-			local move_dir = move_dx > 0 and 1 or -1
-			local steps = math.max(2, math.min(10, math.ceil(math.abs(move_dx) / 7.5)))
-			return {
-				dir = move_dir,
-				steps = steps,
-				should_jump = (math.abs(move_dx) > 35),
-				intent = "seek_cover",
-			}
+		if gy < constants.WATER_LEVEL + SAFE_ABOVE_WATER or prev_y - gy > 90 then
+			break -- water or a deep fall ahead
 		end
+		spots[#spots + 1] = { x = x, y = gy, needs_jump = (gy - prev_y) > 10 }
+		prev_y = gy
 	end
-
-	-- 4. GENERAL TACTICAL POSITIONING
-	local steps = 0
-	local should_jump = false
-	local dir = dir_to_target
-
-	-- Avoid cliffs
-	if dir == -1 and situation.cliff_left then
-		dir = 1
-		steps = math.random(2, 4)
-	elseif dir == 1 and situation.cliff_right then
-		dir = -1
-		steps = math.random(2, 4)
-	elseif dist_to_target < 45 then
-		-- In knife / shotgun sweet spot
-		steps = math.random(1, 2)
-	elseif dist_to_target > 320 then
-		-- Far away, advance forward
-		steps = math.random(4, 9)
-		if math.random() > 0.6 then should_jump = true end
-	elseif dist_to_target > 160 then
-		steps = math.random(2, 5)
-	else
-		-- Good medium distance, small tactical adjustment to higher ground
-		if math.random() > 0.5 then
-			steps = math.random(1, 3)
-			local left_y = terrain.get_smooth_ground_y(bot.pos.x - 30, 4.0)
-			local right_y = terrain.get_smooth_ground_y(bot.pos.x + 30, 4.0)
-			if left_y > right_y + 6 then
-				dir = -1
-			elseif right_y > left_y + 6 then
-				dir = 1
-			end
-		else
-			steps = 0
-		end
-	end
-
-	if difficulty == "easy" then
-		steps = math.floor(steps * 0.5)
-	elseif difficulty == "hard" then
-		steps = math.floor(steps * 1.2)
-	end
-
-	return {
-		dir = dir,
-		steps = math.max(0, steps),
-		should_jump = should_jump,
-		intent = "reposition",
-	}
+	return spots
 end
 
--- Tactical Weapon Evaluation accounting for wind, class affinities, and elemental combos
-function M.score_weapon_tactical(weapon, bot, target, dist, has_los, wind_vector)
-	if not weapon then return -999999 end
-
-	-- Check available ammo if bot has class inventory
-	if bot and bot.id and inventory_manager.inventories[bot.id] then
-		if not inventory_manager.has_weapon(bot.id, weapon.id) then
-			return -999999
-		end
-	end
-
-	local score = 100
-	local w_id = weapon.id
-	local wind_x = wind_vector and (wind_vector.x or 0) or 0
-
-	-- 1. Range & line-of-sight affinity
-	if weapon.fire_mode == "melee" then
-		if dist <= (weapon.melee_range or 42) + 6 then
-			score = score + 450
-		else
-			return -999999
-		end
-	elseif w_id == weapons.TYPES.SHOTGUN then
-		if dist < 120 then
-			score = score + 280
-		else
-			score = score - 80
-		end
-	elseif w_id == weapons.TYPES.RIFLE then
-		if has_los and dist > 140 then
-			score = score + 320
-		end
-	elseif w_id == weapons.TYPES.BURST then
-		if has_los and dist >= 80 and dist <= 380 then
-			score = score + 260
-		end
-	elseif w_id == weapons.TYPES.DYNAMITE then
-		-- Short throw, huge blast
-		score = score + ((dist > 90 and dist < 230) and 300 or -250)
-	elseif w_id == weapons.TYPES.HOMING then
-		if dist > 220 then
-			score = score + 290
-		end
-	elseif w_id == weapons.TYPES.CLUSTER then
-		score = score + 140
-	end
-
-	-- 2. Elemental combinations on target
-	local t_statuses = target.statuses or {}
-	local is_glued = t_statuses.glued and (t_statuses.glued.duration or 0) > 0
-	local is_poisoned = t_statuses.poisoned and (t_statuses.poisoned.duration or 0) > 0
-	local is_concussed = t_statuses.concussed and (t_statuses.concussed.duration or 0) > 0
-	local is_burning = t_statuses.burning and (t_statuses.burning.duration or 0) > 0
-
-	-- Combo: Sticky Inferno (Glued + Fire/Explosive) -> huge priority!
-	if is_glued then
-		if w_id == weapons.TYPES.MOLOTOV or w_id == weapons.TYPES.BAZOOKA or w_id == weapons.TYPES.GRENADE then
-			score = score + 420
-		end
-	end
-
-	-- Combo: Toxic Burst (Poisoned + Fire) -> ignite toxic cloud!
-	if is_poisoned then
-		if w_id == weapons.TYPES.MOLOTOV or w_id == weapons.TYPES.GRENADE then
-			score = score + 380
-		end
-	end
-
-	-- Combo: Paralyzed (Concussed + Glued)
-	if is_concussed and not is_glued then
-		if w_id == weapons.TYPES.BAZOOKA then
-			score = score + 340
-		end
-	end
-
-	-- High-HP target without active DoT: initiate Poison or Fire
-	if target.hp > 55 and not is_poisoned and not is_burning then
-		if w_id == weapons.TYPES.PEPPER then
-			score = score + 300
-		elseif w_id == weapons.TYPES.MOLOTOV then
-			score = score + 280
-		end
-	end
-
-	-- Target near water: massive knockback priority
-	if target.pos.y < constants.WATER_LEVEL + 42 and dist < 260 then
-		if w_id == weapons.TYPES.GARLIC then
-			score = score + 450
-		elseif w_id == weapons.TYPES.BAZOOKA then
-			score = score + 260
-		end
-	end
-
-	-- 3. Bot Class & Personality Archetype Affinity
-	local b_class = bot.class_id or "recruit"
+-- Decides where the bot walks before shooting.
+-- Returns { target_x, intent, target_id, chat }
+function M.plan_move(bot, all_potatoes, terrain, difficulty, is_pvp)
+	local skill = M.skill_profile(difficulty, is_pvp)
 	local arch = M.resolve_archetype(bot)
-
-	if arch == M.ARCHETYPES.BERSERK then
-		if weapon.fire_mode == "melee" then score = score + 500 end
-		if w_id == weapons.TYPES.SHOTGUN or w_id == weapons.TYPES.BAZOOKA then score = score + 300 end
-	elseif arch == M.ARCHETYPES.SNIPER then
-		if w_id == weapons.TYPES.RIFLE or w_id == weapons.TYPES.BAZOOKA then score = score + 350 end
-	elseif arch == M.ARCHETYPES.COWARD then
-		if w_id == weapons.TYPES.GRENADE or w_id == weapons.TYPES.DRILL or w_id == weapons.TYPES.BEETLE then score = score + 280 end
-		if weapon.fire_mode == "melee" then score = score - 300 end -- Fear close quarters
-	elseif arch == M.ARCHETYPES.CLUMSY then
-		if w_id == weapons.TYPES.GRENADE or w_id == weapons.TYPES.HOLY_GRENADE or w_id == weapons.TYPES.MOLOTOV then score = score + 240 end
+	local enemies = enemies_of(bot, all_potatoes)
+	local ranked = M.rank_targets(bot, enemies, terrain)
+	local target = ranked[1]
+	if not target then
+		return nil
 	end
 
-	if b_class == "sniper" then
-		if w_id == weapons.TYPES.RIFLE then score = score + 350 end
-	elseif b_class == "artillery" or b_class == "artillery_2" or b_class == "rocketeer" then
-		if w_id == weapons.TYPES.BAZOOKA or w_id == weapons.TYPES.AIR_BOMB then score = score + 260 end
-	elseif b_class == "sapper" or b_class == "sapper_2" then
-		if w_id == weapons.TYPES.DRILL or w_id == weapons.TYPES.GARLIC then score = score + 280 end
-	elseif b_class == "commando" then
-		if w_id == weapons.TYPES.KNIFE or w_id == weapons.TYPES.BURST or w_id == weapons.TYPES.MOLOTOV then score = score + 240 end
-	elseif b_class == "medic" or b_class == "surgeon" then
-		if w_id == weapons.TYPES.PEPPER or w_id == weapons.TYPES.MOLOTOV then score = score + 260 end
-	elseif b_class == "assault" or b_class == "assault_2" then
-		if w_id == weapons.TYPES.BURST or w_id == weapons.TYPES.SHOTGUN then score = score + 250 end
-	end
+	local sit = M.analyze_situation(bot, enemies, terrain)
+	local band = RANGE_BAND[arch] or RANGE_BAND.clumsy
+	local cur_gy = terrain.get_smooth_ground_y(bot.pos.x, 4.0, bot.pos.y + 8)
 
-	-- 4. Dynamic Wind factor
-	local wind_mag = math.abs(wind_x)
-	local wind_sens = weapon.wind_sensitivity or 1.0
-	if wind_mag > 35 then
-		if wind_sens < 0.45 then
-			score = score + 120 -- Heavy projectile cuts through wind
-		elseif wind_sens > 1.10 then
-			score = score - 140 -- Light projectile gets blown off target
+	local candidates = { { x = bot.pos.x, y = cur_gy } }
+	for _, dir in ipairs({ -1, 1 }) do
+		local spots = reachable_spots(terrain, bot.pos.x, bot.pos.y, dir, skill.travel)
+		-- Every third sample is enough to compare spots
+		for i = 3, #spots, 3 do
+			candidates[#candidates + 1] = spots[i]
 		end
 	end
 
-	return score
-end
+	local best, best_score = candidates[1], -math.huge
+	for _, c in ipairs(candidates) do
+		local score = 0
+		local eye_y = c.y + constants.POTATO_RADIUS + EYE
 
--- 3. BALLISTICS & SAFE ATTACK: Solves weapon, angle, and power with 100% self-damage protection
-function M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
-	local dx = target.pos.x - bot.pos.x
-	local dy = target.pos.y - (bot.pos.y + 8)
-	local dist = math.sqrt(dx * dx + dy * dy)
-	local dir_to_target = dx > 0 and 1 or -1
-
-	local hit, hx, hy = terrain.raycast(bot.pos.x, bot.pos.y + 8, target.pos.x, target.pos.y + 8)
-	local clear_los = not hit or (math.abs(hx - target.pos.x) < 22 and math.abs(hy - target.pos.y) < 22)
-
-	local function can_use(w_id)
-		if not (bot and bot.id and inventory_manager.inventories[bot.id]) then
-			return true
-		end
-		return inventory_manager.has_weapon(bot.id, w_id)
-	end
-
-	-- Helper: simulate candidate shot and score it
-	local function eval_shot(weapon, aim_dx, aim_dy, power)
-		local vx = aim_dx * power
-		local vy = aim_dy * power
-		local impact_x, impact_y, hit_type, hit_potato, path = physics_sim.simulate_shot(
-			bot.pos.x, bot.pos.y + 8, vx, vy, weapon, terrain, all_potatoes, bot.id, wind_vector
-		)
-
-		-- Distance from impact to bot
-		local dist_to_bot = math.sqrt(math.pow(impact_x - bot.pos.x, 2) + math.pow(impact_y - (bot.pos.y + 8), 2))
-		local blast_radius = weapon.blast_radius or 30
-
-		-- STRICT SAFETY RULE: NEVER DAMAGE ONESELF OR SHOOT POINT-BLANK INTO DIRT!
-		if dist_to_bot < (blast_radius * 1.15 + 6.0) then
-			return -999999, impact_x, impact_y, path -- REJECTED
-		end
-
-		-- Friendly fire check
-		for _, p in ipairs(all_potatoes) do
-			if p.is_alive and p.team == bot.team and p.id ~= bot.id then
-				local dist_to_ally = math.sqrt(math.pow(impact_x - p.pos.x, 2) + math.pow(impact_y - p.pos.y, 2))
-				if dist_to_ally < blast_radius * 1.1 then
-					return -500000, impact_x, impact_y, path -- Heavily penalize friendly fire
-				end
+		-- Cover from enemies that are not the target, line of fire on the target
+		local exposed = 0
+		for _, e in ipairs(enemies) do
+			if has_los(terrain, e.pos.x, e.pos.y + EYE, c.x, eye_y) then
+				exposed = exposed + 1
 			end
 		end
-
-		-- Distance from impact to enemy target
-		local dist_to_target = math.sqrt(math.pow(impact_x - target.pos.x, 2) + math.pow(impact_y - target.pos.y, 2))
-		local score = 1000 - dist_to_target
-
-		if dist_to_target < blast_radius then
-			score = score + 500 * (1.0 - (dist_to_target / blast_radius))
+		local cover_w = (arch == M.ARCHETYPES.COWARD) and 55 or ((arch == M.ARCHETYPES.BERSERK) and 12 or 30)
+		score = score - exposed * cover_w
+		if has_los(terrain, c.x, eye_y, target.pos.x, target.pos.y + EYE) then
+			score = score + ((arch == M.ARCHETYPES.SNIPER) and 70 or 35)
 		end
 
-		if hit_potato and hit_potato.team ~= bot.team then
-			score = score + 1000 -- Direct enemy hit!
+		-- Personality range
+		local d = math.abs(c.x - target.pos.x)
+		if d >= band[1] and d <= band[2] then
+			score = score + 45
+		else
+			score = score - 0.18 * ((d < band[1]) and (band[1] - d) or (d - band[2]))
 		end
 
-		return score, impact_x, impact_y, path
-	end
-
-	-- A. SITUATION: TRAPPED IN A DEEP PIT
-	if situation.is_deep_pit then
-		-- Option 1: Try High-Angle Lobbing (Mortar: 68° to 84°) out of the pit to reach target
-		local lob_weapon = weapons.get(weapons.TYPES.GRENADE)
-		local best_lob_score = -999999
-		local best_lob_dx, best_lob_dy, best_lob_pow = dir_to_target, 0.8, 400
-
-		for angle_deg = 65, 84, 3 do
-			local rad = math.rad(angle_deg)
-			for p_mult = 0.55, 1.0, 0.15 do
-				local pow = lob_weapon.max_power * p_mult
-				local aim_x = dir_to_target * math.cos(rad)
-				local aim_y = math.sin(rad)
-				local score, ix, iy, path = eval_shot(lob_weapon, aim_x, aim_y, pow)
-
-				-- Verify the trajectory clears the pit rims (all points within pit width must be above terrain)
-				local cleared_pit = true
-				if #path > 2 then
-					for _, pt in ipairs(path) do
-						local p_dist_x = math.abs(pt.x - bot.pos.x)
-						if p_dist_x < 55.0 then
-							local gy = terrain.get_ground_y(pt.x)
-							if pt.y < gy + 6.0 and pt ~= path[#path] then
-								cleared_pit = false
-								break
-							end
-						end
-					end
-				end
-
-				if cleared_pit and score > best_lob_score then
-					best_lob_score = score
-					best_lob_dx = aim_x
-					best_lob_dy = aim_y
-					best_lob_pow = pow
-				end
+		-- High ground, hazards, effort
+		score = score + math.max(-30, math.min(30, (c.y - cur_gy) * 0.5))
+		if c.y < constants.WATER_LEVEL + 40 then
+			score = score - 60
+		end
+		local edge_l = terrain.get_smooth_ground_y(c.x - 28, 4.0, c.y + 20)
+		local edge_r = terrain.get_smooth_ground_y(c.x + 28, 4.0, c.y + 20)
+		if (c.y - edge_l) > 30 or (c.y - edge_r) > 30 then
+			score = score - 35
+		end
+		score = score - math.abs(c.x - bot.pos.x) * 0.08
+		if c.x == bot.pos.x then
+			score = score + 8
+		end
+		-- Do not stand right next to an enemy unless that is the plan
+		for _, e in ipairs(enemies) do
+			if math.abs(e.pos.x - c.x) < 45 and arch ~= M.ARCHETYPES.BERSERK then
+				score = score - 40
 			end
 		end
-
-		-- If a safe high-angle lob successfully reaches near target, use it!
-		if best_lob_score > 400 then
-			return {
-				weapon_id = lob_weapon.id,
-				aim_dx = best_lob_dx,
-				aim_dy = best_lob_dy,
-				power = best_lob_pow,
-				is_breaching = false,
-			}
+		if arch == M.ARCHETYPES.CLUMSY then
+			score = score + (math.random() - 0.5) * 50
 		end
 
-		-- Option 2: SAFE WALL BREACHING ("пробивать стену на безопасном расстоянии")
-		-- Target the upper rim of the obstructing wall with an explosive weapon to blast an exit!
-		local breach_weapon = weapons.get(weapons.TYPES.BAZOOKA)
-		local rim_dist = (dir_to_target == 1) and situation.dist_right or situation.dist_left
-		local rim_h = (dir_to_target == 1) and situation.right_wall_h or situation.left_wall_h
-		local wall_target_x = bot.pos.x + dir_to_target * (rim_dist + 4.0)
-		local wall_target_y = bot.pos.y + rim_h - 6.0 -- target near upper lip
-
-		local to_wall_x = wall_target_x - bot.pos.x
-		local to_wall_y = wall_target_y - (bot.pos.y + 8)
-		local wall_dist = math.sqrt(to_wall_x * to_wall_x + to_wall_y * to_wall_y)
-
-		-- SAFE STANDOFF CHECK:
-		local safe_standoff = breach_weapon.blast_radius * 1.15 + 10.0
-		if wall_dist >= safe_standoff and can_use(breach_weapon.id) then
-			-- Aim at the upper rim of the wall to blow it away
-			local aim_x = to_wall_x / wall_dist
-			local aim_y = to_wall_y / wall_dist
-			local breach_pow = math.max(220, math.min(480, wall_dist * 5.0))
-
-			local score, ix, iy = eval_shot(breach_weapon, aim_x, aim_y, breach_pow)
-			if score > -900000 then
-				return {
-					weapon_id = breach_weapon.id,
-					aim_dx = aim_x,
-					aim_dy = aim_y,
-					power = breach_pow,
-					is_breaching = true,
-				}
-			end
-		end
-
-		-- If standoff is still too close for Bazooka, use Grenade with high angle lob
-		local gren_weapon = weapons.get(weapons.TYPES.GRENADE)
-		local safe_rad = math.rad(78)
-		local safe_pow = 380
-		return {
-			weapon_id = gren_weapon.id,
-			aim_dx = dir_to_target * math.cos(safe_rad),
-			aim_dy = math.sin(safe_rad),
-			power = safe_pow,
-			is_breaching = false,
-		}
-	end
-
-	-- B. SITUATION: MELEE RANGE (< 44px)
-	if dist < 44.0 then
-		if can_use(weapons.TYPES.KNIFE) and math.random() > 0.35 then
-			return {
-				weapon_id = weapons.TYPES.KNIFE,
-				aim_dx = dir_to_target,
-				aim_dy = 0.05,
-				power = 1,
-				is_breaching = false,
-			}
-		elseif can_use(weapons.TYPES.SHOTGUN) then
-			local sg = weapons.get(weapons.TYPES.SHOTGUN)
-			return {
-				weapon_id = sg.id,
-				aim_dx = dir_to_target * 0.95,
-				aim_dy = 0.25,
-				power = sg.max_power * 0.7,
-				is_breaching = false,
-			}
+		if score > best_score then
+			best, best_score = c, score
 		end
 	end
 
-	-- C. SITUATION: DIRECT LINE OF SIGHT (LOS CLEAR)
-	if clear_los then
-		-- Close-medium range: Shotgun, Assault Rifle (Burst), Knife, or Bazooka direct shot
-		if dist < 140.0 then
-			local roll = math.random()
-			if roll < 0.35 and can_use(weapons.TYPES.SHOTGUN) then
-				local sg = weapons.get(weapons.TYPES.SHOTGUN)
-				local len = math.sqrt(dx * dx + dy * dy)
-				return {
-					weapon_id = sg.id,
-					aim_dx = dx / len,
-					aim_dy = dy / len + 0.05,
-					power = sg.max_power * 0.75,
-					is_breaching = false,
-				}
-			elseif roll < 0.70 and can_use(weapons.TYPES.BURST) then
-				local burst = weapons.get(weapons.TYPES.BURST)
-				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
-				local eff_dy = dy + drop
-				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
-				return {
-					weapon_id = burst.id,
-					aim_dx = dx / len,
-					aim_dy = eff_dy / len,
-					power = burst.max_power,
-					is_breaching = false,
-				}
-			elseif can_use(weapons.TYPES.BAZOOKA) then
-				local baz = weapons.get(weapons.TYPES.BAZOOKA)
-				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
-				local eff_dy = dy + drop
-				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
-				return {
-					weapon_id = baz.id,
-					aim_dx = dx / len,
-					aim_dy = eff_dy / len,
-					power = baz.max_power * 0.85,
-					is_breaching = false,
-				}
-			end
-		elseif dist < 450.0 then
-			-- Medium to long range direct fire: Sniper Rifle, Burst, or Bazooka
-			local roll = math.random()
-			if roll < 0.45 and can_use(weapons.TYPES.RIFLE) then
-				local rifle = weapons.get(weapons.TYPES.RIFLE)
-				local drop = 0.5 * constants.GRAVITY * rifle.gravity_mult * math.pow(dist / rifle.speed, 2)
-				local eff_dy = dy + drop
-				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
-				return {
-					weapon_id = rifle.id,
-					aim_dx = dx / len,
-					aim_dy = eff_dy / len,
-					power = rifle.max_power,
-					is_breaching = false,
-				}
-			elseif roll < 0.75 and can_use(weapons.TYPES.BURST) then
-				local burst = weapons.get(weapons.TYPES.BURST)
-				local drop = 0.5 * constants.GRAVITY * burst.gravity_mult * math.pow(dist / (burst.speed or 900), 2)
-				local eff_dy = dy + drop
-				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
-				return {
-					weapon_id = burst.id,
-					aim_dx = dx / len,
-					aim_dy = eff_dy / len,
-					power = burst.max_power,
-					is_breaching = false,
-				}
-			elseif can_use(weapons.TYPES.BAZOOKA) then
-				local baz = weapons.get(weapons.TYPES.BAZOOKA)
-				local drop = 0.5 * constants.GRAVITY * baz.gravity_mult * math.pow(dist / 700, 2)
-				local eff_dy = dy + drop
-				local len = math.sqrt(dx * dx + eff_dy * eff_dy)
-				return {
-					weapon_id = baz.id,
-					aim_dx = dx / len,
-					aim_dy = eff_dy / len,
-					power = baz.max_power,
-					is_breaching = false,
-				}
-			end
-		end
-	end
-
-	-- D. SITUATION: LOW-ARC SEARCH & INDIRECT PARABOLIC LOB
-	local all_candidate_ids = {
-		weapons.TYPES.GRENADE,
-		weapons.TYPES.BAZOOKA,
-		weapons.TYPES.DYNAMITE,
-		weapons.TYPES.CLUSTER,
-		weapons.TYPES.HOMING,
-		weapons.TYPES.MOLOTOV,
-		weapons.TYPES.PEPPER,
-		weapons.TYPES.GARLIC,
-		weapons.TYPES.DRILL,
-		weapons.TYPES.BEETLE,
-		weapons.TYPES.HOLY_GRENADE,
-	}
-
-	local best_candidate = weapons.get(weapons.TYPES.GRENADE)
-	local highest_tactical_score = -999999
-
-	for _, w_id in ipairs(all_candidate_ids) do
-		local w_obj = weapons.get(w_id)
-		local t_score = M.score_weapon_tactical(w_obj, bot, target, dist, clear_los, wind_vector)
-		if t_score > highest_tactical_score then
-			highest_tactical_score = t_score
-			best_candidate = w_obj
-		end
-	end
-
-	local chosen_weapon = best_candidate
-	local best_score = -999999
-	local best_aim_dx = dir_to_target
-	local best_aim_dy = 0.35
-	local best_power = 400
-
-	-- Ballistic search starting from LOW angles (14° to 76°)
-	-- Strongly prioritizes shallow/low-arc trajectories to eliminate long waiting times!
-	for angle_deg = 14, 76, 3 do
-		local rad = math.rad(angle_deg)
-		local grav = constants.GRAVITY * (chosen_weapon.gravity_mult or 1.0)
-		local sin2 = math.max(0.1, math.sin(2 * rad))
-		local ideal_v = math.sqrt(math.max(100, (dist * grav) / sin2))
-
-		for _, p_mult in ipairs({ 0.88, 1.0, 1.12 }) do
-			local test_v = math.min(chosen_weapon.max_power, math.max(140, ideal_v * p_mult))
-			local aim_x = dir_to_target * math.cos(rad)
-			local aim_y = math.sin(rad)
-
-			local score, ix, iy = eval_shot(chosen_weapon, aim_x, aim_y, test_v)
-			if score > -800000 then
-				-- Bonus for low launch angle and fast flight:
-				local angle_penalty = (angle_deg / 90.0) * 200.0
-				local scored_v = score - angle_penalty
-				if scored_v > best_score then
-					best_score = scored_v
-					best_aim_dx = aim_x
-					best_aim_dy = aim_y
-					best_power = test_v
-				end
-			end
-		end
-	end
-
-	-- Fallback if no clean score found: shallow 35° arc rather than high mortar
-	if best_score < -900000 then
-		local rad = math.rad(35)
-		best_aim_dx = dir_to_target * math.cos(rad)
-		best_aim_dy = math.sin(rad)
-		best_power = 420
+	-- Out of a jumpable pit first: the open field is worth more than any spot in a hole
+	local intent = "reposition"
+	local chat = nil
+	if math.abs(best.x - bot.pos.x) < 6 then
+		intent = "hold"
+	elseif sit.is_pit and not sit.is_deep_pit then
+		intent = "escape_pit"
+	elseif sit.is_under_direct_aim and arch ~= M.ARCHETYPES.BERSERK then
+		intent = "seek_cover"
+		chat = "cover"
+	elseif arch == M.ARCHETYPES.BERSERK and math.abs(best.x - target.pos.x) < math.abs(bot.pos.x - target.pos.x) then
+		intent = "charge"
+		chat = "charge"
 	end
 
 	return {
-		weapon_id = chosen_weapon.id,
-		aim_dx = best_aim_dx,
-		aim_dy = best_aim_dy,
-		power = best_power,
-		is_breaching = false,
+		target_x = best.x,
+		intent = intent,
+		target_id = target.id,
+		chat = chat,
+		situation = sit,
 	}
+end
+
+------------------------------------------------------------------------------------------
+-- 3. ATTACK
+------------------------------------------------------------------------------------------
+
+-- Worth of a blast at (x, y) for the bot's side; positive is good for the bot.
+-- direct: potato hit point-blank (takes the full damage), dir_x: shell flight direction.
+local function blast_value(ctx, weapon, x, y, direct, dir_x)
+	local bot = ctx.bot
+	local value, kills, drowns = 0, 0, 0
+	for _, p in ipairs(ctx.potatoes) do
+		if p.is_alive then
+			local dmg, kx, ky
+			if p == direct then
+				local force = weapon.blast_force or 150
+				dmg, kx, ky = weapon.max_damage, (dir_x or 0) * force * 0.5, force * 0.4
+			else
+				dmg, kx, ky = physics_sim.estimate_blast(p.pos.x, p.pos.y, p.mass, x, y,
+					weapon.blast_radius, weapon.blast_force, weapon.max_damage)
+			end
+			if dmg > 0 then
+				local lethal = dmg >= p.hp
+				local drown = not lethal and ctx.skill.drown
+					and physics_sim.knockback_drowns(p.pos.x, p.pos.y, kx, ky, ctx.terrain)
+				local worth = math.min(dmg, p.hp) + (lethal and 45 or 0) + (drown and (p.hp + 45) or 0)
+				if p.team ~= bot.team then
+					if not lethal and not drown then
+						-- Status effects and elemental combos on survivors
+						local st = weapon.status_effect
+						if st then
+							worth = worth + 8
+							local combo = weapons.eval_combo(p.statuses, st.type)
+							if combo then
+								worth = worth + (combo.bonus_damage or 0) * 1.5
+							end
+						end
+					end
+					value = value + worth
+					if lethal then kills = kills + 1 end
+					if drown then drowns = drowns + 1 end
+				elseif p == bot then
+					value = value - worth * 2.5
+				else
+					value = value - worth * 1.6
+				end
+			end
+		end
+	end
+	return value, kills, drowns
+end
+
+-- Bonus for effects that outlive the blast: fire patches, bomblets, beetles
+local function lingering_value(ctx, weapon, x, y)
+	local bonus = 0
+	for _, e in ipairs(ctx.enemies) do
+		local d2 = dist2(e.pos.x, e.pos.y, x, y)
+		if weapon.on_hit == "napalm" and d2 < 45 * 45 then
+			bonus = bonus + math.min(e.hp, (weapon.napalm_dps or 10) * (weapon.napalm_burn_time or 2.5) * 0.5)
+		elseif weapon.on_hit == "pepper" and d2 < 50 * 50 then
+			bonus = bonus + math.min(e.hp, (weapon.pepper_dps or 12) * (weapon.pepper_burn_time or 3.0) * 0.5)
+		elseif weapon.cluster and d2 < 90 * 90 then
+			bonus = bonus + 18
+		elseif weapon.on_hit == "beetles" and d2 < 110 * 110 then
+			bonus = bonus + 20
+		end
+	end
+	return bonus
+end
+
+-- Extra pellets / burst rounds land near the first one
+local function volley_mult(weapon, dist)
+	if weapon.fire_mode == "spread" then
+		return 1 + ((weapon.shot_count or 5) - 1) * math.max(0.15, math.min(1, 1 - dist / 260))
+	elseif weapon.fire_mode == "multi_shot" then
+		return 1 + ((weapon.shot_count or 3) - 1) * 0.75
+	end
+	return 1
+end
+
+local function weapon_taste(bot, w_id)
+	local arch = ARCH_AFFINITY[M.resolve_archetype(bot)] or {}
+	local cls = CLASS_AFFINITY[bot.class_id or ""] or {}
+	return (arch[w_id] or 1) * (cls[w_id] or 1)
+end
+
+-- Simulates one shot and scores it into ctx.best (and ctx.closest, the safe fallback)
+local function try_shot(ctx, weapon, vx, vy, target)
+	local ox, oy = ctx.ox, ctx.oy
+	local ix, iy, kind, hit_p, _, t = physics_sim.simulate_shot(ox, oy, vx, vy, weapon, ctx.terrain,
+		ctx.potatoes, ctx.bot.id, ctx.sim_wind)
+	ctx.tick()
+
+	local value, kills, drowns = -5, 0, 0
+	if kind ~= "water" and kind ~= "timeout" then
+		value, kills, drowns = blast_value(ctx, weapon, ix, iy, hit_p, (vx >= 0) and 1 or -1)
+		if value > -50 then
+			value = value + lingering_value(ctx, weapon, ix, iy)
+		end
+		if weapon.homing then
+			-- The missile locks on the enemy nearest to this impact and usually flies into it
+			local near, near_d = nil, 160 * 160
+			for _, e in ipairs(ctx.enemies) do
+				local d = dist2(e.pos.x, e.pos.y, ix, iy)
+				if d < near_d then near, near_d = e, d end
+			end
+			if near then
+				local hv = blast_value(ctx, weapon, near.pos.x, near.pos.y, near, (near.pos.x >= ox) and 1 or -1)
+				value = math.max(value, hv * 0.75)
+			end
+		end
+	end
+
+	if value > 0 then
+		value = value * volley_mult(weapon, math.sqrt(dist2(ox, oy, target.pos.x, target.pos.y)))
+			* weapon_taste(ctx.bot, weapon.id) * ctx.mood(weapon.id)
+	end
+	value = value - (RARITY_COST[weapon.rarity] or 4) * ((weapon.id == weapons.TYPES.GRENADE) and 0 or 1)
+		- (t or 0) * 1.5 -- quick shots keep the game moving
+
+	if value > ctx.best.value then
+		ctx.best = { value = value, weapon_id = weapon.id, vx = vx, vy = vy, target_id = target.id,
+			kills = kills, drowns = drowns }
+	end
+
+	-- Nothing reachable: still prefer a safe shell that lands as close to the target as possible
+	local safe = (dist2(ix, iy, ox, oy) > (weapon.blast_radius * 1.2 + constants.POTATO_RADIUS) ^ 2)
+	if safe and kind ~= "water" then
+		local d = dist2(ix, iy, target.pos.x, target.pos.y)
+		if d < ctx.closest.d then
+			ctx.closest = { d = d, weapon_id = weapon.id, vx = vx, vy = vy, target_id = target.id }
+		end
+	end
+	return ix, iy
+end
+
+-- Launch speed that lands a shell at (dx, dy) when thrown at angle theta (no wind)
+local function ballistic_speed(dx, dy, theta, g)
+	local c = math.cos(theta)
+	local denom = 2 * c * c * (math.abs(dx) * math.tan(theta) - dy)
+	if denom <= 0 then
+		return nil
+	end
+	return math.sqrt(g * dx * dx / denom)
+end
+
+local ARC_ANGLES = { 12, 20, 28, 36, 44, 52, 60, 68, 76, 84 }
+
+local function search_weapon(ctx, weapon, target)
+	local ox, oy = ctx.ox, ctx.oy
+	local tx, ty = target.pos.x, target.pos.y
+	local dx, dy = tx - ox, ty - oy
+	local dir = (dx >= 0) and 1 or -1
+	local max_speed = weapon.max_power * physics_sim.LAUNCH_BOOST
+
+	if weapon.fire_mode == "melee" then
+		local reach = (weapon.melee_range or 42)
+		local hx, hy = ox + dir * 20, oy - EYE + 4
+		if dist2(hx, hy, tx, ty) < reach * reach then
+			local value = blast_value(ctx, weapon, hx, hy, target, dir) * weapon_taste(ctx.bot, weapon.id) - 2
+			if value > ctx.best.value then
+				ctx.best = { value = value, weapon_id = weapon.id, vx = dir, vy = 0.05, target_id = target.id, melee = true }
+			end
+		end
+		return
+	end
+
+	if weapon.fixed_power then
+		-- Guns: sweep a fan around the straight line to the target
+		local base = math.atan2(dy, dx)
+		for k = -6, 6 do
+			local a = base + math.rad(k * 1.5)
+			try_shot(ctx, weapon, math.cos(a) * max_speed, math.sin(a) * max_speed, target)
+		end
+		return
+	end
+
+	local g = constants.GRAVITY * (weapon.gravity_mult or 1.0)
+	for _, deg in ipairs(ARC_ANGLES) do
+		local theta = math.rad(deg)
+		local v = ballistic_speed(dx, dy, theta, g)
+		if v and v <= max_speed * 1.05 then
+			v = math.min(v, max_speed)
+			local cx, sy = dir * math.cos(theta), math.sin(theta)
+			-- Two probes, then one secant step on the landing x to correct for wind and terrain
+			local x1 = try_shot(ctx, weapon, cx * v, sy * v, target)
+			local v2 = math.min(max_speed, v * 1.05)
+			if v2 > v then
+				local x2 = try_shot(ctx, weapon, cx * v2, sy * v2, target)
+				if math.abs(x2 - x1) > 0.5 then
+					local vc = v + (v2 - v) * (tx - x1) / (x2 - x1)
+					vc = math.max(60, math.min(max_speed, vc))
+					if math.abs(vc - v) > 1 and math.abs(vc - v2) > 1 then
+						try_shot(ctx, weapon, cx * vc, sy * vc, target)
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Rough appeal of a weapon before the expensive search, so only the promising ones are simulated
+local function weapon_prescore(bot, weapon, dist, los)
+	local s = weapon.max_damage + weapon.blast_radius * 0.5
+	if weapon.fire_mode == "melee" then
+		return (dist <= (weapon.melee_range or 42) + 6) and 200 or -1
+	end
+	if weapon.fixed_power or weapon.fire_mode == "spread" or weapon.fire_mode == "multi_shot" then
+		if not los then return s * 0.2 end
+		if weapon.fire_mode == "spread" then
+			s = s * ((dist < 140) and 2.2 or 0.4)
+		end
+	end
+	if weapon.id == weapons.TYPES.DYNAMITE and dist > 260 then
+		s = s * 0.3 -- short throw
+	end
+	if weapon.id == weapons.TYPES.DRILL and not los then
+		s = s * 1.3 -- digs through cover
+	end
+	s = s * weapon_taste(bot, weapon.id) - (RARITY_COST[weapon.rarity] or 4)
+	return s
+end
+
+-- Finds the best shot from the bot's current position.
+-- tick: called after every simulated shot (lets the caller spread the work over frames).
+-- Returns { weapon_id, vx, vy, target_id, value, chat } or an airstrike plan with target_x.
+function M.solve_attack(bot, all_potatoes, terrain, difficulty, is_pvp, wind_vector, tick)
+	local skill = M.skill_profile(difficulty, is_pvp)
+	local enemies = enemies_of(bot, all_potatoes)
+	local targets = M.rank_targets(bot, enemies, terrain)
+	if #targets == 0 then
+		return nil
+	end
+
+	local wind = wind_vector or { x = 0, y = 0 }
+	local ctx = {
+		bot = bot,
+		potatoes = all_potatoes,
+		enemies = enemies,
+		terrain = terrain,
+		skill = skill,
+		ox = bot.pos.x,
+		oy = bot.pos.y + EYE,
+		-- What the bot believes the wind is
+		sim_wind = { x = (wind.x or 0) * skill.wind, y = (wind.y or 0) * skill.wind },
+		tick = tick or function() end,
+		best = { value = -math.huge },
+		closest = { d = math.huge },
+	}
+	local moods = {}
+	ctx.mood = function(w_id)
+		if not moods[w_id] then
+			moods[w_id] = (1 - MOOD_SPREAD * 0.5 + math.random() * MOOD_SPREAD)
+				* ((last_weapon[bot] == w_id and w_id ~= weapons.TYPES.GRENADE) and REPEAT_FACTOR or 1)
+		end
+		return moods[w_id]
+	end
+
+	-- Shortlist weapons by quick appeal against the main target
+	local main = targets[1]
+	local main_dist = math.sqrt(dist2(ctx.ox, ctx.oy, main.pos.x, main.pos.y))
+	local main_los = has_los(terrain, ctx.ox, ctx.oy, main.pos.x, main.pos.y + EYE)
+	local pool = {}
+	for _, w_id in ipairs(CANDIDATES) do
+		if can_use(bot, w_id) then
+			local w = weapons.get(w_id)
+			local s = weapon_prescore(bot, w, main_dist, main_los)
+			if s > 0 then
+				pool[#pool + 1] = { w = w, s = s }
+			end
+		end
+	end
+	table.sort(pool, function(a, b) return a.s > b.s end)
+
+	local grenade_in = false
+	for i = 1, math.min(#pool, skill.weapons) do
+		grenade_in = grenade_in or pool[i].w.id == weapons.TYPES.GRENADE
+		for t = 1, math.min(#targets, skill.targets) do
+			search_weapon(ctx, pool[i].w, targets[t])
+		end
+	end
+	-- The unlimited grenade is always worth a look as a baseline
+	if not grenade_in then
+		search_weapon(ctx, weapons.get(weapons.TYPES.GRENADE), main)
+	end
+
+	local best = ctx.best
+	local plan
+	if best.value > 0 then
+		plan = best
+	elseif ctx.closest.weapon_id then
+		plan = { weapon_id = ctx.closest.weapon_id, vx = ctx.closest.vx, vy = ctx.closest.vy,
+			target_id = ctx.closest.target_id, value = 0 }
+	else
+		-- Blind lob towards the main target
+		local dir = (main.pos.x >= bot.pos.x) and 1 or -1
+		local v = weapons.get(weapons.TYPES.GRENADE).max_power * 0.7
+		plan = { weapon_id = weapons.TYPES.GRENADE, vx = dir * v * 0.64, vy = v * 0.77, target_id = main.id, value = 0 }
+	end
+
+	-- A called-in airstrike beats a weak shell
+	local strike = M.plan_airstrike(bot, main, all_potatoes, skill.angle_err * 7)
+	if strike and (plan.value < 30 or math.random() < 0.3) then
+		strike.target_id = main.id
+		strike.value = 30
+		strike.chat = "airstrike"
+		return strike
+	end
+
+	if (plan.kills or 0) > 0 then
+		plan.chat = "kill"
+	elseif (plan.drowns or 0) > 0 then
+		plan.chat = "drown"
+	end
+	last_weapon[bot] = plan.weapon_id
+	return plan
 end
 
 -- Airstrike when the bot carries one and no ally stands under the bomb row.
@@ -855,383 +748,70 @@ function M.plan_airstrike(bot, target, all_potatoes, aim_error)
 	local dir = (target.pos.x >= bot.pos.x) and 1 or -1
 	return {
 		weapon_id = w.id,
-		aim_dx = dir * 0.6,
-		aim_dy = 0.8,
-		power = 1,
+		vx = dir * 0.6,
+		vy = 0.8,
 		target_x = target.pos.x + (math.random() * 2 - 1) * (aim_error or 0),
-		is_breaching = false,
 	}
 end
 
-local AIRSTRIKE_ERROR = { easy = 70, normal = 30, hard = 10 }
-local AIRSTRIKE_CHANCE = 0.55
+------------------------------------------------------------------------------------------
+-- 4. HUMAN TOUCH
+------------------------------------------------------------------------------------------
 
--- 4. MASTER BOT TURN PLANNER: Coordinates perception, movement, and combat
-function M.plan_turn(bot, all_potatoes, terrain, difficulty, wind_vector)
-	difficulty = level_config.normalize_skill(difficulty or "normal")
+-- Shots so far at the current target, per bot (weak keys: a new match starts clean)
+local zeroing = setmetatable({}, { __mode = "k" })
 
-	-- Collect alive enemies
-	local enemies = {}
-	for _, p in ipairs(all_potatoes) do
-		if p.team ~= bot.team and p.is_alive then
-			table.insert(enemies, p)
-		end
+-- Adds the bot's aim error. The first shot at a new target is the roughest; every further shot
+-- at the same target is closer ("zeroing in"), like a human correcting after a miss.
+function M.apply_error(bot, plan, difficulty, is_pvp)
+	if plan.target_x or plan.melee then
+		return plan
 	end
-
-	local target = M.select_target(bot, enemies)
-	if not target then
-		return nil
-	end
-
-	-- 1. Perception
-	local situation = M.analyze_situation(bot, enemies, terrain)
-
-	-- 2. Movement
-	local move_plan = M.plan_movement(bot, target, enemies, terrain, difficulty, situation)
-
-	-- 3. Attack (accounting for wind, class, and elemental combinations)
-	local strike = (math.random() < AIRSTRIKE_CHANCE) and M.plan_airstrike(bot, target, all_potatoes, AIRSTRIKE_ERROR[difficulty])
-	if strike then
-		strike.think_delay = 1.6 + math.random() * 0.6
-		strike.target_id = target.id
-		strike.movement = { dir = 0, steps = 0, should_jump = false, intent = "airstrike" }
-		strike.situation = situation
-		strike.tactical_intent = "airstrike"
-		return strike
-	end
-	local attack_plan = M.solve_safe_attack(bot, target, all_potatoes, terrain, situation, difficulty, wind_vector)
-
-	-- 4. Controlled Gaussian Noise & Human Error by Archetype & Difficulty
+	local skill = M.skill_profile(difficulty, is_pvp)
 	local arch = M.resolve_archetype(bot)
-	local angle_jitter = 0
-	local power_jitter = 1.0
 
-	-- Box-Muller approximate Gaussian noise: (rand + rand - 1)
-	local g_noise1 = (math.random() + math.random() - 1.0)
-	local g_noise2 = (math.random() + math.random() - 1.0)
-
-	if difficulty == "easy" then
-		-- Weak bot: +/- 12 deg error, 20-30% power error, ignores wind
-		angle_jitter = g_noise1 * math.rad(12.0)
-		power_jitter = 1.0 + g_noise2 * 0.25
-	elseif difficulty == "normal" then
-		-- Normal bot: +/- 4 deg error, 5-10% power error
-		angle_jitter = g_noise1 * math.rad(4.0)
-		power_jitter = 1.0 + g_noise2 * 0.08
-	else -- "hard"
-		-- Top bot: +/- 0.5-1.0 deg error, 2-3% power error
-		angle_jitter = g_noise1 * math.rad(0.8)
-		power_jitter = 1.0 + g_noise2 * 0.025
+	local mem = zeroing[bot]
+	if not mem or mem.target_id ~= plan.target_id then
+		mem = { target_id = plan.target_id, shots = 0 }
+		zeroing[bot] = mem
 	end
+	local k = 1 / (1 + skill.zero_in * mem.shots)
+	if mem.shots >= 1 and not plan.chat and math.random() < 0.5 then
+		plan.chat = "zeroing"
+	end
+	mem.shots = mem.shots + 1
 
-	-- Archetype adjustments
+	local angle_err = skill.angle_err * k
+	local power_err = skill.power_err * k
 	if arch == M.ARCHETYPES.SNIPER then
-		angle_jitter = angle_jitter * 0.4 -- Laser precision
-		power_jitter = 1.0 + (power_jitter - 1.0) * 0.4
+		angle_err, power_err = angle_err * 0.5, power_err * 0.5
 	elseif arch == M.ARCHETYPES.CLUMSY then
-		angle_jitter = angle_jitter * 1.8 -- Funny blunders and bad ricochets
-		power_jitter = 1.0 + (power_jitter - 1.0) * 1.8
+		angle_err, power_err = angle_err * 1.6, power_err * 1.6
 	end
 
-	local cos_j = math.cos(angle_jitter)
-	local sin_j = math.sin(angle_jitter)
-	local final_dx = attack_plan.aim_dx * cos_j - attack_plan.aim_dy * sin_j
-	local final_dy = math.max(0.06, attack_plan.aim_dx * sin_j + attack_plan.aim_dy * cos_j)
-	local final_power = attack_plan.power * power_jitter
-
-	-- Deliberation delay (human-like pause)
-	local think_delay = 1.4 + math.random() * 0.7
-	if arch == M.ARCHETYPES.SNIPER then
-		think_delay = 2.0 + math.random() * 0.8
-	elseif arch == M.ARCHETYPES.BERSERK then
-		think_delay = 0.8 + math.random() * 0.4
+	-- Sum of two uniforms: a cheap bell curve in [-1, 1]
+	local n1 = math.random() + math.random() - 1.0
+	local n2 = math.random() + math.random() - 1.0
+	local w = weapons.get(plan.weapon_id)
+	if w.fixed_power then
+		power_err = 0 -- guns always fire at full power
 	end
-
-	return {
-		weapon_id = attack_plan.weapon_id,
-		aim_dx = final_dx,
-		aim_dy = final_dy,
-		power = final_power,
-		think_delay = think_delay,
-		target_id = target.id,
-		movement = move_plan,
-		situation = situation,
-		tactical_intent = move_plan.intent,
-		is_breaching = attack_plan.is_breaching,
-	}
+	local a = math.atan2(plan.vy, plan.vx) + math.rad(angle_err) * n1
+	local speed = math.sqrt(plan.vx * plan.vx + plan.vy * plan.vy) * (1 + power_err * n2)
+	speed = math.min(speed, w.max_power * physics_sim.LAUNCH_BOOST)
+	plan.vx = math.cos(a) * speed
+	plan.vy = math.sin(a) * speed
+	return plan
 end
 
--- 5. DEDICATED SMART PVP BOT AI ("отдельный бот для пвп, который более умный, ходит, выбирает позиции, не сразу стреляет, а оценивает позицию")
-function M.plan_pvp_turn(bot, all_potatoes, terrain, bot_skill, wind_vector)
-	-- 1. Gather alive enemies and allies
-	local enemies = {}
-	local allies = {}
-	for _, p in ipairs(all_potatoes) do
-		if p.is_alive then
-			if p.team ~= bot.team then
-				table.insert(enemies, p)
-			else
-				table.insert(allies, p)
-			end
-		end
-	end
-
-	if #enemies == 0 then
-		return nil
-	end
-
-	-- 2. Smart Target Evaluation:
-	-- Evaluates who is most vulnerable (near water/cliff, lowest HP, or clumped with another enemy)
-	local best_target = nil
-	local highest_target_score = -999999
-
-	for _, enemy in ipairs(enemies) do
-		local dx = enemy.pos.x - bot.pos.x
-		local dy = enemy.pos.y - bot.pos.y
-		local dist = math.sqrt(dx * dx + dy * dy)
-		local ground_e = terrain.get_smooth_ground_y(enemy.pos.x, 4.0)
-
-		local t_score = 500 - dist * 0.4 - enemy.hp * 1.2
-
-		-- Big bonus if enemy is near water (easy push kill!)
-		if ground_e < constants.WATER_LEVEL + 40.0 then
-			t_score = t_score + 180
-		end
-
-		-- Check if other enemies are clustered near this one (splash damage value)
-		local cluster_count = 0
-		for _, other_e in ipairs(enemies) do
-			if other_e.id ~= enemy.id then
-				local cdx = math.abs(other_e.pos.x - enemy.pos.x)
-				local cdy = math.abs(other_e.pos.y - enemy.pos.y)
-				if (cdx * cdx + cdy * cdy) < 65 * 65 then
-					cluster_count = cluster_count + 1
-				end
-			end
-		end
-		t_score = t_score + cluster_count * 150
-
-		if t_score > highest_target_score then
-			highest_target_score = t_score
-			best_target = enemy
-		end
-	end
-
-	local target = best_target or enemies[1]
-
-	-- 3. Advanced Tactical Position Selection ("выбирает позиции, ходит"):
-	-- Tests 14 candidate positions left & right within range of movement
-	local best_pos_x = bot.pos.x
-	local best_pos_score = -999999
-	local current_gy = terrain.get_smooth_ground_y(bot.pos.x, 4.0)
-
-	local test_offsets = { 0, -25, 25, -50, 50, -75, 75, -100, 100, -125, 125, -150, 150 }
-	for _, off in ipairs(test_offsets) do
-		local cx = bot.pos.x + off
-		if cx > 40 and cx < constants.WORLD_WIDTH - 40 then
-			local cy = terrain.get_smooth_ground_y(cx, 4.0)
-			if cy > constants.WATER_LEVEL + 32.0 then
-				local step_h = cy - current_gy
-				-- Can we reach here without extreme sheer cliff climbing?
-				if math.abs(step_h) < 55.0 then
-					local pos_score = 100
-
-					-- Elevation advantage: high ground gives superior firing angles
-					pos_score = pos_score + math.min(40, (cy - current_gy) * 1.2)
-
-					-- Distance sweet spot to target (120 to 320 px)
-					local t_dist = math.abs(cx - target.pos.x)
-					if t_dist >= 120 and t_dist <= 300 then
-						pos_score = pos_score + 60
-					elseif t_dist < 60 then
-						pos_score = pos_score - 80 -- Too close, danger of self-damage
-					end
-
-					-- Cliff / Water Safety check ahead of candidate
-					local edge_l = terrain.get_smooth_ground_y(cx - 28, 4.0)
-					local edge_r = terrain.get_smooth_ground_y(cx + 28, 4.0)
-					if (cy - edge_l) > 30.0 or (cy - edge_r) > 30.0 then
-						pos_score = pos_score - 120 -- Dangerous cliff edge!
-					end
-
-					-- Line of sight to target
-					local hit_t, _, _ = terrain.raycast(cx, cy + 8, target.pos.x, target.pos.y + 8)
-					if not hit_t then
-						pos_score = pos_score + 70 -- Clear shot available!
-					else
-						pos_score = pos_score + 20 -- Needs mortar/parabola or drill
-					end
-
-					-- Cover from OTHER enemies (reduces return fire exposure)
-					local covered_enemies = 0
-					for _, e in ipairs(enemies) do
-						if e.id ~= target.id then
-							local hit_e, _, _ = terrain.raycast(e.pos.x, e.pos.y + 8, cx, cy + 8)
-							if hit_e then
-								covered_enemies = covered_enemies + 1
-							end
-						end
-					end
-					pos_score = pos_score + covered_enemies * 40
-
-					if pos_score > best_pos_score then
-						best_pos_score = pos_score
-						best_pos_x = cx
-					end
-				end
-			end
-		end
-	end
-
-	-- Plan movement to best position
-	local move_dx = best_pos_x - bot.pos.x
-	local move_dir = (math.abs(move_dx) > 10) and ((move_dx > 0) and 1 or -1) or 0
-	local move_steps = math.max(0, math.min(12, math.ceil(math.abs(move_dx) / 7.0)))
-	local should_jump = (math.abs(move_dx) > 35) or (terrain.get_smooth_ground_y(best_pos_x, 4.0) > current_gy + 10.0)
-
-	local move_plan = {
-		dir = move_dir,
-		steps = move_steps,
-		should_jump = should_jump,
-		intent = "pvp_reposition",
-		target_x = best_pos_x
-	}
-
-	-- Called-in airstrike instead of a direct shot
-	local strike = (math.random() < AIRSTRIKE_CHANCE) and M.plan_airstrike(bot, target, all_potatoes, AIRSTRIKE_ERROR.hard)
-	if strike then
-		strike.target_id = target.id
-		strike.movement = move_plan
-		strike.assess_delay = 1.0 + math.random() * 0.4
-		strike.aim_delay = 1.2 + math.random() * 0.4
-		strike.is_pvp_bot = true
-		return strike
-	end
-
-	-- 4. Tactical Weapon Evaluation & Ballistic Solver from planned position
-	local eval_x = best_pos_x
-	local eval_y = terrain.get_smooth_ground_y(best_pos_x, 4.0) + 8.0
-	local t_dx = target.pos.x - eval_x
-	local t_dy = (target.pos.y + 8.0) - eval_y
-	local dist_to_target = math.sqrt(t_dx * t_dx + t_dy * t_dy)
-	local dir_to_t = t_dx > 0 and 1 or -1
-
-	local hit_los, _, _ = terrain.raycast(eval_x, eval_y, target.pos.x, target.pos.y + 8)
-	local has_los = not hit_los
-
-	-- Weapon selection based on tactical assessment, class, and elemental combos
-	local candidate_list = {
-		weapons.TYPES.GRENADE,
-		weapons.TYPES.BAZOOKA,
-		weapons.TYPES.MOLOTOV,
-		weapons.TYPES.BURST,
-		weapons.TYPES.RIFLE,
-		weapons.TYPES.SHOTGUN,
-		weapons.TYPES.KNIFE,
-		weapons.TYPES.GARLIC,
-		weapons.TYPES.PEPPER,
-		weapons.TYPES.DRILL,
-		weapons.TYPES.HOLY_GRENADE,
-		weapons.TYPES.DYNAMITE,
-		weapons.TYPES.CLUSTER,
-		weapons.TYPES.HOMING,
-	}
-
-	local chosen_weapon_id = weapons.TYPES.GRENADE
-	local best_tactical_val = -999999
-
-	for _, w_id in ipairs(candidate_list) do
-		local w_obj = weapons.get(w_id)
-		local val = M.score_weapon_tactical(w_obj, bot, target, dist_to_target, has_los, wind_vector)
-		if val > best_tactical_val then
-			best_tactical_val = val
-			chosen_weapon_id = w_id
-		end
-	end
-
-	local weapon = weapons.get(chosen_weapon_id)
-
-	-- Precise ballistic solver for chosen weapon
-	local best_aim_dx = dir_to_t
-	local best_aim_dy = 0.5
-	local best_power = 400
-	local best_shot_score = -999999
-
-	if weapon.fire_mode == "melee" then
-		best_aim_dx = dir_to_t
-		best_aim_dy = 0.05
-		best_power = 1
-	elseif has_los and (chosen_weapon_id == weapons.TYPES.RIFLE or chosen_weapon_id == weapons.TYPES.BURST) then
-		local drop = 0.5 * constants.GRAVITY * (weapon.gravity_mult or 0.15) * math.pow(dist_to_target / (weapon.speed or 900), 2)
-		local eff_dy = t_dy + drop
-		local flight_time = dist_to_target / (weapon.speed or 900)
-		local wx = (wind_vector and wind_vector.x or 0)
-		local wind_drift = 0.5 * wx * (weapon.wind_sensitivity or 0.3) * flight_time * flight_time
-		local eff_dx = t_dx - wind_drift
-		local len = math.sqrt(eff_dx * eff_dx + eff_dy * eff_dy)
-		best_aim_dx = eff_dx / len
-		best_aim_dy = eff_dy / len
-		best_power = weapon.max_power
-	else
-		-- Parabolic solver (low angles first: 14° to 76°)
-		for angle_deg = 14, 76, 3 do
-			local rad = math.rad(angle_deg)
-			local grav = constants.GRAVITY * (weapon.gravity_mult or 1.0)
-			local sin2 = math.max(0.12, math.sin(2 * rad))
-			local ideal_v = math.sqrt(math.max(120, (dist_to_target * grav) / sin2))
-
-			for _, pm in ipairs({ 0.90, 1.0, 1.10 }) do
-				local test_v = math.min(weapon.max_power, math.max(140, ideal_v * pm))
-				local ax = dir_to_t * math.cos(rad)
-				local ay = math.sin(rad)
-
-				local vx = ax * test_v
-				local vy = ay * test_v
-				local ix, iy, _, hit_p, _ = physics_sim.simulate_shot(
-					eval_x, eval_y, vx, vy, weapon, terrain, all_potatoes, bot.id, wind_vector
-				)
-
-				-- Strict self-damage avoidance:
-				local d_bot = math.sqrt((ix - eval_x) * (ix - eval_x) + (iy - eval_y) * (iy - eval_y))
-				local blast_r = weapon.blast_radius or 30
-				if d_bot >= (blast_r * 1.15 + 8.0) then
-					local d_target = math.sqrt((ix - target.pos.x) * (ix - target.pos.x) + (iy - target.pos.y) * (iy - target.pos.y))
-					local s = 1000 - d_target
-					if hit_p and hit_p.team ~= bot.team then
-						s = s + 1000
-					end
-					local scored_v = s - (angle_deg / 90.0) * 180.0
-					if scored_v > best_shot_score then
-						best_shot_score = scored_v
-						best_aim_dx = ax
-						best_aim_dy = ay
-						best_power = test_v
-					end
-				end
-			end
-		end
-	end
-
-	-- High precision for PvP bot (very low jitter ~1 degree)
-	local angle_jitter = (math.random() - 0.5) * 0.02
-	local cos_j = math.cos(angle_jitter)
-	local sin_j = math.sin(angle_jitter)
-	local final_dx = best_aim_dx * cos_j - best_aim_dy * sin_j
-	local final_dy = math.max(0.05, best_aim_dx * sin_j + best_aim_dy * cos_j)
-	local final_power = best_power * (1.0 + (math.random() - 0.5) * 0.03)
-
-	return {
-		weapon_id = chosen_weapon_id,
-		aim_dx = final_dx,
-		aim_dy = final_dy,
-		power = final_power,
-		target_id = target.id,
-		movement = move_plan,
-		assess_delay = 1.2 + math.random() * 0.5, -- Deliberation to assess position (tuned for playtime)
-		aim_delay = 1.0 + math.random() * 0.5,   -- Aim preview time before firing
-		is_pvp_bot = true,
-	}
-end
+-- Short battle shouts, shown above the bot
+M.CHAT = {
+	kill = { ru = "Тебе конец!", en = "You're done!", pt = "Você já era!", fr = "C'est fini pour toi !", es = "¡Estás acabado!", tr = "İşin bitti!" },
+	drown = { ru = "Иди поплавай!", en = "Go for a swim!", pt = "Vai nadar!", fr = "Va nager !", es = "¡A nadar!", tr = "Yüzmeye git!" },
+	zeroing = { ru = "Теперь точно...", en = "This time for sure...", pt = "Agora vai...", fr = "Cette fois, c'est la bonne...", es = "Esta vez sí...", tr = "Bu sefer kesin..." },
+	cover = { ru = "В укрытие!", en = "Taking cover!", pt = "Proteção!", fr = "À couvert !", es = "¡A cubierto!", tr = "Siper al!" },
+	charge = { ru = "В атаку!", en = "Charge!", pt = "Ao ataque!", fr = "À l'attaque !", es = "¡Al ataque!", tr = "Saldırı!" },
+	airstrike = { ru = "Авиаудар!", en = "Air support!", pt = "Apoio aéreo!", fr = "Soutien aérien !", es = "¡Apoyo aéreo!", tr = "Hava desteği!" },
+}
 
 return M
-

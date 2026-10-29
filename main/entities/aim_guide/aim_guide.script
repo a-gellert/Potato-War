@@ -22,6 +22,7 @@ local function hide_guide(self)
 			end
 		end
 	end
+	self.crosshair_tint = nil
 	game_state.aim_target_x = nil
 	game_state.aim_target_y = nil
 end
@@ -38,13 +39,42 @@ local function show_target(self, wx, wy)
 	local y = math.max(constants.WATER_LEVEL + 6, math.min(wy, gy + 10))
 	msg.post(self.crosshair, "enable")
 	go.set_position(vmath.vector3(wx, y, 0.35), self.crosshair)
+	go.set(msg.url(nil, self.crosshair, "sprite"), "tint", vmath.vector4(1, 1, 1, 1))
+	self.crosshair_tint = nil
 	game_state.aim_target_x = wx
 	game_state.aim_target_y = y
 	return wx
 end
 
+local TINT_NORMAL = vmath.vector4(1, 1, 1, 1)
+local TINT_DANGER = vmath.vector4(1.0, 0.25, 0.2, 1)   -- the blast would catch the shooter
+local TINT_ON_TARGET = vmath.vector4(0.45, 1.0, 0.4, 1) -- an enemy stands inside the blast
+
+-- How the shot's end point relates to the shooter and the enemies
+local function impact_tint(shooter, weapon, x, y, ended_on_ground)
+	local reach = (weapon.blast_radius or 20) + constants.POTATO_RADIUS
+	if shooter and ended_on_ground and (weapon.blast_radius or 0) >= 20 then
+		local dx, dy = shooter.pos.x - x, shooter.pos.y - y
+		if dx * dx + dy * dy < reach * reach then
+			return TINT_DANGER
+		end
+	end
+	for _, p in ipairs(game_state.potatoes) do
+		if p.is_alive and shooter and p.team ~= shooter.team then
+			local dx, dy = p.pos.x - x, p.pos.y - y
+			if dx * dx + dy * dy < reach * reach then
+				return TINT_ON_TARGET
+			end
+		end
+	end
+	return TINT_NORMAL
+end
+
 local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS, game_state.wind_vector)
+	local last_pt = points[#points]
+	-- The preview stops early on long arcs: only a stop short of MAX_DOTS is a real impact
+	local tint = last_pt and impact_tint(game_state.active_potato, weapon, last_pt.x, last_pt.y, #points < MAX_DOTS) or TINT_NORMAL
 
 	for i = 1, MAX_DOTS do
 		local dot_url = self.dots[i]
@@ -54,6 +84,10 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 				go.set_position(vmath.vector3(points[i].x, points[i].y, 0.3), dot_url)
 				local s = 0.28 * (1.0 - (i / (MAX_DOTS + 4)))
 				go.set_scale(vmath.vector3(s, s, 1.0), dot_url)
+				-- Dots fade out towards the end of the preview
+				local c = vmath.vector4(tint)
+				c.w = 1.0 - 0.55 * (i - 1) / MAX_DOTS
+				go.set(msg.url(nil, dot_url, "sprite"), "tint", c)
 			else
 				msg.post(dot_url, "disable")
 			end
@@ -62,8 +96,15 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 
 	if #points > 0 and self.crosshair then
 		msg.post(self.crosshair, "enable")
-		local last_pt = points[#points]
 		go.set_position(vmath.vector3(last_pt.x, last_pt.y, 0.35), self.crosshair)
+		go.set(msg.url(nil, self.crosshair, "sprite"), "tint", tint)
+		if tint ~= self.crosshair_tint then
+			-- Pop the crosshair when its meaning changes
+			self.crosshair_tint = tint
+			go.cancel_animations(self.crosshair, "scale")
+			go.set_scale(vmath.vector3(1.35, 1.35, 1), self.crosshair)
+			go.animate(self.crosshair, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1, 1, 1), go.EASING_OUTBACK, 0.22)
+		end
 
 		-- Update aim target coordinates for dynamic camera zoom & framing
 		game_state.aim_target_x = last_pt.x
@@ -230,7 +271,7 @@ function on_input(self, action_id, action)
 				local dir_x = aim_x / len
 				local dir_y = aim_y / len
 				local effective_len = len * sens
-				local power = (weapon.fixed_power and weapon.max_power or math.min(weapon.max_power, effective_len * weapon.power_scale)) * 1.30
+				local power = (weapon.fixed_power and weapon.max_power or math.min(weapon.max_power, effective_len * weapon.power_scale)) * physics_sim.LAUNCH_BOOST
 
 				local vx = dir_x * power
 				local vy = dir_y * power

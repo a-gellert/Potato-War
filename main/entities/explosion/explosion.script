@@ -46,6 +46,9 @@ function init(self)
 	local biome = game_state.current_biome or "grass"
 	local pos = go.get_position()
 	debris_fx.burst("#debris_factory", pos.x, pos.y, self.radius, biome)
+	if self.radius >= 18 then
+		debris_fx.smoke_column("#debris_factory", pos.x, pos.y, self.radius)
+	end
 
 	-- Biome-tinted dust sprites hugging the blast center
 	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }

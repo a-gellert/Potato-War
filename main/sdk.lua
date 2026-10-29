@@ -41,6 +41,15 @@ if not facebook_ok or type(facebook_module) ~= "table" then
 	}
 end
 
+local firebase_ok, firebase_analytics = pcall(require, "main.firebase_analytics")
+if not firebase_ok or type(firebase_analytics) ~= "table" then
+	firebase_analytics = {
+		init = function() end,
+		log_ad_impression = function() end,
+		log_event = function() end,
+	}
+end
+
 local M = {}
 M.mobile_ads = mobile_ads
 M.unityads = mobile_ads -- Backwards compatibility alias
@@ -50,6 +59,7 @@ M.ga = gameanalytics
 M.adjust = adjust_module
 M.facebook = facebook_module
 M.fb = facebook_module
+M.firebase = firebase_analytics
 
 ----------------------------------------------------------
 -- PLATFORM TYPES
@@ -859,6 +869,7 @@ function M.init(custom_config)
 		M.active_platform = M.PLATFORM_ANDROID
 		log("📱 Mobile build detected (" .. sys_info.system_name .. ") — Initializing AppLovin MAX")
 		mobile_ads.init()
+		firebase_analytics.init()
 		gameanalytics.init()
 		adjust_module.init()
 		facebook_module.init()

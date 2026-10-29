@@ -36,6 +36,8 @@ dependencies#1 = https://github.com/Insality/druid/archive/master.zip
 dependencies#2 = https://github.com/britzl/defold-orthographic/archive/master.zip
 dependencies#3 = https://github.com/defold/extension-poki-sdk/archive/refs/tags/4.1.0.zip
 dependencies#4 = https://github.com/defold/extension-applovin/archive/refs/tags/2.0.0.zip
+dependencies#5 = https://github.com/defold/extension-firebase/archive/refs/tags/2.3.2.zip
+dependencies#6 = https://github.com/defold/extension-firebase-analytics/archive/refs/tags/3.3.1.zip
 
 [graphics]
 opengl_version_hint = 42
@@ -60,13 +62,13 @@ bigo_android = 1
 mintegral_android = 1
 yandex_android = 1
 bidmachine_android = 1
-google_android = 0
+google_android = 1
 google_android_app_id = 
 bigo_ios = 1
 mintegral_ios = 1
 yandex_ios = 1
 bidmachine_ios = 1
-google_ios = 0
+google_ios = 1
 google_ios_app_id = 
 ios_user_tracking_usage_description = This identifier will be used to deliver personalized ads to you.
 
@@ -78,7 +80,6 @@ android_banner_ad_unit_id =
 ios_rewarded_ad_unit_id = 
 ios_interstitial_ad_unit_id = 
 ios_banner_ad_unit_id = 
-privacy_policy_url = 
-terms_of_service_url = 
+privacy_policy_url = https://gardenofdreams.games/privacy-policy-3
+terms_of_service_url = https://gardenofdreams.games/privacy-policy-3
 debug_mode = 0
-
