@@ -50,7 +50,7 @@ end
 
 -- Update a potato unit's physics (accounting for mass, wind drift, and statuses)
 function M.update_potato(p, dt, terrain, wind_vector)
-	if not p.is_alive then
+	if not p.is_alive and not p.is_dying then
 		return
 	end
 
@@ -108,6 +108,7 @@ function M.update_potato(p, dt, terrain, wind_vector)
 			p.pos.y = math.min(p.pos.y, constants.WATER_LEVEL - 5)
 			p.hp = 0
 			p.is_alive = false
+			p.is_dying = false
 			p.is_grounded = false
 			return "drowned"
 		end
@@ -298,7 +299,7 @@ function M.step_potato(p, dt, terrain, wind_vector)
 		if (res == "land" or res == "bounce") and (speed or 0) >= impact then
 			event, impact = res, speed or 0
 		end
-		if not p.is_alive then
+		if not p.is_alive and not p.is_dying then
 			break
 		end
 	end
@@ -448,7 +449,7 @@ end
 
 -- Apply explosive blast to a potato (mass dampens knockback)
 function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damage)
-	if not p.is_alive then
+	if not p.is_alive and not p.is_dying then
 		return 0
 	end
 
@@ -464,6 +465,7 @@ function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damag
 	p.hp = math.max(0, p.hp - dmg)
 	if p.hp <= 0 then
 		p.is_alive = false
+		p.is_dying = true
 	end
 	return dmg
 end
@@ -542,6 +544,28 @@ end
 
 local HIT_PAD = 3 -- shells hit a potato this many px outside its body
 
+-- Can a projectile collide with potato p?
+-- The owner/shooter cannot be hit by their own projectile right after launch.
+-- They can only be hit if the projectile has bounced off terrain/walls (ricochet),
+-- or has been in the air for a long time (> 1.2s, high sky arc falling back down).
+local function can_hit_potato(owner_id, bounces, age, p)
+	if not p.is_alive then
+		return false
+	end
+	if owner_id and owner_id ~= 0 and p.id == owner_id then
+		bounces = bounces or 0
+		age = age or 0
+		if bounces > 0 and age > 0.8 then
+			return true
+		end
+		if age > 1.2 then
+			return true
+		end
+		return false
+	end
+	return true
+end
+
 -- Update projectile physics, collisions, and dynamic wind
 function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 	if not proj.is_active then
@@ -555,10 +579,11 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 		return "explode", proj.pos.x, proj.pos.y
 	end
 
-	-- If projectile is resting on ground
+	-- If projectile is resting on ground:
+	-- The owner is immune to resting proximity detonation (fused bombs only detonate on fuse_timer <= 0 for the thrower).
 	if proj.is_resting then
 		for _, p in ipairs(potatoes) do
-			if p.is_alive and (proj.owner_id == nil or p.id ~= proj.owner_id or proj.fuse_timer < proj.weapon.fuse_time - 0.2) then
+			if p.is_alive and (proj.owner_id == nil or proj.owner_id == 0 or p.id ~= proj.owner_id) then
 				local pdx = proj.pos.x - p.pos.x
 				local pdy = proj.pos.y - p.pos.y
 				if pdx * pdx + pdy * pdy < (constants.POTATO_RADIUS + 4) * (constants.POTATO_RADIUS + 4) then
@@ -618,7 +643,7 @@ function M.update_projectile(proj, dt, terrain, potatoes, wind_vector)
 	local potato_hx, potato_hy = 0, 0
 
 	for _, p in ipairs(potatoes) do
-		if p.is_alive and (proj.owner_id == nil or p.id ~= proj.owner_id or proj.fuse_timer < proj.weapon.fuse_time - 0.1) then
+		if can_hit_potato(proj.owner_id, proj.bounces, proj.age, p) then
 			local hit_radius = constants.POTATO_RADIUS + HIT_PAD
 			if p.is_target or (p.team == constants.TEAM_RED and game_state and game_state.mode == constants.MODE_TUTORIAL) then
 				hit_radius = constants.POTATO_RADIUS + 18 -- Fail-safe: generous hitbox for tutorial target
@@ -758,7 +783,7 @@ function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potato
 
 		if is_resting then
 			for _, p in ipairs(potatoes) do
-				if p.is_alive and (owner_id == nil or p.id ~= owner_id or fuse_timer < fuse_time - 0.2) then
+				if can_hit_potato(owner_id, bounces, t, p) then
 					local pdx = curr_x - p.pos.x
 					local pdy = curr_y - p.pos.y
 					local r = constants.POTATO_RADIUS + 4
@@ -778,7 +803,7 @@ function M.simulate_shot(start_x, start_y, vel_x, vel_y, weapon, terrain, potato
 
 			local hit_p, closest, phx, phy = nil, math.huge, 0, 0
 			for _, p in ipairs(potatoes) do
-				if p.is_alive and (owner_id == nil or p.id ~= owner_id or fuse_timer < fuse_time - 0.1) then
+				if can_hit_potato(owner_id, bounces, t, p) then
 					local hit, qx, qy, d = check_segment_circle(curr_x, curr_y, next_x, next_y, p.pos.x, p.pos.y, constants.POTATO_RADIUS + HIT_PAD)
 					if hit and d < closest then
 						hit_p, closest, phx, phy = p, d, qx, qy

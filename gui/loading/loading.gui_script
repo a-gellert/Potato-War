@@ -238,6 +238,7 @@ function on_message(self, message_id, message, sender)
 		-- Smoothly complete boot loader and notify callback / fade out
 		timer.delay(0.85, false, function()
 			fade_out(self, 0.35, function()
+				sound_manager.on_game_loaded()
 				if message and message.callback_id then
 					msg.post(sender, message.callback_id)
 				end
@@ -271,6 +272,7 @@ function on_message(self, message_id, message, sender)
 		self.target_progress = 1.0
 		timer.delay(0.18, false, function()
 			fade_out(self, 0.30, function()
+				sound_manager.on_game_loaded()
 				if message and message.callback_id then
 					msg.post(sender, message.callback_id)
 				end

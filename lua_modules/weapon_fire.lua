@@ -20,7 +20,22 @@ local PLANE_ALTITUDE = 0.92 -- plane altitude as a share of the world height
 local BOT_LIMITED = { airstrike = true, homing = true, dynamite = true, cluster = true, holy_grenade = true }
 
 local function spawn_projectile(self, x, y, vx, vy, weapon_id, owner_id, target_id, dont_track)
-	local url = factory.create("#projectile_factory", vmath.vector3(x, y, 0.2), nil, {
+	-- Offset spawn point forward along shot velocity so projectile emerges cleanly outside shooter's body
+	local speed = math.sqrt(vx * vx + vy * vy)
+	local sx, sy = x, y
+	if speed > 1 then
+		local dir_x = vx / speed
+		local dir_y = vy / speed
+		local offset = constants.POTATO_RADIUS + 3.0 -- 18 px forward
+		local cand_x = x + dir_x * offset
+		local cand_y = y + dir_y * offset
+		if not terrain_grid.is_solid(cand_x, cand_y) then
+			sx = cand_x
+			sy = cand_y
+		end
+	end
+
+	local url = factory.create("#projectile_factory", vmath.vector3(sx, sy, 0.2), nil, {
 		vel_x = vx,
 		vel_y = vy,
 		weapon_type = hash(weapon_id),
@@ -231,7 +246,18 @@ function M.update_bursts(self, dt)
 	local spread = weapon.shot_spread or 0.06
 	local angle = math.atan2(bq.vel_y, bq.vel_x) + (math.random() - 0.5) * spread
 	local speed = math.sqrt(bq.vel_x * bq.vel_x + bq.vel_y * bq.vel_y)
-	spawn_projectile(self, bq.origin_x, bq.origin_y, math.cos(angle) * speed, math.sin(angle) * speed, bq.weapon_id, bq.owner_id)
+	local ox = bq.origin_x
+	local oy = bq.origin_y
+	if bq.owner_id and bq.owner_id > 0 then
+		for _, p in ipairs(game_state.potatoes) do
+			if p.id == bq.owner_id and p.is_alive then
+				ox = p.pos.x
+				oy = p.pos.y + 8
+				break
+			end
+		end
+	end
+	spawn_projectile(self, ox, oy, math.cos(angle) * speed, math.sin(angle) * speed, bq.weapon_id, bq.owner_id)
 
 	bq.shots_left = bq.shots_left - 1
 	if bq.shots_left <= 0 then

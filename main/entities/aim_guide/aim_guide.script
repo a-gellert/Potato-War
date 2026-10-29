@@ -11,7 +11,7 @@ local match_spawner = require("lua_modules.match_spawner")
 
 local MAX_DOTS = 14
 
-local function hide_guide(self)
+local function hide_trajectory(self)
 	if self.crosshair then
 		msg.post(self.crosshair, "disable")
 	end
@@ -27,8 +27,18 @@ local function hide_guide(self)
 	game_state.aim_target_y = nil
 end
 
+local function hide_guide(self)
+	hide_trajectory(self)
+	if self.origin_marker then
+		msg.post(self.origin_marker, "disable")
+	end
+end
+
 -- Airstrike targeting: only the crosshair, standing on the ground below the marked x
 local function show_target(self, wx, wy)
+	if self.origin_marker then
+		msg.post(self.origin_marker, "disable")
+	end
 	for i = 1, MAX_DOTS do
 		if self.dots[i] then
 			msg.post(self.dots[i], "disable")
@@ -147,11 +157,18 @@ function init(self)
 	-- Spawn crosshair game object
 	self.crosshair = factory.create("#crosshair_factory", vmath.vector3(-100, -100, 0.35))
 	msg.post(self.crosshair, "disable")
+
+	-- Spawn origin marker game object to mark initial touch point
+	self.origin_marker = factory.create("#dot_factory", vmath.vector3(-100, -100, 0.35))
+	msg.post(self.origin_marker, "disable")
 end
 
 function final(self)
 	if self.crosshair then
 		pcall(go.delete, self.crosshair)
+	end
+	if self.origin_marker then
+		pcall(go.delete, self.origin_marker)
 	end
 	if self.dots then
 		for _, d in ipairs(self.dots) do
@@ -239,32 +256,42 @@ function on_input(self, action_id, action)
 			hide_guide(self)
 			self.dragging = true
 			self.drag_start = vmath.vector3(action.x, action.y, 0)
+			self.last_vx = 0
+			self.last_vy = 0
 			game_state.poki_gameplay_start()
 
-		elseif self.dragging and not action.released then
-			local is_slingshot = (game_state.aim_control_mode == "slingshot")
-			local aim_x, aim_y
-
-			if is_slingshot then
-				local raw_dx = action.x - self.drag_start.x
-				local raw_dy = action.y - self.drag_start.y
-				aim_x = -raw_dx
-				aim_y = -raw_dy
-			else
-				-- Direct mode: aim from unit's screen position towards the touch / cursor point
-				local psx, psy = camera_controller.world_to_screen(potato.pos.x, potato.pos.y + 8)
-				aim_x = action.x - psx
-				aim_y = action.y - psy
+			-- Visually mark the initial touch point
+			if self.origin_marker then
+				local wx, wy = camera_controller.screen_to_world(action.x, action.y)
+				go.set_position(vmath.vector3(wx, wy, 0.35), self.origin_marker)
+				msg.post(self.origin_marker, "enable")
+				go.set_scale(vmath.vector3(0.55, 0.55, 1.0), self.origin_marker)
+				go.set(msg.url(nil, self.origin_marker, "sprite"), "tint", vmath.vector4(1, 0.9, 0.25, 0.85))
+				go.cancel_animations(self.origin_marker, "scale")
+				go.animate(self.origin_marker, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.38, 0.38, 1.0), go.EASING_OUTBACK, 0.18)
 			end
+
+		elseif self.dragging and not action.released then
+			-- Keep origin marker pinned to initial touch position on screen even if camera moves
+			if self.origin_marker then
+				local wx, wy = camera_controller.screen_to_world(self.drag_start.x, self.drag_start.y)
+				go.set_position(vmath.vector3(wx, wy, 0.35), self.origin_marker)
+			end
+
+			local is_slingshot = (game_state.aim_control_mode == "slingshot")
+			local raw_dx = action.x - self.drag_start.x
+			local raw_dy = action.y - self.drag_start.y
+			local aim_x = is_slingshot and -raw_dx or raw_dx
+			local aim_y = is_slingshot and -raw_dy or raw_dy
 
 			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 
 			-- Aim sensitivity from config (mouse vs touchscreen)
 			local sens = match_spawner.is_mobile_platform()
-				and (constants.AIM_SENSITIVITY_TOUCH or 0.5)
-				or (constants.AIM_SENSITIVITY_MOUSE or 0.5)
+				and (constants.AIM_SENSITIVITY_TOUCH or 0.75)
+				or (constants.AIM_SENSITIVITY_MOUSE or 0.75)
 
-			local min_len = is_slingshot and 12 or 16
+			local min_len = is_slingshot and 12 or 14
 			if len > min_len then
 				game_state.is_aiming = true
 				msg.post("/gui_hud#gui", "hide_tutorial")
@@ -288,30 +315,25 @@ function on_input(self, action_id, action)
 
 				show_trajectory(self, potato.pos.x, potato.pos.y + 8, vx, vy, weapon)
 			else
-				hide_guide(self)
+				game_state.is_aiming = false
+				self.last_vx = 0
+				self.last_vy = 0
+				hide_trajectory(self)
 			end
 
 		elseif action.released and self.dragging then
 			self.dragging = false
 			game_state.is_aiming = false
 			local is_slingshot = (game_state.aim_control_mode == "slingshot")
-			local aim_x, aim_y
-
-			if is_slingshot then
-				local raw_dx = action.x - self.drag_start.x
-				local raw_dy = action.y - self.drag_start.y
-				aim_x = -raw_dx
-				aim_y = -raw_dy
-			else
-				local psx, psy = camera_controller.world_to_screen(potato.pos.x, potato.pos.y + 8)
-				aim_x = action.x - psx
-				aim_y = action.y - psy
-			end
+			local raw_dx = action.x - self.drag_start.x
+			local raw_dy = action.y - self.drag_start.y
+			local aim_x = is_slingshot and -raw_dx or raw_dx
+			local aim_y = is_slingshot and -raw_dy or raw_dy
 
 			local len = math.sqrt(aim_x * aim_x + aim_y * aim_y)
 			hide_guide(self)
 
-			local min_fire_len = is_slingshot and 16 or 20
+			local min_fire_len = is_slingshot and 16 or 18
 			if len > min_fire_len and (self.last_vx ~= 0 or self.last_vy ~= 0) then
 				-- Fire weapon!
 				game_state.tutorial_first_shot_done = true

@@ -411,6 +411,9 @@ function init(self)
 			pcall(msg.post, "/gui_loading#gui", "finish_loading")
 		end
 		constants.log(">>> MAIN SCRIPT INIT FINISHED SUCCESSFULLY")
+		timer.delay(0.5, false, function()
+			sound_manager.on_game_loaded()
+		end)
 	end
 
 	-- Safety timeout: if cloud storage takes > 2.0s, proceed with local profile

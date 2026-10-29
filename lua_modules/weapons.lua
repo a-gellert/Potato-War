@@ -580,6 +580,7 @@ local DEFS = {
 		blast_force      = 120,
 		max_power        = 900,
 		power_scale      = 4.5,
+		fixed_power      = true,
 		projectile_sprite = "fry_bullet",
 		projectile_scale  = 1.0,
 		projectile_tint   = {1, 1, 1, 1},

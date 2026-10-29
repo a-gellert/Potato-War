@@ -99,7 +99,7 @@ end
 
 function M.update(dt)
 	for _, p in ipairs(game_state.potatoes) do
-		if p.is_alive then
+		if p.is_alive or p.is_dying then
 			local was_grounded = p.is_grounded
 			local result, impact = physics_sim.step_potato(p, dt, terrain_grid, game_state.wind_vector)
 			if p.url then
@@ -110,9 +110,20 @@ function M.update(dt)
 				elseif result == "water_splash" then
 					on_splash(p)
 				elseif result == "drowned" then
+					p.is_dying = false
 					on_drowned(p)
 				else
 					on_moved(p, was_grounded, result, impact)
+
+					if p.is_dying then
+						p.death_timer = (p.death_timer or 0.35) - dt
+						p.dying_max_timer = (p.dying_max_timer or 3.0) - dt
+						local speed = math.sqrt(p.vel.x * p.vel.x + p.vel.y * p.vel.y)
+						if (p.is_grounded and speed < 6.0 and p.death_timer <= 0) or p.dying_max_timer <= 0 then
+							p.is_dying = false
+							msg.post(p.url, "die")
+						end
+					end
 				end
 			end
 		end

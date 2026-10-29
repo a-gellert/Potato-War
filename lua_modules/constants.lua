@@ -37,9 +37,9 @@ M.POTATO_JUMP_IMPULSE = 295.0
 M.MAX_FALL_SPEED = 600.0
 M.PLAYER_HP = 120
 
--- Aim Sensitivity (50% reduction from base 1.0)
-M.AIM_SENSITIVITY_MOUSE = 0.5
-M.AIM_SENSITIVITY_TOUCH = 0.25
+-- Aim Sensitivity (drag scaling from touch start)
+M.AIM_SENSITIVITY_MOUSE = 0.75
+M.AIM_SENSITIVITY_TOUCH = 0.75
 
 -- Teams
 M.TEAM_BLUE = 1

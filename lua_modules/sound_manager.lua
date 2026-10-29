@@ -32,6 +32,15 @@ local ad_muted = false
 local focus_muted = false
 local current_music = nil
 local initialized = false
+local game_loaded = false
+local pending_music = nil
+
+-- Individual gains per track: battle music is kept quieter than menu music
+local MUSIC_GAINS = {
+	music_menu = 1.0,
+	music_battle = 0.65,
+	music_boss = 0.65,
+}
 
 local function apply_gains()
 	local muted = ad_muted or focus_muted
@@ -100,7 +109,12 @@ function M.play(name, opts)
 end
 
 -- Switches the looping music track (nil stops the music)
+-- If the main game has not finished loading yet, queues the track to play when ready
 function M.music(name)
+	if not game_loaded then
+		pending_music = name
+		return
+	end
 	if name == current_music then
 		return
 	end
@@ -109,7 +123,38 @@ function M.music(name)
 	end
 	current_music = name
 	if name then
-		pcall(sound.play, AUDIO_GO .. name, { gain = 1.0 })
+		local track_gain = MUSIC_GAINS[name] or 1.0
+		pcall(sound.play, AUDIO_GO .. name, { gain = track_gain })
+	end
+end
+
+-- Called after the main game has loaded (boot loader finished) to start queued background music
+function M.on_game_loaded()
+	if game_loaded then
+		return
+	end
+	game_loaded = true
+	if pending_music then
+		local track = pending_music
+		pending_music = nil
+		M.music(track)
+	end
+end
+
+function M.is_game_loaded()
+	return game_loaded
+end
+
+function M.pause_all()
+	if current_music then
+		pcall(sound.stop, AUDIO_GO .. current_music)
+	end
+end
+
+function M.resume_all()
+	if game_loaded and current_music then
+		local track_gain = MUSIC_GAINS[current_music] or 1.0
+		pcall(sound.play, AUDIO_GO .. current_music, { gain = track_gain })
 	end
 end
 

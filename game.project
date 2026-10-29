@@ -20,6 +20,7 @@ app_icon_72x72 = /main/assets/logo2 (1).png
 app_icon_48x48 = /main/assets/logo2 (1).png
 app_icon_36x36 = /main/assets/logo2 (1).png
 package = com.turnbased.artillery.potato.war
+version_code = 2
 
 [html5]
 scale_mode = stretch
@@ -63,7 +64,7 @@ mintegral_android = 1
 yandex_android = 1
 bidmachine_android = 1
 google_android = 1
-google_android_app_id = 
+google_android_app_id = ca-app-pub-1933591656142280~3037845341
 bigo_ios = 1
 mintegral_ios = 1
 yandex_ios = 1
@@ -73,13 +74,14 @@ google_ios_app_id =
 ios_user_tracking_usage_description = This identifier will be used to deliver personalized ads to you.
 
 [max]
-sdk_key = 
-android_rewarded_ad_unit_id = 
-android_interstitial_ad_unit_id = 
-android_banner_ad_unit_id = 
+sdk_key = nR3VEu5EEJlq6OmqwXd1lMKHQhg3sEumJpdTgplZ-csu1yq6zIkU1auq9P1sOOoIVLg9tOWSXDaUfRvC9Uv-Ib
+android_rewarded_ad_unit_id = 3b4c4e300c1709af
+android_interstitial_ad_unit_id = dcde4a87319ce815
+android_banner_ad_unit_id = ecd82aeb64571dad
 ios_rewarded_ad_unit_id = 
 ios_interstitial_ad_unit_id = 
 ios_banner_ad_unit_id = 
 privacy_policy_url = https://gardenofdreams.games/privacy-policy-3
 terms_of_service_url = https://gardenofdreams.games/privacy-policy-3
 debug_mode = 0
+

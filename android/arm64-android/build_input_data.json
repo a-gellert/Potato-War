@@ -1,6 +1,6 @@
 {
   "project_git" : {
-    "sha1" : "9ce19017f5300c0be517e5b9c23b2edf114e3894",
+    "sha1" : "d0b74f0d3ee876ddb932a46d6b208492ea7a18f9",
     "origin" : "https://github.com/a-gellert/Potato-War.git",
     "branch" : "main"
   },
@@ -30,5 +30,13 @@
     "url" : "https://github.com/defold/extension-applovin/archive/refs/tags/2.0.0.zip",
     "commit-sha1" : "b44062fc63f7c4e31d075bb25f17ffebce97845e",
     "payload-sha1" : "3ac7f59b307b63b57a58ab90c7be2eb9f6e827ec"
+  }, {
+    "url" : "https://github.com/defold/extension-firebase/archive/refs/tags/2.3.2.zip",
+    "commit-sha1" : "06a4d0711aa32840ea02ca8cd3f5f76c0f8935a3",
+    "payload-sha1" : "0c49dc55778b203ca97bbe674962d687fc3b0a58"
+  }, {
+    "url" : "https://github.com/defold/extension-firebase-analytics/archive/refs/tags/3.3.1.zip",
+    "commit-sha1" : "b40f0c084c879d1dffd6ebb0eacb2e63eb9eb122",
+    "payload-sha1" : "5590408af504b1d96649844646d45dd1028e8a41"
   } ]
 }
