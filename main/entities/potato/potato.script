@@ -184,7 +184,7 @@ function init(self)
 	self.scale_anim_timer = 0
 end
 
-local BASE_SCALE = 0.3125
+local BASE_SCALE = 0.15625
 
 function update(self, dt)
 	if self.scale_anim_timer and self.scale_anim_timer > 0 then

@@ -98,22 +98,22 @@ images {
   image: "/main/assets/star.png"
 }
 images {
-  image: "/main/assets/recruit.png"
+  image: "/main/assets/potato/recruit.png"
 }
 images {
-  image: "/main/assets/assault.png"
+  image: "/main/assets/potato/assault.png"
 }
 images {
-  image: "/main/assets/medic.png"
+  image: "/main/assets/potato/medic.png"
 }
 images {
-  image: "/main/assets/sapper.png"
+  image: "/main/assets/potato/sapper.png"
 }
 images {
-  image: "/main/assets/sniper.png"
+  image: "/main/assets/potato/sniper.png"
 }
 images {
-  image: "/main/assets/tank.png"
+  image: "/main/assets/potato/tank.png"
 }
 images {
   image: "/main/assets/hat_crown.png"
