@@ -35,7 +35,7 @@ local TEXTS = {
 		rules = {
 			"Один выстрел за ход — затем ходит враг",
 			"Следи за таймером своего хода",
-			"Оружие меняется внизу экрана [1-5]",
+			"Оружие переключается внизу экрана",
 			"Ветер сносит снаряды — следи за стрелкой",
 			"Вода внизу — мгновенная гибель",
 		},
@@ -56,7 +56,7 @@ local TEXTS = {
 		rules = {
 			"One shot per turn, then enemy fires",
 			"Watch your turn timer at the top",
-			"Switch weapons at the bottom [1-5]",
+			"Switch weapons at the bottom bar",
 			"Wind pushes projectiles — watch the arrow",
 			"Water below is instant death",
 		},
@@ -77,7 +77,7 @@ local TEXTS = {
 		rules = {
 			"Um tiro por turno, depois o inimigo atira",
 			"Fique atento ao tempo do seu turno",
-			"Troque de arma embaixo [1-5]",
+			"Troque de arma na barra inferior",
 			"O vento desvia os projéteis",
 			"A água embaixo é morte certa",
 		},
@@ -98,7 +98,7 @@ local TEXTS = {
 		rules = {
 			"Un tir par tour, puis l'ennemi tire",
 			"Surveille le chronomètre de tour",
-			"Change d'arme en bas [1-5]",
+			"Change d'arme dans la barre du bas",
 			"Le vent dévie les tirs — surveille la flèche",
 			"L'eau en bas est mortelle",
 		},
@@ -119,7 +119,7 @@ local TEXTS = {
 		rules = {
 			"Un disparo por turno, luego el enemigo",
 			"Vigila el tiempo de tu turno",
-			"Cambia de arma abajo [1-5]",
+			"Cambia de arma en la barra inferior",
 			"El viento desvía los disparos",
 			"El agua abajo es muerte instantánea",
 		},
@@ -140,7 +140,7 @@ local TEXTS = {
 		rules = {
 			"Her turda bir atış, sonra düşman atar",
 			"Yukarıdaki tur süresine dikkat et",
-			"Alttan silahı değiştir [1-5]",
+			"Alt kısımdan silahını değiştir",
 			"Rüzgar mermiyi saptırır",
 			"Aşağıdaki su anında yok eder",
 		},

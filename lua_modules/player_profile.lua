@@ -186,6 +186,7 @@ function M.load()
 		M.data.blueprints = loaded.blueprints or {}
 		M.data.commander_xp = loaded.commander_xp or 0
 		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
+		M.data.ftue_seen = loaded.ftue_seen or {}
 	else
 		M.has_local_save = false
 		M.data.language = nil
@@ -216,6 +217,7 @@ function M.load()
 		M.data.blueprints = {}
 		M.data.commander_xp = 0
 		M.data.stats = { battles = 0, wins = 0, kills = 0, crates = 0 }
+		M.data.ftue_seen = {}
 	end
 	return M.data
 end
@@ -257,7 +259,20 @@ function M.apply_profile_data(loaded)
 	if loaded.stats ~= nil and type(loaded.stats) == "table" then
 		M.data.stats = loaded.stats
 	end
+	if loaded.ftue_seen ~= nil and type(loaded.ftue_seen) == "table" then
+		M.data.ftue_seen = loaded.ftue_seen
+	end
 	if loaded.no_ads ~= nil then M.data.no_ads = (loaded.no_ads == true) end
+end
+
+function M.is_ftue_seen(key)
+	return M.data.ftue_seen and (M.data.ftue_seen[key] == true)
+end
+
+function M.mark_ftue_seen(key)
+	M.data.ftue_seen = M.data.ftue_seen or {}
+	M.data.ftue_seen[key] = true
+	M.save()
 end
 
 local cloud_save_timer = nil

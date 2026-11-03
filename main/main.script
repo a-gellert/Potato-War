@@ -490,9 +490,7 @@ function on_input(self, action_id, action)
 	end
 
 	if (action_id == hash("inventory") or action_id == hash("key_q")) and action.pressed then
-		if game_state.mode ~= constants.MODE_CAMPAIGN then
-			msg.post("/gui_hud#gui", "toggle_inventory")
-		end
+		msg.post("/gui_hud#gui", "toggle_inventory")
 		return true
 	end
 

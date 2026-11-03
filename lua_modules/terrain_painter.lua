@@ -30,61 +30,62 @@ local STRATA = { 1.0, 0.88, 1.06, 0.94 }
 
 local PALETTES = {
 	grass = {
-		outline = { 36, 60, 30 }, burnt = { 54, 38, 30 }, burnt_line = { 28, 20, 18 },
-		cap_th = 11, cap_hi = { 162, 238, 90 }, cap = { 104, 204, 60 }, cap_lo = { 64, 158, 50 },
-		soil_top = { 184, 120, 70 }, soil_deep = { 98, 58, 40 }, body = "clods", patch = 0.84,
+		outline = { 26, 48, 20 }, burnt = { 54, 38, 30 }, burnt_line = { 28, 20, 18 },
+		cap_th = 12, cap_hi = { 178, 248, 72 }, cap = { 102, 212, 54 }, cap_lo = { 56, 162, 44 },
+		soil_top = { 172, 112, 65 }, soil_deep = { 86, 50, 34 }, body = "clods", patch = 0.84,
 		stone = { 160, 154, 148 }, stone_hi = { 216, 210, 200 }, stone_lo = { 92, 86, 84 },
 		pebble_rate = 0.45, pebbles = { "pebble", "pebble", "potato" },
 		potato = { 224, 170, 98 }, potato_hi = { 248, 210, 142 }, potato_lo = { 134, 88, 46 },
-		props = { { "tuft", 0.11 }, { "flower", 0.135 } },
+		props = { { "tuft", 0.12 }, { "flower", 0.14 } },
 		petals = { { 255, 226, 70 }, { 255, 255, 250 }, { 255, 132, 182 } }, petal_mid = { 255, 168, 40 },
-		hangs = { { "vine", 0.14 } },
+		hangs = { { "vine", 0.16 } },
 	},
 	desert = {
-		outline = { 114, 60, 34 }, burnt = { 72, 42, 30 }, burnt_line = { 40, 22, 16 },
-		cap_th = 6, cap_hi = { 255, 234, 166 }, cap = { 250, 206, 120 }, cap_lo = { 228, 170, 92 },
-		soil_top = { 234, 152, 88 }, soil_deep = { 166, 82, 54 }, body = "strata",
-		stone = { 228, 186, 132 }, stone_hi = { 252, 226, 176 }, stone_lo = { 150, 96, 60 },
+		outline = { 98, 50, 28 }, burnt = { 72, 42, 30 }, burnt_line = { 40, 22, 16 },
+		cap_th = 8, cap_hi = { 255, 242, 176 }, cap = { 252, 210, 126 }, cap_lo = { 226, 168, 88 },
+		soil_top = { 228, 144, 84 }, soil_deep = { 156, 76, 50 }, body = "strata",
+		stone = { 226, 182, 128 }, stone_hi = { 252, 225, 172 }, stone_lo = { 145, 90, 56 },
 		pebble_rate = 0.4, pebbles = { "pebble" },
-		props = { { "dry", 0.05 }, { "cactus", 0.058 } },
+		props = { { "dry", 0.05 }, { "cactus", 0.065 } },
 		dry = { { 168, 146, 66 }, { 200, 180, 90 }, { 238, 216, 132 } },
 		cactus = { { 140, 212, 110 }, { 88, 172, 82 }, { 56, 122, 62 } },
 		hangs = {},
 	},
 	arctic = {
-		outline = { 44, 76, 132 }, burnt = { 62, 72, 94 }, burnt_line = { 30, 36, 56 },
-		cap_th = 10, cap_hi = { 255, 255, 255 }, cap = { 236, 246, 255 }, cap_lo = { 190, 218, 246 },
-		soil_top = { 150, 212, 248 }, soil_deep = { 64, 122, 196 }, body = "ice",
-		stone = { 112, 138, 178 }, stone_hi = { 172, 198, 228 }, stone_lo = { 60, 80, 122 },
-		pebble_rate = 0.5, pebbles = { "pebble", "bubble", "bubble" },
-		props = { { "shard", 0.05 } },
-		ice = { { 255, 255, 255 }, { 196, 236, 255 }, { 120, 190, 242 } },
-		hangs = { { "icicle", 0.22 } },
+		outline = { 32, 62, 112 }, burnt = { 62, 72, 94 }, burnt_line = { 30, 36, 56 },
+		cap_th = 13, cap_hi = { 255, 255, 255 }, cap = { 236, 248, 255 }, cap_lo = { 172, 214, 248 },
+		soil_top = { 128, 198, 245 }, soil_deep = { 70, 126, 194 }, body = "ice",
+		stone = { 98, 128, 170 }, stone_hi = { 178, 212, 245 }, stone_lo = { 52, 74, 112 },
+		pebble_rate = 0.55, pebbles = { "pebble", "bubble", "bubble" },
+		props = { { "shard", 0.06 } },
+		ice = { { 255, 255, 255 }, { 202, 238, 255 }, { 128, 194, 245 } },
+		hangs = { { "icicle", 0.35 } },
 	},
 	volcano = {
-		outline = { 26, 14, 20 }, burnt = { 30, 18, 20 }, burnt_line = { 14, 8, 10 },
-		cap_th = 5, cap_hi = { 134, 106, 102 }, cap = { 94, 74, 76 }, cap_lo = { 68, 52, 58 },
-		cap_fleck = { 255, 132, 40 },
-		soil_top = { 80, 60, 66 }, soil_deep = { 38, 26, 34 }, body = "magma",
+		outline = { 20, 10, 14 }, burnt = { 30, 18, 20 }, burnt_line = { 14, 8, 10 },
+		cap_th = 7, cap_hi = { 138, 108, 104 }, cap = { 88, 66, 70 }, cap_lo = { 58, 42, 48 },
+		cap_fleck = { 255, 142, 38 },
+		soil_top = { 72, 52, 58 }, soil_deep = { 32, 20, 26 }, body = "magma",
 		stone = { 46, 38, 56 }, stone_hi = { 124, 112, 156 }, stone_lo = { 20, 14, 24 },
 		pebble_rate = 0.5, pebbles = { "crystal", "pebble" },
 		props = { { "spike", 0.06 } },
 		spike = { { 120, 96, 96 }, { 80, 62, 66 }, { 255, 140, 50 } },
-		hangs = { { "drip", 0.07 } },
-		drip = { { 255, 128, 36 }, { 255, 214, 96 } },
+		hangs = { { "drip", 0.16 } },
+		drip = { { 255, 138, 34 }, { 255, 222, 94 } },
 	},
 	alien = {
-		outline = { 46, 18, 76 }, burnt = { 40, 20, 50 }, burnt_line = { 22, 10, 30 },
-		cap_th = 8, cap_hi = { 164, 255, 214 }, cap = { 74, 234, 178 }, cap_lo = { 36, 174, 148 },
-		soil_top = { 152, 80, 202 }, soil_deep = { 66, 30, 112 }, body = "clods", patch = 0.82,
+		outline = { 38, 14, 66 }, burnt = { 40, 20, 50 }, burnt_line = { 22, 10, 30 },
+		cap_th = 10, cap_hi = { 148, 255, 228 }, cap = { 65, 240, 188 }, cap_lo = { 28, 178, 150 },
+		soil_top = { 148, 72, 205 }, soil_deep = { 58, 24, 110 }, body = "clods", patch = 0.82,
 		stone = { 255, 122, 222 }, stone_hi = { 255, 204, 246 }, stone_lo = { 150, 40, 132 },
 		pebble_rate = 0.55, pebbles = { "crystal", "spot", "spot" },
-		glow = { 124, 255, 234 }, glow_lo = { 42, 192, 184 },
-		props = { { "bulb", 0.06 }, { "tuft", 0.14 } },
-		bulb = { { 124, 255, 234 }, { 255, 150, 236 } },
-		hangs = { { "tendril", 0.12 } },
+		glow = { 120, 255, 238 }, glow_lo = { 38, 198, 188 },
+		props = { { "bulb", 0.07 }, { "tuft", 0.14 } },
+		bulb = { { 120, 255, 238 }, { 255, 150, 236 } },
+		hangs = { { "tendril", 0.15 } },
 	},
 }
+
 
 local pal = PALETTES.grass
 local seed_off = 0
@@ -563,10 +564,10 @@ local function stamp_hang(gx, gy)
 			end
 		end
 	elseif kind == "icicle" then
-		local len = 4 + floor(h1 * 8)
+		local len = 6 + floor(h1 * 12)
 		local ic = P.ice
 		for dx = -1, 1 do
-			local l = len - abs(dx) * (floor(len / 2) + 1)
+			local l = len - abs(dx) * (floor(len * 0.45) + 1)
 			local col = (dx < 0) and ic[1] or ((dx > 0) and ic[3] or ic[2])
 			for k = 0, l - 1 do
 				put(gx + dx, gy - k, col)

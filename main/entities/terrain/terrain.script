@@ -340,8 +340,33 @@ local function apply_biome_environment(self, biome)
 		if theme.sky_clear then
 			msg.post("@render:", "clear_color", { color = theme.sky_clear })
 		end
+		-- Dynamic Biome Illustrated Sky (Nano Banana assets)
+		local sky_anim = "bg_sky_" .. self.current_biome
+		sprite.play_flipbook("#sky", sky_anim)
+		msg.post("#bg_islands", "disable")
+		msg.post("#bg_distant", "disable")
 	end)
+
+	-- Atmospheric Biome VFX particles drifting on the wind
+	local vfx_map = {
+		arctic = { anim = "vfx_snow", tint = vmath.vector4(0.95, 0.98, 1.0, 0.95), scale = 1.0 },
+		volcano = { anim = "vfx_ember", tint = vmath.vector4(1.0, 0.55, 0.15, 0.95), scale = 1.1 },
+		alien = { anim = "vfx_spore", tint = vmath.vector4(0.25, 0.98, 0.88, 0.95), scale = 1.1 },
+		grass = { anim = "vfx_leaf", tint = vmath.vector4(0.92, 1.0, 0.65, 0.90), scale = 0.9 },
+		desert = { anim = "spore", tint = vmath.vector4(0.95, 0.80, 0.50, 0.85), scale = 1.3 },
+	}
+	local vfx = vfx_map[self.current_biome] or vfx_map.grass
+	if self.wind_spores then
+		for _, sp in ipairs(self.wind_spores) do
+			pcall(function()
+				sprite.play_flipbook(sp.id, vfx.anim)
+				go.set(sp.id, "tint", vfx.tint)
+				go.set(sp.id, "scale", vmath.vector3(vfx.scale, vfx.scale, 1.0))
+			end)
+		end
+	end
 end
+
 
 local function update_full_texture(self)
 	fill_full_stream(self)
@@ -397,13 +422,9 @@ function init(self)
 	})
 	self.bg_stream = buffer.get_stream(self.bg_buffer, hash("rgba"))
 
-	-- Generate initial background & terrain
-	generate_base_background(self, "grass")
-	bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
-
+	-- Lazy loading: initialize lightweight grid structure on boot; defer heavy rasterization until match starts
 	terrain_grid.init(constants.TERRAIN_WIDTH, self.h, constants.TERRAIN_SCALE)
-	terrain_grid.generate("hills")
-	fill_full_stream(self)
+	self.battle_active = false
 
 	-- 3. Create dynamic texture and atlas for Foreground Terrain (960x270 base quad)
 	local t_params = {
@@ -510,17 +531,8 @@ function init(self)
 			}
 		}
 	}
-	local ok_bga, bg_atlas_res = pcall(resource.create_atlas, ATLAS_BG_PATH, bg_atlas_params)
-
-	if ok_bga and bg_atlas_res then
-		self.bg_atlas_id = bg_atlas_res
-		go.set("#sky", "image", bg_atlas_res)
-		sprite.play_flipbook("#sky", "bg")
-		self.is_initialized = true
-		constants.log(">>> DYNAMIC BACKGROUND AND ATLAS CREATED SUCCESSFULLY!")
-	else
-		constants.log(">>> BG ATLAS ERROR:", ok_bga, tostring(bg_atlas_res), ok_bgt, tostring(bg_tex_res))
-	end
+	self.is_initialized = true
+	constants.log(">>> TERRAIN INITIALIZED WITH HIGH-RES ILLUSTRATED BIOME SKIES & ISLANDS!")
 
 	-- Atmospheric Wind Spores drifting on the breeze
 	self.wind_spores = {}
@@ -543,12 +555,10 @@ function init(self)
 	go.set_position(vmath.vector3(cx, cy, 0))
 	pcall(function()
 		go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
-		go.set("#sky", "scale", vmath.vector3(4.5, 3.5, 1.0))
+		go.set("#sky", "scale", vmath.vector3(1.65, 1.45, 1.0))
 		go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-		go.set("#bg_distant", "scale", vmath.vector3(2.4, 2.2, 1.0))
-		go.set("#bg_distant", "position", vmath.vector3(0, 80, -0.35))
-		go.set("#bg_islands", "scale", vmath.vector3(2.2, 2.0, 1.0))
-		go.set("#bg_islands", "position", vmath.vector3(0, 120, -0.25))
+		msg.post("#bg_distant", "disable")
+		msg.post("#bg_islands", "disable")
 
 		-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
 		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
@@ -623,8 +633,8 @@ function update(self, dt)
 		end
 	end
 
-	-- Update background warfare simulation at smooth 25 FPS rate
-	if self.is_initialized and self.bg_stream and self.bg_base_stream then
+	-- Update background warfare simulation at smooth 25 FPS rate (only during active battle)
+	if self.battle_active and self.is_initialized and self.bg_stream and self.bg_base_stream then
 		self.bg_update_timer = (self.bg_update_timer or 0) + dt
 		if self.bg_update_timer >= 0.04 then
 			self.bg_update_timer = 0
@@ -669,8 +679,8 @@ function on_message(self, message_id, message, sender)
 		pcall(function()
 			msg.post("#sprite", "enable")
 			msg.post("#water", "enable")
-			msg.post("#bg_distant", "enable")
-			msg.post("#bg_islands", "enable")
+			msg.post("#bg_distant", "disable")
+			msg.post("#bg_islands", "disable")
 			for i = 1, 8 do
 				msg.post("#spore" .. i, "enable")
 			end
@@ -682,10 +692,10 @@ function on_message(self, message_id, message, sender)
 		go.set_position(vmath.vector3(cx, cy, 0))
 		pcall(function()
 			go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
-			go.set("#sky", "scale", vmath.vector3(4.5, 3.5, 1.0))
+			go.set("#sky", "scale", vmath.vector3(1.65, 1.45, 1.0))
 			go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-			go.set("#bg_distant", "scale", vmath.vector3(2.4, 2.2, 1.0))
-			go.set("#bg_islands", "scale", vmath.vector3(2.2, 2.0, 1.0))
+			msg.post("#bg_distant", "disable")
+			msg.post("#bg_islands", "disable")
 
 			-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
 			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
@@ -694,6 +704,7 @@ function on_message(self, message_id, message, sender)
 			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
 		end)
 
+		self.battle_active = true
 		self.current_preset = preset
 		self.current_biome = biome
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome, "mode:", message.mode)
@@ -725,6 +736,7 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("set_menu_mode") then
 		local is_menu = (message.is_menu ~= false)
+		self.battle_active = not is_menu
 		if is_menu then
 			pcall(function()
 				msg.post("#sprite", "disable")
@@ -739,8 +751,8 @@ function on_message(self, message_id, message, sender)
 			pcall(function()
 				msg.post("#sprite", "enable")
 				msg.post("#water", "enable")
-				msg.post("#bg_distant", "enable")
-				msg.post("#bg_islands", "enable")
+				msg.post("#bg_distant", "disable")
+				msg.post("#bg_islands", "disable")
 				for i = 1, 8 do
 					msg.post("#spore" .. i, "enable")
 				end

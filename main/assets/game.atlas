@@ -238,4 +238,16 @@ images {
 images {
   image: "/main/assets/ui/ic_left.png"
 }
+images {
+  image: "/main/assets/vfx_snow.png"
+}
+images {
+  image: "/main/assets/vfx_ember.png"
+}
+images {
+  image: "/main/assets/vfx_spore.png"
+}
+images {
+  image: "/main/assets/vfx_leaf.png"
+}
 extrude_borders: 2

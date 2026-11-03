@@ -17,9 +17,9 @@ nodes {
     y: 40.0
   }
   color {
-    x: 0.1
-    y: 0.13
-    z: 0.17
+    x: 0.08
+    y: 0.11
+    z: 0.15
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -33,7 +33,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.92
+  alpha: 0.88
 }
 nodes {
   position {
@@ -175,481 +175,17 @@ nodes {
 }
 nodes {
   position {
-    x: 740.0
-    y: 40.0
-  }
-  size {
-    x: 420.0
-    y: 56.0
-  }
-  color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "weapon_panel"
-  yanchor: YANCHOR_BOTTOM
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-  alpha: 0.88
-}
-nodes {
-  position {
-    x: -172.0
-  }
-  size {
-    x: 76.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_1"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/grenade"
-  id: "icon_wpn_1"
-  parent: "btn_wpn_1"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "1"
-  font: "system_font"
-  id: "num_wpn_1"
-  parent: "btn_wpn_1"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "INF"
-  font: "system_font"
-  id: "ammo_wpn_1"
-  parent: "btn_wpn_1"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: -86.0
-  }
-  size {
-    x: 76.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_2"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/skewer_rifle"
-  id: "icon_wpn_2"
-  parent: "btn_wpn_2"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "2"
-  font: "system_font"
-  id: "num_wpn_2"
-  parent: "btn_wpn_2"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_2"
-  parent: "btn_wpn_2"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  size {
-    x: 76.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_3"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/peeler"
-  id: "icon_wpn_3"
-  parent: "btn_wpn_3"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "3"
-  font: "system_font"
-  id: "num_wpn_3"
-  parent: "btn_wpn_3"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_3"
-  parent: "btn_wpn_3"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 86.0
-  }
-  size {
-    x: 76.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_4"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/oil_bottle"
-  id: "icon_wpn_4"
-  parent: "btn_wpn_4"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "4"
-  font: "system_font"
-  id: "num_wpn_4"
-  parent: "btn_wpn_4"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_4"
-  parent: "btn_wpn_4"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 172.0
-  }
-  size {
-    x: 76.0
-    y: 44.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_wpn_5"
-  parent: "weapon_panel"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  position {
-    x: -2.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/masher_bazooka"
-  id: "icon_wpn_5"
-  parent: "btn_wpn_5"
-  inherit_alpha: true
-}
-nodes {
-  position {
-    x: -23.0
-    y: 11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 20.0
-    y: 20.0
-  }
-  color {
-    x: 0.95
-    y: 0.77
-    z: 0.06
-  }
-  type: TYPE_TEXT
-  text: "5"
-  font: "system_font"
-  id: "num_wpn_5"
-  parent: "btn_wpn_5"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 18.0
-    y: -11.0
-  }
-  scale {
-    x: 0.42
-    y: 0.42
-  }
-  size {
-    x: 30.0
-    y: 20.0
-  }
-  type: TYPE_TEXT
-  text: "x0"
-  font: "system_font"
-  id: "ammo_wpn_5"
-  parent: "btn_wpn_5"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-}
-nodes {
-  position {
-    x: 115.0
+    x: 80.0
     y: 46.0
   }
   size {
-    x: 210.0
+    x: 140.0
     y: 64.0
   }
   color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
+    x: 0.08
+    y: 0.11
+    z: 0.15
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -663,14 +199,14 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.85
+  alpha: 0.88
 }
 nodes {
   position {
-    x: -66.0
+    x: -33.0
   }
   size {
-    x: 60.0
+    x: 58.0
     y: 54.0
   }
   color {
@@ -723,70 +259,11 @@ nodes {
   inherit_alpha: true
 }
 nodes {
-  size {
-    x: 60.0
-    y: 54.0
-  }
-  color {
-    x: 0.22
-    y: 0.28
-    z: 0.35
-  }
-  type: TYPE_BOX
-  texture: "game/box"
-  id: "btn_jump"
-  parent: "touch_controls"
-  inherit_alpha: true
-  slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
-  }
-}
-nodes {
-  rotation {
-    z: 90.0
-  }
-  size {
-    x: 28.0
-    y: 28.0
-  }
-  type: TYPE_BOX
-  texture: "game/arrow"
-  id: "txt_jump"
-  parent: "btn_jump"
-  inherit_alpha: true
-}
-nodes {
   position {
-    y: 44.0
-    z: 0.2
-  }
-  scale {
-    x: 0.5
-    y: 0.5
-  }
-  color {
-    y: 0.85
-    z: 0.2
-  }
-  type: TYPE_TEXT
-  text: "\342\226\274"
-  font: "system_font"
-  id: "tut_arrow_jump"
-  parent: "btn_jump"
-  inherit_alpha: true
-  outline_alpha: 0.0
-  shadow_alpha: 0.0
-  enabled: false
-}
-nodes {
-  position {
-    x: 66.0
+    x: 33.0
   }
   size {
-    x: 60.0
+    x: 58.0
     y: 54.0
   }
   color {
@@ -843,6 +320,93 @@ nodes {
 }
 nodes {
   position {
+    x: 885.0
+    y: 46.0
+  }
+  size {
+    x: 80.0
+    y: 64.0
+  }
+  color {
+    x: 0.08
+    y: 0.11
+    z: 0.15
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "touch_jump"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.88
+}
+nodes {
+  size {
+    x: 68.0
+    y: 54.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.35
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "btn_jump"
+  parent: "touch_jump"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  rotation {
+    z: 90.0
+  }
+  size {
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/arrow"
+  id: "txt_jump"
+  parent: "btn_jump"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    y: 44.0
+    z: 0.2
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  color {
+    y: 0.85
+    z: 0.2
+  }
+  type: TYPE_TEXT
+  text: "\342\226\274"
+  font: "system_font"
+  id: "tut_arrow_jump"
+  parent: "btn_jump"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+  enabled: false
+}
+nodes {
+  position {
     x: 900.0
     y: 514.0
   }
@@ -851,9 +415,9 @@ nodes {
     y: 40.0
   }
   color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
+    x: 0.08
+    y: 0.11
+    z: 0.15
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -867,7 +431,7 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.85
+  alpha: 0.88
 }
 nodes {
   scale {
@@ -1484,17 +1048,99 @@ nodes {
 }
 nodes {
   position {
-    x: 65.0
-    y: 125.0
+    x: 480.0
+    y: 530.0
   }
   size {
-    x: 110.0
-    y: 42.0
+    x: 440.0
+    y: 56.0
   }
   color {
-    x: 0.12
-    y: 0.15
-    z: 0.18
+    x: 0.08
+    y: 0.11
+    z: 0.16
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "ftue_card"
+  yanchor: YANCHOR_TOP
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+  alpha: 0.96
+  enabled: false
+}
+nodes {
+  position {
+    x: 0.0
+    y: 11.0
+  }
+  scale {
+    x: 0.44
+    y: 0.44
+  }
+  size {
+    x: 420.0
+    y: 24.0
+  }
+  color {
+    x: 1.0
+    y: 0.85
+    z: 0.20
+  }
+  type: TYPE_TEXT
+  text: "TITLE"
+  font: "system_font"
+  id: "ftue_title"
+  parent: "ftue_card"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: -11.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 420.0
+    y: 24.0
+  }
+  color {
+    x: 0.92
+    y: 0.95
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  text: "DESCRIPTION"
+  font: "system_font"
+  id: "ftue_desc"
+  parent: "ftue_card"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 80.0
+    y: 115.0
+  }
+  size {
+    x: 130.0
+    y: 44.0
+  }
+  color {
+    x: 0.08
+    y: 0.11
+    z: 0.15
   }
   type: TYPE_BOX
   texture: "game/box"
@@ -1508,16 +1154,34 @@ nodes {
     z: 4.0
     w: 4.0
   }
-  alpha: 0.9
+  alpha: 0.88
 }
 nodes {
-  scale {
-    x: 0.42
-    y: 0.42
+  position {
+    x: -36.0
   }
   size {
-    x: 230.0
-    y: 30.0
+    x: 28.0
+    y: 28.0
+  }
+  type: TYPE_BOX
+  texture: "game/grenade"
+  id: "icon_inventory"
+  parent: "btn_inventory"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 14.0
+    y: 7.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 140.0
+    y: 20.0
   }
   color {
     x: 0.95
@@ -1525,9 +1189,36 @@ nodes {
     z: 0.06
   }
   type: TYPE_TEXT
-  text: "\320\236\320\240\320\243\320\226\320\230\320\225 [Q]"
+  text: "\320\236\320\240\320\243\320\226\320\230\320\225"
   font: "system_font"
   id: "txt_inventory"
+  parent: "btn_inventory"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 14.0
+    y: -7.0
+  }
+  scale {
+    x: 0.36
+    y: 0.36
+  }
+  size {
+    x: 140.0
+    y: 18.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "INF"
+  font: "system_font"
+  id: "ammo_inventory"
   parent: "btn_inventory"
   inherit_alpha: true
   outline_alpha: 0.0

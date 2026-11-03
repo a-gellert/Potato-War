@@ -122,8 +122,21 @@ function M.update_badges(self, dt)
 	local hp_pct = math.max(0.01, math.min(1.0, (p.hp or 100) / (p.max_hp or 100)))
 	local default_name = i18n.t(is_blue and "name_you" or "name_enemy")
 
+	local status_suffix = ""
+	if p.statuses then
+		if p.statuses.concussed then
+			status_suffix = " [💫]"
+		elseif p.statuses.burning then
+			status_suffix = " [🔥]"
+		elseif p.statuses.poisoned then
+			status_suffix = " [🧪]"
+		elseif p.statuses.glued then
+			status_suffix = " [🍯]"
+		end
+	end
+
 	gui.set_position(bg, vmath.vector3(sx, sy + 34 + bounce_y, 0))
-	gui.set_text(gui.get_node(prefix .. "_text"), p.name or default_name)
+	gui.set_text(gui.get_node(prefix .. "_text"), (p.name or default_name) .. status_suffix)
 	gui.set_scale(gui.get_node(prefix .. "_hp_fill"), vmath.vector3(hp_pct, 1.0, 1.0))
 	gui.set_position(gui.get_node(prefix .. "_arrow"), vmath.vector3(0, arrow_pulse, 0.1))
 end

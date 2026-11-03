@@ -97,4 +97,60 @@ function M.show_toast(message)
 	end)
 end
 
+local FTUE_Y = 440
+local FTUE_HIDDEN_Y = 530
+
+local FTUE_COLORS = {
+	concussed = vmath.vector4(1.0, 0.85, 0.20, 1.0),
+	burning   = vmath.vector4(1.0, 0.48, 0.16, 1.0),
+	poisoned  = vmath.vector4(0.35, 1.0, 0.32, 1.0),
+	glued     = vmath.vector4(1.0, 0.82, 0.25, 1.0),
+}
+
+function M.dismiss_ftue()
+	pcall(function()
+		local panel = gui.get_node("ftue_card")
+		if gui.is_enabled(panel) then
+			gui.cancel_animations(panel, gui.PROP_POSITION)
+			gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, FTUE_HIDDEN_Y, 0), gui.EASING_INQUAD, 0.25, 0, function()
+				gui.set_enabled(panel, false)
+			end)
+		end
+	end)
+end
+
+function M.show_ftue(status_key)
+	pcall(function()
+		local panel = gui.get_node("ftue_card")
+		local title_node = gui.get_node("ftue_title")
+		local desc_node = gui.get_node("ftue_desc")
+
+		local title = i18n.t("ftue_status_" .. tostring(status_key) .. "_title")
+		local desc = i18n.t("ftue_status_" .. tostring(status_key) .. "_desc")
+		if not title or title == "" then
+			return
+		end
+
+		gui.set_text(title_node, title)
+		gui.set_color(title_node, FTUE_COLORS[status_key] or vmath.vector4(1.0, 0.88, 0.2, 1.0))
+		gui.set_text(desc_node, desc or "")
+
+		gui.set_enabled(panel, true)
+		gui.cancel_animations(panel, gui.PROP_POSITION)
+		gui.cancel_animations(panel, gui.PROP_SCALE)
+		gui.set_position(panel, vmath.vector3(480, FTUE_HIDDEN_Y, 0))
+		gui.set_scale(panel, vmath.vector3(0.9, 0.9, 1.0))
+
+		local sound_manager = require("lua_modules.sound_manager")
+		pcall(sound_manager.play, "crate")
+
+		gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, FTUE_Y, 0), gui.EASING_OUTBACK, 0.38)
+		gui.animate(panel, gui.PROP_SCALE, vmath.vector3(1.0, 1.0, 1.0), gui.EASING_OUTBACK, 0.38, 0, function()
+			gui.animate(panel, gui.PROP_POSITION, vmath.vector3(480, FTUE_HIDDEN_Y, 0), gui.EASING_INQUAD, 0.3, 3.8, function()
+				gui.set_enabled(panel, false)
+			end)
+		end)
+	end)
+end
+
 return M

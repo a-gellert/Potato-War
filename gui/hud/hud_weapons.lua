@@ -1,5 +1,5 @@
 -- gui/hud/hud_weapons.lua
--- Weapon quick bar (5 slots) and the full inventory overlay (12 weapons).
+-- Inventory overlay and active weapon button.
 
 local constants = require("lua_modules.constants")
 local weapons = require("lua_modules.weapons")
@@ -14,46 +14,36 @@ M.INVENTORY_COUNT = 12
 
 local WHITE = vmath.vector4(1, 1, 1, 1)
 local GOLD = vmath.vector4(0.95, 0.77, 0.06, 1.0)
+local DIMMED = vmath.vector4(0.5, 0.5, 0.5, 0.6)
 
 function M.update_selection(self, selected_weapon_id)
-	local def_color = vmath.vector4(0.20, 0.26, 0.34, 1.0) -- Normal available
-	local lock_color = vmath.vector4(0.10, 0.12, 0.15, 0.40) -- Empty / locked
+	pcall(function()
+		local w_id = selected_weapon_id or game_state.selected_weapon_id or "grenade"
+		local w = weapons.get(w_id)
+		if not w then
+			w = weapons.get("grenade")
+		end
 
-	for i = 1, M.SLOT_COUNT do
-		pcall(function()
-			local btn_node = gui.get_node("btn_wpn_" .. i)
-			local ammo_node = gui.get_node("ammo_wpn_" .. i)
-			local icon_node = gui.get_node("icon_wpn_" .. i)
+		local icon_node = gui.get_node("icon_inventory")
+		local ammo_node = gui.get_node("ammo_inventory")
+		local txt_node = gui.get_node("txt_inventory")
 
-			local w = game_state.get_slot_weapon(i)
-			if not w then
-				-- Empty slot in loadout
-				gui.set_color(btn_node, lock_color)
-				gui.set_color(icon_node, vmath.vector4(0, 0, 0, 0))
-				gui.set_text(ammo_node, "")
-				return
-			end
+		gui.set_text(txt_node, i18n.t("btn_inventory"))
+
+		if w then
+			ui_manager.fit_icon(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
+			gui.set_color(icon_node, WHITE)
 
 			local ammo = game_state.get_ammo(w.id)
-			ui_manager.fit_icon(icon_node, hash(w.icon or w.projectile_sprite or "circle"))
-
 			if w.id == "grenade" then
 				gui.set_text(ammo_node, "INF")
 				gui.set_color(ammo_node, GOLD)
 			else
 				gui.set_text(ammo_node, (ammo > 0) and ("x" .. ammo) or "0")
-				gui.set_color(ammo_node, (ammo > 0) and WHITE or vmath.vector4(0.5, 0.5, 0.5, 0.5))
+				gui.set_color(ammo_node, (ammo > 0) and WHITE or DIMMED)
 			end
-
-			if game_state.is_weapon_unlocked(w.id) then
-				gui.set_color(btn_node, w.id == selected_weapon_id and GOLD or def_color)
-				gui.set_color(icon_node, WHITE)
-			else
-				gui.set_color(btn_node, lock_color)
-				gui.set_color(icon_node, vmath.vector4(0.4, 0.4, 0.4, 0.35))
-			end
-		end)
-	end
+		end
+	end)
 end
 
 function M.update_inventory(self)
@@ -112,9 +102,6 @@ function M.update_inventory(self)
 end
 
 function M.toggle_inventory(self, force_state)
-	if game_state.mode == constants.MODE_CAMPAIGN and force_state ~= false then
-		force_state = false
-	end
 	if force_state ~= nil then
 		self.is_inventory_open = force_state
 	else
@@ -138,16 +125,14 @@ function M.select_inventory_weapon(self, weapon_id)
 	M.toggle_inventory(self, false)
 end
 
--- Weapon bar / touch controls / inventory button are shown only on the player's turn
+-- Weapon controls and touch jump are shown during player turn
 function M.update_panels(self)
 	pcall(function()
 		local is_player_turn = not game_state.is_bot_turn() and game_state.state == constants.STATE_TURN_ACTIVE
-		local is_pvp = (game_state.mode == constants.MODE_PVP_BOTS or game_state.mode == constants.MODE_QUICK_PVP)
-		local is_campaign = (game_state.mode == constants.MODE_CAMPAIGN)
 
-		gui.set_enabled(gui.get_node("weapon_panel"), is_player_turn and not is_pvp)
 		gui.set_enabled(gui.get_node("touch_controls"), is_player_turn and self.is_touch_screen)
-		gui.set_enabled(gui.get_node("btn_inventory"), is_player_turn and not is_campaign)
+		gui.set_enabled(gui.get_node("touch_jump"), is_player_turn and self.is_touch_screen)
+		gui.set_enabled(gui.get_node("btn_inventory"), is_player_turn)
 	end)
 
 	local current_potato_id = game_state.active_potato and game_state.active_potato.id

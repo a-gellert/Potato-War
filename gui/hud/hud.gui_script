@@ -34,6 +34,10 @@ local function detect_touch_screen()
 	if sname == "Android" or sname == "iPhone OS" then
 		return true
 	end
+	local match_spawner = require("lua_modules.match_spawner")
+	if match_spawner and match_spawner.is_mobile_platform and match_spawner.is_mobile_platform() then
+		return true
+	end
 	if html5 then
 		local is_touch = false
 		pcall(function()
@@ -47,7 +51,7 @@ end
 -- Hold button that walks/jumps the potato via main.script while pressed
 local function register_move_button(self, node_id, dir, other_key, other_dir)
 	return self.ui:hold_button(node_id, {
-		slop = 14,
+		slop = 22,
 		on_press = function()
 			pcall(gui.set_color, gui.get_node(node_id), ACTIVE_BTN_COLOR)
 			hide_aim()
@@ -66,20 +70,11 @@ local function register_move_button(self, node_id, dir, other_key, other_dir)
 end
 
 local function register_buttons(self)
-	-- Weapon quick slots (instant press on touch)
-	for i = 1, hud_weapons.SLOT_COUNT do
-		local slot_idx = i
-		self.ui:button("btn_wpn_" .. i, function()
-			hide_aim()
-			game_state.select_slot(slot_idx)
-		end, { instant = true, slop = 10 })
-	end
-
 	-- Continuous movement & jump for touch controls
 	self.left_hb = register_move_button(self, "btn_left", -1, "right_hb", 1)
 	self.right_hb = register_move_button(self, "btn_right", 1, "left_hb", -1)
 	self.jump_hb = self.ui:hold_button("btn_jump", {
-		slop = 14,
+		slop = 22,
 		on_press = function()
 			pcall(gui.set_color, gui.get_node("btn_jump"), ACTIVE_BTN_COLOR)
 			hide_aim()
@@ -95,20 +90,25 @@ local function register_buttons(self)
 		game_state.on_level_closed(function()
 			msg.post("/main#main", "show_menu")
 		end, true, false)
-	end, { slop = 12 })
+	end, { slop = 14 })
 
 	-- Inventory button, close button and 12 inventory slots
 	self.ui:button("btn_inventory", function()
-		if game_state.mode ~= constants.MODE_CAMPAIGN then
-			hide_aim()
-			hud_weapons.toggle_inventory(self)
-		end
-	end, { slop = 12 })
+		hide_aim()
+		hud_weapons.toggle_inventory(self)
+	end, { slop = 14 })
 
 	self.ui:button("btn_inv_close", function()
 		hide_aim()
 		hud_weapons.toggle_inventory(self, false)
-	end, { slop = 12 })
+	end, { slop = 14 })
+
+	-- Tap to dismiss FTUE info card
+	pcall(function()
+		self.ui:button("ftue_card", function()
+			hud_popups.dismiss_ftue()
+		end, { slop = 10 })
+	end)
 
 	for i = 1, hud_weapons.INVENTORY_COUNT do
 		local w = weapons.LIST[i]
@@ -135,6 +135,7 @@ function init(self)
 	pcall(function()
 		gui.set_enabled(gui.get_node("inventory_overlay"), false)
 		gui.set_enabled(gui.get_node("touch_controls"), false)
+		gui.set_enabled(gui.get_node("touch_jump"), false)
 	end)
 	register_buttons(self)
 	update_localization(self)
@@ -153,9 +154,7 @@ function on_input(self, action_id, action)
 	end
 	-- Key Q / inventory hotkey
 	if action_id == hash("inventory") and action.pressed then
-		if game_state.mode ~= constants.MODE_CAMPAIGN then
-			hud_weapons.toggle_inventory(self)
-		end
+		hud_weapons.toggle_inventory(self)
 		return true
 	end
 
@@ -175,9 +174,11 @@ function on_input(self, action_id, action)
 			self.panel_touch_captured = false
 			local ok_pick, hit_panel = pcall(function()
 				local tc = gui.get_node("touch_controls")
-				local wp = gui.get_node("weapon_panel")
+				local tj = gui.get_node("touch_jump")
+				local bi = gui.get_node("btn_inventory")
 				return (gui.is_enabled(tc) and gui.pick_node(tc, action.x, action.y))
-					or (gui.is_enabled(wp) and gui.pick_node(wp, action.x, action.y))
+					or (gui.is_enabled(tj) and gui.pick_node(tj, action.x, action.y))
+					or (gui.is_enabled(bi) and gui.pick_node(bi, action.x, action.y))
 			end)
 			if ok_pick and hit_panel then
 				self.panel_touch_captured = true
@@ -247,5 +248,31 @@ function on_message(self, message_id, message, sender)
 		pcall(hud_popups.show_damage, message)
 	elseif message_id == hash("show_achievement_toast") then
 		pcall(hud_popups.show_toast, message)
+	elseif message_id == hash("check_status_ftue") then
+		local st = message.status
+		local player_profile = require("lua_modules.player_profile")
+		if st and not player_profile.is_ftue_seen("status_" .. st) then
+			player_profile.mark_ftue_seen("status_" .. st)
+			pcall(hud_popups.show_ftue, st)
+		end
+	elseif message_id == hash("aim_state") then
+		self.is_aiming_declutter = (message.is_aiming == true)
+		local target_alpha = self.is_aiming_declutter and 0.15 or 1.0
+		local dur = 0.20
+		pcall(function()
+			local panels = {
+				gui.get_node("touch_controls"),
+				gui.get_node("touch_jump"),
+				gui.get_node("btn_inventory"),
+				gui.get_node("btn_pause"),
+			}
+			for _, n in ipairs(panels) do
+				gui.cancel_animations(n, "color.w")
+				gui.animate(n, "color.w", target_alpha, gui.EASING_OUTQUAD, dur)
+			end
+			local wind = gui.get_node("wind_panel")
+			gui.cancel_animations(wind, "color.w")
+			gui.animate(wind, "color.w", self.is_aiming_declutter and 0.35 or 0.92, gui.EASING_OUTQUAD, dur)
+		end)
 	end
 end

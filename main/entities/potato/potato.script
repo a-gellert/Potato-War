@@ -292,7 +292,7 @@ local function process_turn_start(self)
 			y = p_pos.y + 24,
 			amount = 0,
 			status = "glued",
-			label = i18n.pick({ ru = "КЛЕЙ", en = "GLUE", pt = "COLA", fr = "COLLE", es = "PEGAMENTO", tr = "YAPIŞKAN" })
+			label = i18n.pick({ ru = "КЛЕЙ! (БЕЗ ПРЫЖКОВ)", en = "GLUED! (NO JUMP)", pt = "PRESO! (SEM PULO)", fr = "COLLÉ ! (SANS SAUT)", es = "¡PEGADO! (SIN SALTO)", tr = "YAPIŞTI! (ZIPLANMAZ)" })
 		})
 	end
 
@@ -303,7 +303,7 @@ local function process_turn_start(self)
 			y = p_pos.y + 24,
 			amount = 0,
 			status = "concussed",
-			label = i18n.pick({ ru = "ОГЛУШЕНИЕ", en = "STUN", pt = "ATORDOADO", fr = "ÉTOURDI", es = "ATURDIDO", tr = "SERSEMLEDİ" })
+			label = i18n.pick({ ru = "ОГЛУШЕН! (СБИТ ПРИЦЕЛ)", en = "STUNNED! (AIM WOBBLE)", pt = "ATORDOADO! (MIRA INSTÁVEL)", fr = "ÉTOURDI ! (VISÉE INSTABLE)", es = "¡ATURDIDO! (MIRA DESVIADA)", tr = "SERSEMLEDİ! (NİŞAN BOZUK)" })
 		})
 	end
 
@@ -490,6 +490,7 @@ function on_message(self, message_id, message, sender)
 			duration = duration,
 			power = power,
 		}
+		pcall(msg.post, "/gui_hud#gui", "check_status_ftue", { status = st_type })
 
 	elseif message_id == hash("remove_status") then
 		if message.status and self.statuses then
