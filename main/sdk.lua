@@ -2676,6 +2676,10 @@ function M.get_language()
 						if (up && typeof up === 'string' && up.length >= 2) return up;
 					}
 				}
+				// Yandex Games SDK direct
+				if (window.ysdk && window.ysdk.environment && window.ysdk.environment.i18n && window.ysdk.environment.i18n.lang) {
+					return window.ysdk.environment.i18n.lang;
+				}
 				var b = window.bridge || window.playgamaBridge;
 				if (b && b.platform && typeof b.platform.language === 'function') {
 					return b.platform.language() || '';
@@ -2685,11 +2689,17 @@ function M.get_language()
 				}
 				if (window.location && window.location.search) {
 					var sp = new URLSearchParams(window.location.search);
-					var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang');
+					var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang') || sp.get('yandex_lang');
 					if (ql && typeof ql === 'string' && ql.length >= 2) return ql;
 				}
 			} catch(e) {}
-			return navigator.language || navigator.userLanguage || '';
+			if (navigator.language || navigator.userLanguage) {
+				return navigator.language || navigator.userLanguage;
+			}
+			if (navigator.languages && navigator.languages.length > 0) {
+				return navigator.languages[0];
+			}
+			return '';
 		})()]])
 		if ok and lang and lang ~= "" then
 			log("🌐 Language from JS bridge/navigator:", lang)

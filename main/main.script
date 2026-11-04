@@ -232,6 +232,7 @@ local function start_game_match(self, mode, level, lobby_config)
 end
 
 local function leave_match(self)
+	game_state.is_paused = false
 	pcall(msg.post, "/gui_loading#gui", "start_loading", {
 		title = require("lua_modules.i18n").pick({ ru = "ГЛАВНОЕ МЕНЮ", en = "MAIN MENU", pt = "MENU PRINCIPAL", fr = "MENU PRINCIPAL", es = "MENÚ PRINCIPAL", tr = "ANA MENÜ" }),
 		subtitle = ""
@@ -380,6 +381,9 @@ function init(self)
 
 	constants.log(">>> INIT STEP 4: sdk.init()")
 	sdk.init()
+	pcall(function()
+		require("lua_modules.i18n").detect_language()
+	end)
 	constants.log(">>> INIT STEP 5: sdk.send_game_ready()")
 	sdk.send_game_ready()
 
@@ -389,6 +393,10 @@ function init(self)
 	local function proceed_after_cloud()
 		if boot_handled then return end
 		boot_handled = true
+
+		pcall(function()
+			require("lua_modules.i18n").detect_language()
+		end)
 
 		local is_tut_done = player_profile.is_tutorial_completed()
 		constants.log(">>> INIT STEP 6: check tutorial status after profile load: " .. tostring(is_tut_done))
@@ -431,6 +439,9 @@ function init(self)
 end
 
 function update(self, dt)
+	if game_state.is_paused then
+		return
+	end
 	world_events.update(self, dt)
 	camera_controller.update(dt)
 	player_control.update(self, dt)
@@ -495,10 +506,13 @@ function on_input(self, action_id, action)
 	end
 
 	if action_id == hash("escape") and action.pressed then
-		game_state.on_level_closed(function()
-			msg.post(".", "show_menu")
-		end, true, false)
-		return true
+		if game_state.state == constants.STATE_MENU then
+			pcall(msg.post, "/gui_menu#gui", "escape_pressed")
+			return true
+		else
+			msg.post("/gui_hud#gui", "toggle_pause")
+			return true
+		end
 	end
 
 	return false

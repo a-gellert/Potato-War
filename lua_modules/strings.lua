@@ -22,6 +22,18 @@ return {
 	ui_music = { ru = "Музыка", en = "Music", pt = "Música", fr = "Musique", es = "Música", tr = "Müzik" },
 	ui_language = { ru = "Язык", en = "Language", pt = "Idioma", fr = "Langue", es = "Idioma", tr = "Dil" },
 
+	-- weapons / ammo
+	ammo_inf = { ru = "БЕСК.", en = "INF", pt = "INF", fr = "INF", es = "INF", tr = "SONSUZ" },
+
+	-- in-battle pause & exit dialog
+	pause_title = { ru = "ПАУЗА", en = "PAUSE", pt = "PAUSA", fr = "PAUSE", es = "PAUSA", tr = "DURAKLAT" },
+	pause_resume = { ru = "ПРОДОЛЖИТЬ", en = "RESUME", pt = "CONTINUAR", fr = "CONTINUER", es = "CONTINUAR", tr = "DEVAM ET" },
+	pause_exit = { ru = "ВЫЙТИ В МЕНЮ", en = "EXIT TO MENU", pt = "SAIR PARA O MENU", fr = "QUITTER VERS LE MENU", es = "SALIR AL MENÚ", tr = "MENÜYE DÖN" },
+	pause_exit_confirm_title = { ru = "ВЫЙТИ ИЗ БОЯ?", en = "LEAVE BATTLE?", pt = "SAIR DA BATALHA?", fr = "QUITTER LE COMBAT ?", es = "¿ABANDONAR BATALLA?", tr = "SAVAŞTAN ÇIKILSIN MI?" },
+	pause_exit_confirm_desc = { ru = "Текущий прогресс боя будет потерян. Вы уверены?", en = "Current battle progress will be lost. Are you sure?", pt = "O progresso da batalha atual será perdido. Tem certeza?", fr = "La progression du combat actuel sera perdue. Êtes-vous sûr ?", es = "El progreso de la batalla actual se perderá. ¿Estás seguro?", tr = "Mevcut savaş ilerlemesi kaybolacak. Emin misiniz?" },
+	pause_btn_cancel = { ru = "ОТМЕНА", en = "CANCEL", pt = "CANCELAR", fr = "ANNULER", es = "CANCELAR", tr = "İPTAL" },
+	pause_btn_exit = { ru = "ВЫЙТИ", en = "EXIT", pt = "SAIR", fr = "QUITTER", es = "SALIR", tr = "ÇIK" },
+
 	-- common
 	ui_back = { ru = "НАЗАД", en = "BACK", pt = "VOLTAR", fr = "RETOUR", es = "VOLVER", tr = "GERİ" },
 	ui_close = { ru = "ЗАКРЫТЬ", en = "CLOSE", pt = "FECHAR", fr = "FERMER", es = "CERRAR", tr = "KAPAT" },

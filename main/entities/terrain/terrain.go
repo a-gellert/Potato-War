@@ -59,7 +59,7 @@ embedded_components {
   id: "sprite"
   type: "sprite"
   data: "default_animation: \"terrain_base\"\n"
-  "material: \"/builtins/materials/sprite.material\"\n"
+  "material: \"/main/materials/terrain.material\"\n"
   "textures {\n"
   "  sampler: \"texture_sampler\"\n"
   "  texture: \"/main/assets/terrain.atlas\"\n"
@@ -225,4 +225,9 @@ embedded_components {
     x: 1.5
     y: 1.5
   }
+}
+embedded_components {
+  id: "debris_factory"
+  type: "factory"
+  data: "prototype: \"/main/entities/debris/debris.go\"\n"
 }

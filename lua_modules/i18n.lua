@@ -1204,7 +1204,7 @@ end
 -- Native language names for the language selector
 M.LANG_NAMES = { en = "English", ru = "Русский", pt = "Português", fr = "Français", es = "Español", tr = "Türkçe" }
 
--- Detect language from saved preference, Poki SDK, or default to English
+-- Detect language from saved preference, platform SDK (Playgama, Yandex, Poki), URL, browser, or system settings
 function M.detect_language()
 	-- 1. Check if user previously saved a manual language preference
 	local saved_lang = nil
@@ -1222,12 +1222,58 @@ function M.detect_language()
 
 	local detected_lang = nil
 
-	-- 2. Query Poki SDK in HTML5 / Web environment
-	-- Official Poki SDK exposes PokiSDK.getLanguage() returning ISO 639-1 code (e.g. 'en', 'ru')
-	if html5 then
+	-- 2. Query Playgama Bridge Lua binding
+	if not detected_lang and _G.bridge and _G.bridge.platform and _G.bridge.platform.language then
+		pcall(function()
+			local bl = _G.bridge.platform.language()
+			if bl and type(bl) == "string" and bl ~= "" then
+				detected_lang = bl
+				print(">>> I18N: Detected from bridge.platform.language():", detected_lang)
+			end
+		end)
+	end
+
+	-- 3. Query Defold poki_sdk native extension
+	if not detected_lang and _G.poki_sdk then
+		pcall(function()
+			if _G.poki_sdk.get_language then
+				local pl = _G.poki_sdk.get_language()
+				if pl and type(pl) == "string" and pl ~= "" then
+					detected_lang = pl
+					print(">>> I18N: Detected from poki_sdk.get_language:", detected_lang)
+				end
+			end
+			if not detected_lang and _G.poki_sdk.get_url_param then
+				local up = _G.poki_sdk.get_url_param("lang") or _G.poki_sdk.get_url_param("locale") or _G.poki_sdk.get_url_param("language")
+				if up and type(up) == "string" and up ~= "" then
+					detected_lang = up
+					print(">>> I18N: Detected from poki_sdk.get_url_param:", detected_lang)
+				end
+			end
+		end)
+	end
+
+	-- 4. Query HTML5 / Web platform bridges (Playgama, Yandex, Poki, URL params, navigator)
+	if not detected_lang and html5 and html5.run then
 		pcall(function()
 			local js_lang = html5.run([[(function() {
 				try {
+					// 1. Playgama Bridge
+					var b = window.bridge || window.playgamaBridge;
+					if (b && b.platform) {
+						if (typeof b.platform.language === 'function') {
+							var bl = b.platform.language();
+							if (bl && typeof bl === 'string' && bl.length >= 2) return bl;
+						}
+						if (typeof b.platform.language === 'string' && b.platform.language.length >= 2) {
+							return b.platform.language;
+						}
+					}
+					// 2. Yandex Games SDK direct
+					if (window.ysdk && window.ysdk.environment && window.ysdk.environment.i18n && window.ysdk.environment.i18n.lang) {
+						return window.ysdk.environment.i18n.lang;
+					}
+					// 3. Poki SDK
 					if (typeof PokiSDK !== 'undefined') {
 						if (typeof PokiSDK.getLanguage === 'function') {
 							var pl = PokiSDK.getLanguage();
@@ -1238,56 +1284,65 @@ function M.detect_language()
 							if (up && typeof up === 'string' && up.length >= 2) return up;
 						}
 					}
+					// 4. URL parameters (Yandex, VK, Poki, CrazyGames etc.)
 					if (window.location && window.location.search) {
 						var sp = new URLSearchParams(window.location.search);
-						var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang');
+						var ql = sp.get('lang') || sp.get('locale') || sp.get('language') || sp.get('poki_lang') || sp.get('yandex_lang');
 						if (ql && typeof ql === 'string' && ql.length >= 2) return ql;
+					}
+					// 5. Browser / device language
+					if (navigator.language || navigator.userLanguage) {
+						return navigator.language || navigator.userLanguage;
+					}
+					if (navigator.languages && navigator.languages.length > 0) {
+						return navigator.languages[0];
 					}
 				} catch(e) {}
 				return '';
 			})()]])
 			if js_lang and type(js_lang) == "string" and js_lang ~= "" then
 				detected_lang = js_lang
-				print(">>> I18N: Detected from Poki SDK (HTML5):", detected_lang)
+				print(">>> I18N: Detected from HTML5 bridge/platform:", detected_lang)
 			end
 		end)
 	end
 
-	-- 3. Query Defold poki_sdk native extension
-	if not detected_lang and poki_sdk then
+	-- 5. Defold sys.get_sys_info fallback (mobile / desktop)
+	if not detected_lang then
 		pcall(function()
-			if poki_sdk.get_language then
-				local pl = poki_sdk.get_language()
-				if pl and type(pl) == "string" and pl ~= "" then
-					detected_lang = pl
-					print(">>> I18N: Detected from poki_sdk.get_language:", detected_lang)
-				end
-			end
-			if not detected_lang and poki_sdk.get_url_param then
-				local up = poki_sdk.get_url_param("lang") or poki_sdk.get_url_param("locale") or poki_sdk.get_url_param("language")
-				if up and type(up) == "string" and up ~= "" then
-					detected_lang = up
-					print(">>> I18N: Detected from poki_sdk.get_url_param:", detected_lang)
-				end
+			local sinfo = sys.get_sys_info()
+			if sinfo and sinfo.device_language and sinfo.device_language ~= "" then
+				detected_lang = sinfo.device_language
+				print(">>> I18N: Detected from sys.get_sys_info:", detected_lang)
 			end
 		end)
 	end
 
-	-- 4. Evaluate Poki SDK language
-	if detected_lang and type(detected_lang) == "string" then
+	-- 6. Evaluate and normalize detected language
+	if detected_lang and type(detected_lang) == "string" and detected_lang ~= "" then
 		local lower = string.lower(detected_lang)
 		local code = string.sub(lower, 1, 2)
+		if code == "ru" or code == "be" or code == "uk" or code == "kk" then
+			code = "ru"
+		elseif code == "pt" then
+			code = "pt"
+		elseif code == "fr" then
+			code = "fr"
+		elseif code == "es" then
+			code = "es"
+		elseif code == "tr" then
+			code = "tr"
+		elseif code == "en" then
+			code = "en"
+		end
 		if supported[code] then
 			M.current_lang = code
-		else
-			-- Unsupported locales fall back to English
-			M.current_lang = M.LANG_EN
+			print(">>> I18N: Active auto-detected language:", M.current_lang, "(from raw:", detected_lang .. ")")
+			return M.current_lang
 		end
-		print(">>> I18N: Active language via Poki SDK:", M.current_lang, "(raw:", detected_lang .. ")")
-		return M.current_lang
 	end
 
-	-- 5. Standard Global Default: English (Never force another language from local OS/browser locale)
+	-- 7. Standard Global Default: English
 	M.current_lang = M.LANG_EN
 	print(">>> I18N: Defaulting to standard English:", M.current_lang)
 	return M.current_lang

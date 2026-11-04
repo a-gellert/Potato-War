@@ -33,11 +33,18 @@ function M.build(self, handlers)
 	self.home = { root = root }
 	local h = self.home
 
-	kit.box(root, "vignette", 0, 0, 980, 560)
+	-- Fullscreen dark graphite backdrop and vignette covering any widescreen mobile aspect ratio
+	h.backdrop = kit.box(root, "white", 0, 0, 4000, 3000, vmath.vector4(0.06, 0.08, 0.11, 1.0))
+	gui.set_adjust_mode(h.backdrop, gui.ADJUST_STRETCH)
 
-	-- Top bar: commander level, coins, stars, settings
-	kit.box(root, "dim", 0, 246, 980, 56, vmath.vector4(1, 1, 1, 0.6))
-	kit.box(root, "white", 0, 217, 980, 2, vmath.vector4(0.95, 0.72, 0.2, 0.55))
+	h.vignette = kit.box(root, "vignette", 0, 0, 3200, 2200, vmath.vector4(0, 0, 0, 0.75))
+	gui.set_adjust_mode(h.vignette, gui.ADJUST_STRETCH)
+
+	-- Top bar: commander level, coins, stars, settings spanning across any screen width
+	local top_dim = kit.box(root, "dim", 0, 246, 4000, 56, vmath.vector4(1, 1, 1, 0.6))
+	gui.set_adjust_mode(top_dim, gui.ADJUST_STRETCH)
+	local top_line = kit.box(root, "white", 0, 217, 4000, 2, vmath.vector4(0.95, 0.72, 0.2, 0.55))
+	gui.set_adjust_mode(top_line, gui.ADJUST_STRETCH)
 	kit.icon(root, "ic_level", -440, 246, 50)
 	h.level = kit.text(root, "1", -440, 246, 22, { font = "title" })
 	h.commander = kit.text(root, "", -408, 257, 13, { font = "label", align = "left", color = kit.C.muted })

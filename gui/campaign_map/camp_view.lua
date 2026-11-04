@@ -25,8 +25,10 @@ local REGION_COLORS = {
 }
 
 local function build_top_bar(self, root, handlers)
-	kit.box(root, "dim", 480, 514, 980, 54, vmath.vector4(1, 1, 1, 0.65))
-	kit.box(root, "white", 480, 486, 980, 2, vmath.vector4(0.95, 0.72, 0.2, 0.55))
+	local top_dim = kit.box(root, "dim", 480, 514, 4000, 54, vmath.vector4(1, 1, 1, 0.65))
+	gui.set_adjust_mode(top_dim, gui.ADJUST_STRETCH)
+	local top_line = kit.box(root, "white", 480, 486, 4000, 2, vmath.vector4(0.95, 0.72, 0.2, 0.55))
+	gui.set_adjust_mode(top_line, gui.ADJUST_STRETCH)
 	local v = self.view
 	v.title = kit.text(root, "", 18, 514, 24, { font = "title", align = "left", color = kit.C.gold, max_w = 230 })
 	v.sector_count = kit.counter(root, "ic_flag", 330, 514, 120, "0/18")
@@ -87,8 +89,10 @@ function M.build(self, handlers)
 	self.view = {}
 	local root = kit.group(nil, 0, 0, 960, 540)
 	self.view.root = root
-	kit.box(root, "dim", 480, 270, 980, 560, vmath.vector4(0.55, 0.75, 1.0, 1))
-	kit.box(root, "vignette", 480, 270, 980, 560)
+	local bg_dim = kit.box(root, "dim", 480, 270, 4000, 3000, vmath.vector4(0.55, 0.75, 1.0, 1))
+	gui.set_adjust_mode(bg_dim, gui.ADJUST_STRETCH)
+	local bg_vig = kit.box(root, "vignette", 480, 270, 3200, 2200)
+	gui.set_adjust_mode(bg_vig, gui.ADJUST_STRETCH)
 	local board = kit.inset(root, 345, 240, 676, 476)
 	gui.set_color(board, vmath.vector4(0.7, 0.85, 1.0, 0.9))
 	self.view.board = kit.group(root, 0, 0)

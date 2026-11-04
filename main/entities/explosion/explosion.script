@@ -17,29 +17,30 @@ function init(self)
 	go.animate("#sprite", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(target_scale, target_scale, 1.0), go.EASING_OUTBACK, 0.28)
 	go.animate("#sprite", "tint", go.PLAYBACK_ONCE_FORWARD, vmath.vector4(1.3, 0.35, 0.15, 0.0), go.EASING_INQUAD, 0.38, 0.04)
 
-	-- Dense smoky charcoal and gunpowder puffs (lingering & expanding outward)
-	go.set("#smoke1", "tint", vmath.vector4(0.24, 0.22, 0.21, 0.95))
-	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.2, 3.2, 1.0), go.EASING_OUTQUAD, 0.55)
-	go.animate("#smoke1", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.08)
+	-- Dense smoky charcoal and gunpowder puffs (compact puffs, proportional to blast)
+	local smoke_scale = math.min(1.4, 0.7 + self.radius / 45.0)
+	go.set("#smoke1", "tint", vmath.vector4(0.24, 0.22, 0.21, 0.90))
+	go.animate("#smoke1", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(smoke_scale * 1.05, smoke_scale * 1.05, 1.0), go.EASING_OUTQUAD, 0.45)
+	go.animate("#smoke1", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45, 0.06)
 
-	go.set("#smoke2", "tint", vmath.vector4(0.34, 0.31, 0.29, 0.90))
-	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.5, 3.5, 1.0), go.EASING_OUTQUAD, 0.58)
-	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.58, 0.08)
+	go.set("#smoke2", "tint", vmath.vector4(0.34, 0.31, 0.29, 0.85))
+	go.animate("#smoke2", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(smoke_scale * 1.15, smoke_scale * 1.15, 1.0), go.EASING_OUTQUAD, 0.48)
+	go.animate("#smoke2", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.48, 0.06)
 
 	pcall(function()
-		go.set("#smoke3", "tint", vmath.vector4(0.28, 0.25, 0.22, 0.88))
-		go.animate("#smoke3", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.0, 3.0, 1.0), go.EASING_OUTQUAD, 0.60)
-		go.animate("#smoke3", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.60, 0.10)
+		go.set("#smoke3", "tint", vmath.vector4(0.28, 0.25, 0.22, 0.82))
+		go.animate("#smoke3", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(smoke_scale * 0.95, smoke_scale * 0.95, 1.0), go.EASING_OUTQUAD, 0.50)
+		go.animate("#smoke3", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.50, 0.08)
 
-		go.set("#smoke4", "tint", vmath.vector4(0.20, 0.18, 0.16, 0.92))
-		go.animate("#smoke4", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(3.4, 3.4, 1.0), go.EASING_OUTQUAD, 0.62)
-		go.animate("#smoke4", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.62, 0.10)
+		go.set("#smoke4", "tint", vmath.vector4(0.20, 0.18, 0.16, 0.86))
+		go.animate("#smoke4", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(smoke_scale * 1.10, smoke_scale * 1.10, 1.0), go.EASING_OUTQUAD, 0.50)
+		go.animate("#smoke4", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.50, 0.08)
 
 		-- Sudden bright blast shockwave / flash ring expansion
-		local ring_target = (self.radius * 3.2) / 32.0
+		local ring_target = (self.radius * 2.2) / 32.0
 		go.set("#flash_ring", "tint", vmath.vector4(2.0, 1.6, 0.8, 1.0))
-		go.animate("#flash_ring", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(ring_target, ring_target, 1.0), go.EASING_OUTQUAD, 0.25)
-		go.animate("#flash_ring", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.28)
+		go.animate("#flash_ring", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(ring_target, ring_target, 1.0), go.EASING_OUTQUAD, 0.22)
+		go.animate("#flash_ring", "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.25)
 	end)
 
 	-- Biome-colored flying debris: physical chunks that bounce off the terrain
@@ -50,35 +51,41 @@ function init(self)
 		debris_fx.smoke_column("#debris_factory", pos.x, pos.y, self.radius)
 	end
 
-	-- Biome-tinted dust sprites hugging the blast center
+	-- Biome-tinted dust sprites expanding outward along the crater rim (crisp & compact: 4-7 px)
 	local dirt_ids = { "#dirt1", "#dirt2", "#dirt3", "#dirt4", "#dirt5", "#dirt6", "#dirt7", "#dirt8" }
-	for _, d_id in ipairs(dirt_ids) do
+	for i, d_id in ipairs(dirt_ids) do
 		pcall(function()
+			local d_angle = (i / #dirt_ids) * 6.283 + (math.random() - 0.5) * 0.6
+			local d_dist = 8 + self.radius * (0.40 + math.random() * 0.40)
 			go.set(d_id, "tint", debris_fx.dust_color(biome))
-			go.set(d_id, "scale", vmath.vector3(1.6 + math.random() * 0.8, 1.6 + math.random() * 0.8, 1.0))
-			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.2, 0.2, 1.0), go.EASING_INQUAD, 0.55)
-			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.55, 0.15)
+			go.set(d_id, "scale", vmath.vector3(0.55 + math.random() * 0.35, 0.55 + math.random() * 0.35, 1.0))
+			go.animate(d_id, "position", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(math.cos(d_angle) * d_dist, math.sin(d_angle) * d_dist, 0.35), go.EASING_OUTQUAD, 0.45)
+			go.animate(d_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.18, 0.18, 1.0), go.EASING_INQUAD, 0.45)
+			go.animate(d_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45, 0.08)
 		end)
 	end
 
-	-- High-speed hot burning ember sparks (8 radiating sparks)
+	-- High-speed hot burning ember sparks radiating outward in ballistic fan (crisp & compact: 5-8 px)
 	local spark_ids = { "#spark1", "#spark2", "#spark3", "#spark4", "#spark5", "#spark6", "#spark7", "#spark8" }
 	local spark_colors = {
-		vmath.vector4(1.9, 1.3, 0.3, 1.0),
-		vmath.vector4(2.0, 0.60, 0.15, 1.0),
-		vmath.vector4(1.8, 0.85, 0.25, 1.0),
-		vmath.vector4(1.9, 1.1, 0.35, 1.0),
-		vmath.vector4(2.0, 0.50, 0.18, 1.0),
-		vmath.vector4(1.8, 0.90, 0.28, 1.0),
-		vmath.vector4(1.9, 0.70, 0.20, 1.0),
-		vmath.vector4(2.0, 1.2, 0.40, 1.0),
+		vmath.vector4(2.2, 1.5, 0.35, 1.0),
+		vmath.vector4(2.4, 0.70, 0.18, 1.0),
+		vmath.vector4(2.0, 0.95, 0.30, 1.0),
+		vmath.vector4(2.2, 1.3, 0.40, 1.0),
+		vmath.vector4(2.4, 0.60, 0.20, 1.0),
+		vmath.vector4(2.0, 1.0, 0.32, 1.0),
+		vmath.vector4(2.2, 0.80, 0.25, 1.0),
+		vmath.vector4(2.4, 1.4, 0.45, 1.0),
 	}
 	for i, s_id in ipairs(spark_ids) do
 		pcall(function()
+			local s_angle = (i / #spark_ids) * 6.283 + (math.random() - 0.5) * 0.5
+			local s_dist = 14 + self.radius * (0.70 + math.random() * 0.55)
 			go.set(s_id, "tint", spark_colors[i])
-			go.set(s_id, "scale", vmath.vector3(1.8, 1.8, 1.0))
-			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.1, 0.1, 1.0), go.EASING_INQUAD, 0.45)
-			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.45)
+			go.set(s_id, "scale", vmath.vector3(0.70 + math.random() * 0.30, 0.70 + math.random() * 0.30, 1.0))
+			go.animate(s_id, "position", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(math.cos(s_angle) * s_dist, math.sin(s_angle) * s_dist, 0.45), go.EASING_OUTQUAD, 0.40)
+			go.animate(s_id, "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.12, 0.12, 1.0), go.EASING_INQUAD, 0.40)
+			go.animate(s_id, "tint.w", go.PLAYBACK_ONCE_FORWARD, 0.0, go.EASING_INQUAD, 0.40)
 		end)
 	end
 

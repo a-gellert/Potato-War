@@ -8,6 +8,7 @@ local terrain_grid = require("lua_modules.terrain_grid")
 local terrain_painter = require("lua_modules.terrain_painter")
 local bg_battle = require("lua_modules.bg_battle")
 local camera_controller = require("lua_modules.camera_controller")
+local debris_fx = require("lua_modules.debris_fx")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
@@ -19,22 +20,27 @@ local BIOME_THEMES = {
 	grass = {
 		water = vmath.vector4(1.0, 0.72, 0.25, 0.98), -- Sizzling golden boiling oil / deep fryer
 		sky_clear = vmath.vector4(0.11, 0.14, 0.22, 1.0), -- Atmospheric twilight slate (no error blue)
+		sky_tint = vmath.vector4(0.85, 0.88, 0.92, 1.0),
 	},
 	desert = {
 		water = vmath.vector4(0.08, 0.82, 0.78, 0.95),
 		sky_clear = vmath.vector4(0.61, 0.20, 0.43, 1.0),
+		sky_tint = vmath.vector4(0.82, 0.74, 0.70, 1.0),
 	},
 	arctic = {
 		water = vmath.vector4(0.14, 0.48, 0.88, 0.95),
 		sky_clear = vmath.vector4(0.09, 0.11, 0.27, 1.0),
+		sky_tint = vmath.vector4(0.68, 0.74, 0.88, 1.0),
 	},
 	volcano = {
 		water = vmath.vector4(1.00, 0.42, 0.06, 0.96),
 		sky_clear = vmath.vector4(0.19, 0.07, 0.11, 1.0),
+		sky_tint = vmath.vector4(0.55, 0.42, 0.45, 1.0), -- Darker background pushing depth so dark basalt terrain pops
 	},
 	alien = {
 		water = vmath.vector4(0.12, 0.95, 0.58, 0.95),
 		sky_clear = vmath.vector4(0.07, 0.04, 0.14, 1.0),
+		sky_tint = vmath.vector4(0.58, 0.50, 0.70, 1.0),
 	},
 }
 
@@ -340,9 +346,14 @@ local function apply_biome_environment(self, biome)
 		if theme.sky_clear then
 			msg.post("@render:", "clear_color", { color = theme.sky_clear })
 		end
-		-- Dynamic Biome Illustrated Sky (Nano Banana assets)
+		-- Dynamic Biome Illustrated Sky (Nano Banana assets) with depth tinting
 		local sky_anim = "bg_sky_" .. self.current_biome
 		sprite.play_flipbook("#sky", sky_anim)
+		if theme.sky_tint then
+			go.set("#sky", "tint", theme.sky_tint)
+		else
+			go.set("#sky", "tint", vmath.vector4(1, 1, 1, 1))
+		end
 		msg.post("#bg_islands", "disable")
 		msg.post("#bg_distant", "disable")
 	end)
@@ -481,6 +492,9 @@ function init(self)
 		go.set("#sprite", "image", atlas_res)
 		sprite.play_flipbook("#sprite", "terrain")
 		self.is_initialized = true
+		pcall(function()
+			go.set("#sprite", "terrain_params", vmath.vector4(self.w, self.h, 1.25, 0.0))
+		end)
 	end
 
 	-- 4. Create dynamic texture and atlas for Procedural Background (960x270 base quad)
@@ -746,6 +760,9 @@ function on_message(self, message_id, message, sender)
 				for i = 1, 8 do
 					msg.post("#spore" .. i, "disable")
 				end
+				go.set("#sky", "scale", vmath.vector3(4.5, 3.5, 1.0))
+				go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
+				go.set_position(vmath.vector3(960, 480, 0))
 			end)
 		else
 			pcall(function()
@@ -771,6 +788,14 @@ function on_message(self, message_id, message, sender)
 
 		local min_gx, min_gy, max_gx, max_gy, cleared = terrain_grid.carve_circle(cx, cy, r)
 		if cleared > 0 and self.is_initialized and self.stream then
+			-- Subtle crumb spray from terrain chipping (explosion.script handles the main blast)
+			pcall(function()
+				if message.spawn_burst then
+					debris_fx.burst("#debris_factory", cx, cy, r, self.current_biome)
+				else
+					debris_fx.crumbs("#debris_factory", cx, cy, r, self.current_biome)
+				end
+			end)
 			-- Repaint the blast area plus padding: charred rims, fresh outlines, and props
 			-- that lost their ground (tufts above, vines below) disappear with it
 			local upd_min_gx = math.max(0, min_gx - terrain_painter.PAD_X)

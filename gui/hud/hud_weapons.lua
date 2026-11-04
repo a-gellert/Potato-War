@@ -36,7 +36,7 @@ function M.update_selection(self, selected_weapon_id)
 
 			local ammo = game_state.get_ammo(w.id)
 			if w.id == "grenade" then
-				gui.set_text(ammo_node, "INF")
+				gui.set_text(ammo_node, i18n.t("ammo_inf"))
 				gui.set_color(ammo_node, GOLD)
 			else
 				gui.set_text(ammo_node, (ammo > 0) and ("x" .. ammo) or "0")
@@ -77,7 +77,7 @@ function M.update_inventory(self)
 
 			if w.id == "grenade" or ammo > 0 then
 				if w.id == "grenade" then
-					gui.set_text(count_node, "INF")
+					gui.set_text(count_node, i18n.t("ammo_inf"))
 					gui.set_color(count_node, GOLD)
 				else
 					gui.set_text(count_node, "x" .. ammo)

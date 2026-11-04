@@ -97,7 +97,8 @@ end
 -- Full-screen darkening behind modal windows (parent: a screen-centred group, or nil)
 function M.dim(parent, alpha)
 	local x, y = parent and 0 or 480, parent and 0 or 270
-	local node = M.box(parent, "dim", x, y, 980, 560, vmath.vector4(1, 1, 1, alpha or 0.72))
+	local node = M.box(parent, "dim", x, y, 4000, 3000, vmath.vector4(1, 1, 1, alpha or 0.72))
+	gui.set_adjust_mode(node, gui.ADJUST_STRETCH)
 	gui.set_inherit_alpha(node, false)
 	return node
 end

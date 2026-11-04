@@ -95,5 +95,10 @@ function on_message(self, message_id, message, sender)
 		menu_settings.refresh(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
+	elseif message_id == hash("escape_pressed") then
+		if self.window then
+			open_window(self, nil)
+			menu_home.refresh(self)
+		end
 	end
 end
