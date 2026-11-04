@@ -161,10 +161,16 @@ default_language = en
 localizations = en
 
 [android]
-version_code = 1
-minimum_sdk_version = 21
+app_icon_36x36 = /main/assets/logo2 (1).png
+app_icon_48x48 = /main/assets/logo2 (1).png
+app_icon_72x72 = /main/assets/logo2 (1).png
+app_icon_96x96 = /main/assets/logo2 (1).png
+app_icon_144x144 = /main/assets/logo2 (1).png
+app_icon_192x192 = /main/assets/logo2 (1).png
+version_code = 2
+minimum_sdk_version = 24
 target_sdk_version = 36
-package = com.example.todo
+package = com.turnbased.artillery.potato.war
 gcm_sender_id = 
 fcm_application_id = 
 manifest = /builtins/manifests/android/AndroidManifest.xml
@@ -270,6 +276,33 @@ input_key_lshift = key_lshift
 input_key_lctrl = key_lctrl
 input_key_lsuper = key_lsuper
 
+[applovin]
+version = 2.0.0
+demo_sdk_key = 
+demo_android_interstitial_ad_unit_id = 
+demo_android_rewarded_ad_unit_id = 
+demo_android_banner_ad_unit_id = 
+demo_android_mrec_ad_unit_id = 
+demo_ios_interstitial_ad_unit_id = 
+demo_ios_rewarded_ad_unit_id = 
+demo_ios_banner_ad_unit_id = 
+demo_ios_mrec_ad_unit_id = 
+
 [script]
 shared_state = 1
+
+[sdk]
+target = playgama
+
+[max]
+sdk_key = nR3VEu5EEJlq6OmqwXd1lMKHQhg3sEumJpdTgplZ-csu1yq6zIkU1auq9P1sOOoIVLg9tOWSXDaUfRvC9Uv-Ib
+android_rewarded_ad_unit_id = 3b4c4e300c1709af
+android_interstitial_ad_unit_id = dcde4a87319ce815
+android_banner_ad_unit_id = ecd82aeb64571dad
+ios_rewarded_ad_unit_id = 
+ios_interstitial_ad_unit_id = 
+ios_banner_ad_unit_id = 
+privacy_policy_url = https://gardenofdreams.games/privacy-policy-3
+terms_of_service_url = https://gardenofdreams.games/privacy-policy-3
+debug_mode = 0
 
