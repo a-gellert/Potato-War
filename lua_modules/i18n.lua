@@ -1206,7 +1206,7 @@ M.LANG_NAMES = { en = "English", ru = "Русский", pt = "Português", fr = 
 
 -- Detect language from saved preference, platform SDK (Playgama, Yandex, Poki), URL, browser, or system settings
 function M.detect_language()
-	-- 1. Check if user previously saved a manual language preference
+	-- 1. Check if user previously saved a manual language preference in settings
 	local saved_lang = nil
 	pcall(function()
 		local player_profile = require("lua_modules.player_profile")
@@ -1220,9 +1220,26 @@ function M.detect_language()
 		return M.current_lang
 	end
 
+	-- 2. Query centralized SDK module (main/sdk.lua)
 	local detected_lang = nil
+	pcall(function()
+		local sdk = require("main.sdk")
+		if sdk and sdk.get_language_code then
+			local code = sdk.get_language_code()
+			if code and supported[code] then
+				detected_lang = code
+				print(">>> I18N: Detected via main.sdk.get_language_code():", detected_lang)
+			end
+		end
+	end)
 
-	-- 2. Query Playgama Bridge Lua binding
+	if detected_lang and supported[detected_lang] then
+		M.current_lang = detected_lang
+		print(">>> I18N: Active auto-detected language from SDK:", M.current_lang)
+		return M.current_lang
+	end
+
+	-- 3. Query Playgama Bridge Lua binding directly if SDK didn't return
 	if not detected_lang and _G.bridge and _G.bridge.platform and _G.bridge.platform.language then
 		pcall(function()
 			local bl = _G.bridge.platform.language()
@@ -1233,7 +1250,7 @@ function M.detect_language()
 		end)
 	end
 
-	-- 3. Query Defold poki_sdk native extension
+	-- 4. Query Defold poki_sdk native extension
 	if not detected_lang and _G.poki_sdk then
 		pcall(function()
 			if _G.poki_sdk.get_language then
@@ -1253,7 +1270,7 @@ function M.detect_language()
 		end)
 	end
 
-	-- 4. Query HTML5 / Web platform bridges (Playgama, Yandex, Poki, URL params, navigator)
+	-- 5. Query HTML5 / Web platform bridges (Playgama, Yandex, Poki, URL params, navigator)
 	if not detected_lang and html5 and html5.run then
 		pcall(function()
 			local js_lang = html5.run([[(function() {
@@ -1307,7 +1324,7 @@ function M.detect_language()
 		end)
 	end
 
-	-- 5. Defold sys.get_sys_info fallback (mobile / desktop)
+	-- 6. Defold sys.get_sys_info fallback (mobile / desktop)
 	if not detected_lang then
 		pcall(function()
 			local sinfo = sys.get_sys_info()
@@ -1318,7 +1335,7 @@ function M.detect_language()
 		end)
 	end
 
-	-- 6. Evaluate and normalize detected language
+	-- 7. Evaluate and normalize detected language
 	if detected_lang and type(detected_lang) == "string" and detected_lang ~= "" then
 		local lower = string.lower(detected_lang)
 		local code = string.sub(lower, 1, 2)
@@ -1342,7 +1359,7 @@ function M.detect_language()
 		end
 	end
 
-	-- 7. Standard Global Default: English
+	-- 8. Standard Global Default: English
 	M.current_lang = M.LANG_EN
 	print(">>> I18N: Defaulting to standard English:", M.current_lang)
 	return M.current_lang

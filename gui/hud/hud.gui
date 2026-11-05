@@ -32,32 +32,27 @@ nodes {
     x: 160.0
     y: 40.0
   }
-  color {
-    x: 0.08
-    y: 0.11
-    z: 0.15
-  }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "ui/panel"
   id: "wind_panel"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
+    x: 18.0
+    y: 18.0
+    z: 18.0
+    w: 18.0
   }
-  alpha: 0.88
+  alpha: 0.95
 }
 nodes {
   position {
-    x: -50.0
+    x: -43.0
   }
   scale {
-    x: 0.4
-    y: 0.4
+    x: 0.3
+    y: 0.3
   }
   size {
     x: 80.0
@@ -78,6 +73,9 @@ nodes {
   shadow_alpha: 0.0
 }
 nodes {
+  position {
+    x: -4.0
+  }
   scale {
     x: 0.7
     y: 0.7
@@ -99,11 +97,11 @@ nodes {
 }
 nodes {
   position {
-    x: 47.0
+    x: 38.0
   }
   scale {
-    x: 0.45
-    y: 0.45
+    x: 0.4
+    y: 0.4
   }
   size {
     x: 80.0
@@ -430,24 +428,19 @@ nodes {
     x: 110.0
     y: 40.0
   }
-  color {
-    x: 0.08
-    y: 0.11
-    z: 0.15
-  }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "ui/btn_dark"
   id: "btn_pause"
   xanchor: XANCHOR_RIGHT
   yanchor: YANCHOR_TOP
   inherit_alpha: true
   slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
+    x: 16.0
+    y: 12.0
+    z: 16.0
+    w: 16.0
   }
-  alpha: 0.88
+  alpha: 0.95
 }
 nodes {
   scale {
@@ -485,7 +478,6 @@ nodes {
     y: 24.0
   }
   color {
-    x: 1.0
     y: 0.85
     z: 0.25
   }
@@ -502,7 +494,6 @@ nodes {
     y: 10.0
   }
   color {
-    x: 1.0
     y: 0.9
     z: 0.35
   }
@@ -519,7 +510,6 @@ nodes {
     y: 10.0
   }
   color {
-    x: 1.0
     y: 0.9
     z: 0.35
   }
@@ -536,7 +526,6 @@ nodes {
     y: 10.0
   }
   color {
-    x: 1.0
     y: 0.9
     z: 0.35
   }
@@ -1092,7 +1081,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: 11.0
   }
   scale {
@@ -1104,9 +1092,8 @@ nodes {
     y: 24.0
   }
   color {
-    x: 1.0
     y: 0.85
-    z: 0.20
+    z: 0.2
   }
   type: TYPE_TEXT
   text: "TITLE"
@@ -1119,7 +1106,6 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
     y: -11.0
   }
   scale {
@@ -1153,28 +1139,24 @@ nodes {
     x: 130.0
     y: 44.0
   }
-  color {
-    x: 0.08
-    y: 0.11
-    z: 0.15
-  }
   type: TYPE_BOX
-  texture: "game/box"
+  texture: "ui/btn_dark"
   id: "btn_inventory"
   xanchor: XANCHOR_LEFT
   yanchor: YANCHOR_BOTTOM
   inherit_alpha: true
   slice9 {
-    x: 4.0
-    y: 4.0
-    z: 4.0
-    w: 4.0
+    x: 16.0
+    y: 12.0
+    z: 16.0
+    w: 16.0
   }
-  alpha: 0.88
+  alpha: 0.95
 }
 nodes {
   position {
     x: -36.0
+    y: 2.0
   }
   size {
     x: 28.0
@@ -1189,11 +1171,11 @@ nodes {
 nodes {
   position {
     x: 14.0
-    y: 7.0
+    y: 9.0
   }
   scale {
-    x: 0.38
-    y: 0.38
+    x: 0.3
+    y: 0.3
   }
   size {
     x: 140.0
@@ -1216,7 +1198,7 @@ nodes {
 nodes {
   position {
     x: 14.0
-    y: -7.0
+    y: -6.0
   }
   scale {
     x: 0.36
@@ -1225,11 +1207,6 @@ nodes {
   size {
     x: 140.0
     y: 18.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
   }
   type: TYPE_TEXT
   text: "INF"
