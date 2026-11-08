@@ -79,6 +79,38 @@ M.STATE_ACTION = "action"
 M.STATE_SETTLING = "settling"
 M.STATE_GAME_OVER = "game_over"
 
+-- Optional file logging. Enabled automatically in editor/debug builds and can be forced
+-- in a release build with `potato_war.debug_log = 1` in game.project. The file is written
+-- to the platform save directory (sys.get_save_file), never to a hard-coded developer path.
+local log_path = nil
+local log_path_checked = false
+
+local function file_logging_enabled()
+	if html5 then
+		return false
+	end
+	local ok_info, info = pcall(sys.get_engine_info)
+	if ok_info and info and info.is_debug then
+		return true
+	end
+	local ok_cfg, enabled = pcall(sys.get_config_int, "potato_war.debug_log", 0)
+	return ok_cfg and enabled == 1
+end
+
+local function get_log_path()
+	if log_path_checked then
+		return log_path
+	end
+	log_path_checked = true
+	if file_logging_enabled() and sys and sys.get_save_file then
+		local ok, path = pcall(sys.get_save_file, "potato_war", "game_debug.log")
+		if ok and path then
+			log_path = path
+		end
+	end
+	return log_path
+end
+
 function M.log(...)
 	local parts = { ... }
 	for i = 1, #parts do
@@ -92,10 +124,15 @@ function M.log(...)
 		pcall(html5.run, "console.log('%c[POTATO WAR LOG]', 'color: #ff9800; font-weight: bold;', '" .. escaped .. "');")
 	end
 
-	local f = io.open("C:/Users/gellert.alexandr/Desktop/D_Projects/Potato War/game_debug.log", "a")
-	if f then
-		f:write(str .. "\n")
-		f:close()
+	local path = get_log_path()
+	if path and io and io.open then
+		pcall(function()
+			local f = io.open(path, "a")
+			if f then
+				f:write(os.date("[%Y-%m-%d %H:%M:%S] ") .. str .. "\n")
+				f:close()
+			end
+		end)
 	end
 end
 

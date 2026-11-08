@@ -7,6 +7,7 @@
 local constants = require("lua_modules.constants")
 local player_profile = require("lua_modules.player_profile")
 local sound_manager = require("lua_modules.sound_manager")
+local i18n = require("lua_modules.i18n")
 
 local M = {}
 
@@ -31,9 +32,9 @@ M.UPGRADES = {
 		desc_fr = "+15..+25 PV à la santé maximale de la patate",
 		desc_es = "+15..+25 HP a la salud máxima de la patata",
 		desc_tr = "Patatanın maksimum sağlığına +15..+25 HP",
-		icon = "❤️",
+		icon = "ic_heart",
 		costs = { 250, 1000, 2100, 5000, 9700 },
-		bonuses = { 15, 30, 50, 75, 100 }, -- Cumulative bonus HP added to base 100 HP
+		bonuses = { 15, 30, 50, 75, 100 }, -- Cumulative bonus HP added to constants.PLAYER_HP
 	},
 	[M.UPGRADE_STARTING_WEAPON] = {
 		id = M.UPGRADE_STARTING_WEAPON,
@@ -50,7 +51,7 @@ M.UPGRADES = {
 		desc_fr = "Armes et munitions bonus au début de chaque bataille",
 		desc_es = "Armas y munición extra al inicio de cada batalla",
 		desc_tr = "Her savaşın başında bonus silah ve mühimmat",
-		icon = "💣",
+		icon = "ic_ammo",
 		costs = { 1000, 2200, 3400, 7000, 12000 },
 		descriptions = {
 			ru = {
@@ -118,7 +119,7 @@ M.UPGRADES = {
 		desc_fr = "Restaure un % de PV après chaque tour/tir",
 		desc_es = "Restaura % de HP tras cada ronda/disparo",
 		desc_tr = "Her tur/atıştan sonra HP'nin bir yüzdesini yeniler",
-		icon = "🌿",
+		icon = "ic_damage",
 		costs = { 500, 1000, 2000, 5500, 13000 },
 		regen_percents = { 5, 10, 15, 20, 25 }, -- % of max HP regenerated per round
 	}
@@ -140,9 +141,49 @@ function M.get_max_hp_bonus()
 	return bonuses[math.min(lvl, #bonuses)] or 0
 end
 
--- Get effective player max HP (Base 100 + Meta Upgrade Bonus)
+-- Get effective player max HP (base campaign HP + meta upgrade bonus)
 function M.get_player_max_hp()
-	return 100 + M.get_max_hp_bonus()
+	return constants.PLAYER_HP + M.get_max_hp_bonus()
+end
+
+-- Localized description of the upgrade's current level (starting arsenal changes per level)
+function M.get_level_description(upgrade_id)
+	local upg = M.UPGRADES[upgrade_id]
+	if not upg then
+		return ""
+	end
+	if upg.descriptions then
+		local entries = upg.descriptions[i18n.current_lang] or upg.descriptions.en
+		local text = entries and entries[M.get_level(upgrade_id)]
+		if text then
+			return text
+		end
+	end
+	return i18n.field(upg, "desc")
+end
+
+-- True when at least one upgrade can be bought right now (drives the menu badge)
+function M.any_affordable()
+	for upgrade_id in pairs(M.UPGRADES) do
+		local upg = M.UPGRADES[upgrade_id]
+		if M.get_level(upgrade_id) < upg.max_level and M.can_afford(upgrade_id) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Keep the saved campaign HP within the current meta-upgrade maximum
+function M.sync_campaign_max_hp()
+	local max_hp = M.get_player_max_hp()
+	if not player_profile.data then
+		return max_hp
+	end
+	player_profile.data.campaign_max_hp = max_hp
+	if (player_profile.data.campaign_hp or max_hp) > max_hp then
+		player_profile.data.campaign_hp = max_hp
+	end
+	return max_hp
 end
 
 -- Get round HP regen percent (e.g. 0, 5, 10, 15, 20, 25)
@@ -267,10 +308,9 @@ function M.buy_upgrade(upgrade_id)
 	end
 	player_profile.data.meta_upgrades[upgrade_id] = cur_lvl + 1
 
-	-- If Max HP was upgraded, update campaign max HP
+	-- Keep the saved campaign HP in sync with the new maximum
 	if upgrade_id == M.UPGRADE_MAX_HP then
-		local new_max = M.get_player_max_hp()
-		player_profile.data.campaign_max_hp = new_max
+		M.sync_campaign_max_hp()
 	end
 
 	player_profile.save()

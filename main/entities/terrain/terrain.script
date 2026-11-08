@@ -21,26 +21,36 @@ local BIOME_THEMES = {
 		water = vmath.vector4(1.0, 0.72, 0.25, 0.98), -- Sizzling golden boiling oil / deep fryer
 		sky_clear = vmath.vector4(0.11, 0.14, 0.22, 1.0), -- Atmospheric twilight slate (no error blue)
 		sky_tint = vmath.vector4(0.85, 0.88, 0.92, 1.0),
+		distant_tint = vmath.vector4(0.58, 0.66, 0.66, 0.85),
+		cloud_tint = vmath.vector4(1.0, 0.93, 0.80, 0.50),
 	},
 	desert = {
 		water = vmath.vector4(0.08, 0.82, 0.78, 0.95),
 		sky_clear = vmath.vector4(0.61, 0.20, 0.43, 1.0),
 		sky_tint = vmath.vector4(0.82, 0.74, 0.70, 1.0),
+		distant_tint = vmath.vector4(0.80, 0.56, 0.48, 0.85),
+		cloud_tint = vmath.vector4(1.0, 0.82, 0.64, 0.42),
 	},
 	arctic = {
 		water = vmath.vector4(0.14, 0.48, 0.88, 0.95),
 		sky_clear = vmath.vector4(0.09, 0.11, 0.27, 1.0),
 		sky_tint = vmath.vector4(0.68, 0.74, 0.88, 1.0),
+		distant_tint = vmath.vector4(0.58, 0.70, 0.88, 0.88),
+		cloud_tint = vmath.vector4(0.78, 0.88, 1.0, 0.55),
 	},
 	volcano = {
 		water = vmath.vector4(1.00, 0.42, 0.06, 0.96),
 		sky_clear = vmath.vector4(0.19, 0.07, 0.11, 1.0),
 		sky_tint = vmath.vector4(0.55, 0.42, 0.45, 1.0), -- Darker background pushing depth so dark basalt terrain pops
+		distant_tint = vmath.vector4(0.62, 0.34, 0.30, 0.82),
+		cloud_tint = vmath.vector4(0.52, 0.38, 0.40, 0.42),
 	},
 	alien = {
 		water = vmath.vector4(0.12, 0.95, 0.58, 0.95),
 		sky_clear = vmath.vector4(0.07, 0.04, 0.14, 1.0),
 		sky_tint = vmath.vector4(0.58, 0.50, 0.70, 1.0),
+		distant_tint = vmath.vector4(0.62, 0.46, 0.82, 0.85),
+		cloud_tint = vmath.vector4(0.78, 0.60, 1.0, 0.40),
 	},
 }
 
@@ -354,8 +364,13 @@ local function apply_biome_environment(self, biome)
 		else
 			go.set("#sky", "tint", vmath.vector4(1, 1, 1, 1))
 		end
-		msg.post("#bg_islands", "disable")
-		msg.post("#bg_distant", "disable")
+		msg.post("#bg_islands", "enable")
+		msg.post("#bg_distant", "enable")
+		msg.post("#bg_clouds", "enable")
+		sprite.play_flipbook("#bg_islands", "bg_islands_" .. self.current_biome)
+		go.set("#bg_distant", "tint", theme.distant_tint or vmath.vector4(1, 1, 1, 0.8))
+		go.set("#bg_clouds", "tint", theme.cloud_tint or vmath.vector4(1, 1, 1, 0.45))
+		go.set("#bg_islands", "tint", vmath.vector4(1, 1, 1, 1))
 	end)
 
 	-- Atmospheric Biome VFX particles drifting on the wind
@@ -493,7 +508,7 @@ function init(self)
 		sprite.play_flipbook("#sprite", "terrain")
 		self.is_initialized = true
 		pcall(function()
-			go.set("#sprite", "terrain_params", vmath.vector4(self.w, self.h, 1.25, 0.0))
+			go.set("#sprite", "terrain_params", vmath.vector4(self.w, self.h, 1.4, 0.0))
 		end)
 	end
 
@@ -573,6 +588,7 @@ function init(self)
 		go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
 		msg.post("#bg_distant", "disable")
 		msg.post("#bg_islands", "disable")
+		msg.post("#bg_clouds", "disable")
 
 		-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
 		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
@@ -587,6 +603,7 @@ function init(self)
 		msg.post("#water", "disable")
 		msg.post("#bg_distant", "disable")
 		msg.post("#bg_islands", "disable")
+		msg.post("#bg_clouds", "disable")
 		for i = 1, 8 do
 			msg.post("#spore" .. i, "disable")
 		end
@@ -608,12 +625,19 @@ function update(self, dt)
 
 		-- 2. Layer 1 (Distant mountains & farm ridges): deep slow parallax (0.55 follow)
 		pcall(function()
-			go.set("#bg_distant", "position", vmath.vector3(rel_x * 0.55, rel_y * 0.35 + 20, -0.35))
+			go.set("#bg_distant", "position", vmath.vector3(rel_x * 0.55, rel_y * 0.35 + 60, -0.35))
 		end)
 
 		-- 3. Layer 2 (Mid-ground floating islands): mid parallax (0.28 follow)
 		pcall(function()
-			go.set("#bg_islands", "position", vmath.vector3(rel_x * 0.28, rel_y * 0.18 + 70, -0.25))
+			go.set("#bg_islands", "position", vmath.vector3(rel_x * 0.28, rel_y * 0.18 + 20, -0.25))
+		end)
+
+		-- 4. Layer 3 (Clouds): slow drift + soft parallax between the islands and the sky
+		self.cloud_time = (self.cloud_time or 0) + dt
+		local cloud_drift = math.sin(self.cloud_time * 0.06) * 70
+		pcall(function()
+			go.set("#bg_clouds", "position", vmath.vector3(rel_x * 0.40 + cloud_drift, rel_y * 0.28 + 200, -0.32))
 		end)
 	end
 
@@ -682,6 +706,10 @@ function on_message(self, message_id, message, sender)
 				biome = "volcano"
 			elseif preset == "swiss_cheese" then
 				biome = "alien"
+			elseif preset == "crater_field" then
+				biome = "desert"
+			elseif preset == "mushroom_grove" then
+				biome = "grass"
 			else
 				biome = "grass"
 			end
@@ -693,8 +721,9 @@ function on_message(self, message_id, message, sender)
 		pcall(function()
 			msg.post("#sprite", "enable")
 			msg.post("#water", "enable")
-			msg.post("#bg_distant", "disable")
-			msg.post("#bg_islands", "disable")
+			msg.post("#bg_distant", "enable")
+			msg.post("#bg_islands", "enable")
+			msg.post("#bg_clouds", "enable")
 			for i = 1, 8 do
 				msg.post("#spore" .. i, "enable")
 			end
@@ -708,8 +737,6 @@ function on_message(self, message_id, message, sender)
 			go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
 			go.set("#sky", "scale", vmath.vector3(1.65, 1.45, 1.0))
 			go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-			msg.post("#bg_distant", "disable")
-			msg.post("#bg_islands", "disable")
 
 			-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
 			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
@@ -757,6 +784,7 @@ function on_message(self, message_id, message, sender)
 				msg.post("#water", "disable")
 				msg.post("#bg_distant", "disable")
 				msg.post("#bg_islands", "disable")
+				msg.post("#bg_clouds", "disable")
 				for i = 1, 8 do
 					msg.post("#spore" .. i, "disable")
 				end
@@ -768,8 +796,9 @@ function on_message(self, message_id, message, sender)
 			pcall(function()
 				msg.post("#sprite", "enable")
 				msg.post("#water", "enable")
-				msg.post("#bg_distant", "disable")
-				msg.post("#bg_islands", "disable")
+				msg.post("#bg_distant", "enable")
+				msg.post("#bg_islands", "enable")
+				msg.post("#bg_clouds", "enable")
 				for i = 1, 8 do
 					msg.post("#spore" .. i, "enable")
 				end

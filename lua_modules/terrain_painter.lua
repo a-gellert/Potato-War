@@ -1,8 +1,10 @@
 -- lua_modules/terrain_painter.lua
 -- Hybrid-casual shading for the destructible terrain texture: chunky tinted outlines,
--- scalloped biome caps, cartoon pebbles / potatoes / crystals, biome strata and magma veins,
--- surface props (tufts, flowers, cacti, ice shards, glow bulbs) and hanging props
--- (vines, icicles, lava drips, tendrils). Crater rims are charred instead of regrowing a cap.
+-- scalloped biome caps with a wavy organic edge, cartoon pebbles / potatoes / crystals,
+-- biome strata and magma veins, surface props (tufts, flowers, cacti, ice shards, rocks,
+-- glow bulbs) and hanging props (vines, icicles, lava drips, tendrils). Cave floors keep
+-- their deep rock shading instead of growing a second grass cap, and crater rims are
+-- charred instead of regrowing one.
 --
 -- Pure Lua: writes RGBA bytes into any 1-based indexable stream (Defold buffer stream or table).
 
@@ -18,7 +20,7 @@ local NOISE_SIZE = 256 -- tileable noise tile (cells)
 local PEBBLE_CELL = 30 -- pebble jitter grid (cells)
 
 -- Region padding a caller must repaint around a changed area so props and edges stay consistent
-M.PAD_X = 6
+M.PAD_X = 8
 M.PAD_Y = 14
 
 local DIR_UP, DIR_LEFT, DIR_RIGHT, DIR_DOWN = 1, 2, 3, 4
@@ -34,9 +36,9 @@ local PALETTES = {
 		cap_th = 12, cap_hi = { 178, 248, 72 }, cap = { 102, 212, 54 }, cap_lo = { 56, 162, 44 },
 		soil_top = { 172, 112, 65 }, soil_deep = { 86, 50, 34 }, body = "clods", patch = 0.84,
 		stone = { 160, 154, 148 }, stone_hi = { 216, 210, 200 }, stone_lo = { 92, 86, 84 },
-		pebble_rate = 0.45, pebbles = { "pebble", "pebble", "potato" },
+		pebble_rate = 0.38, pebbles = { "pebble", "pebble", "pebble", "potato" },
 		potato = { 224, 170, 98 }, potato_hi = { 248, 210, 142 }, potato_lo = { 134, 88, 46 },
-		props = { { "tuft", 0.12 }, { "flower", 0.14 } },
+		props = { { "tuft", 0.10 }, { "flower", 0.14 }, { "rocks", 0.17 } },
 		petals = { { 255, 226, 70 }, { 255, 255, 250 }, { 255, 132, 182 } }, petal_mid = { 255, 168, 40 },
 		hangs = { { "vine", 0.16 } },
 	},
@@ -46,7 +48,7 @@ local PALETTES = {
 		soil_top = { 228, 144, 84 }, soil_deep = { 156, 76, 50 }, body = "strata",
 		stone = { 226, 182, 128 }, stone_hi = { 252, 225, 172 }, stone_lo = { 145, 90, 56 },
 		pebble_rate = 0.4, pebbles = { "pebble" },
-		props = { { "dry", 0.05 }, { "cactus", 0.065 } },
+		props = { { "dry", 0.045 }, { "cactus", 0.075 }, { "rocks", 0.10 } },
 		dry = { { 168, 146, 66 }, { 200, 180, 90 }, { 238, 216, 132 } },
 		cactus = { { 140, 212, 110 }, { 88, 172, 82 }, { 56, 122, 62 } },
 		hangs = {},
@@ -57,7 +59,7 @@ local PALETTES = {
 		soil_top = { 128, 198, 245 }, soil_deep = { 70, 126, 194 }, body = "ice",
 		stone = { 98, 128, 170 }, stone_hi = { 178, 212, 245 }, stone_lo = { 52, 74, 112 },
 		pebble_rate = 0.55, pebbles = { "pebble", "bubble", "bubble" },
-		props = { { "shard", 0.06 } },
+		props = { { "shard", 0.055 }, { "rocks", 0.075 } },
 		ice = { { 255, 255, 255 }, { 202, 238, 255 }, { 128, 194, 245 } },
 		hangs = { { "icicle", 0.35 } },
 	},
@@ -68,7 +70,7 @@ local PALETTES = {
 		soil_top = { 72, 52, 58 }, soil_deep = { 32, 20, 26 }, body = "magma",
 		stone = { 46, 38, 56 }, stone_hi = { 124, 112, 156 }, stone_lo = { 20, 14, 24 },
 		pebble_rate = 0.5, pebbles = { "crystal", "pebble" },
-		props = { { "spike", 0.06 } },
+		props = { { "spike", 0.05 }, { "rocks", 0.085 } },
 		spike = { { 120, 96, 96 }, { 80, 62, 66 }, { 255, 140, 50 } },
 		hangs = { { "drip", 0.16 } },
 		drip = { { 255, 138, 34 }, { 255, 222, 94 } },
@@ -80,7 +82,7 @@ local PALETTES = {
 		stone = { 255, 122, 222 }, stone_hi = { 255, 204, 246 }, stone_lo = { 150, 40, 132 },
 		pebble_rate = 0.55, pebbles = { "crystal", "spot", "spot" },
 		glow = { 120, 255, 238 }, glow_lo = { 38, 198, 188 },
-		props = { { "bulb", 0.07 }, { "tuft", 0.14 } },
+		props = { { "bulb", 0.06 }, { "tuft", 0.13 }, { "rocks", 0.16 } },
 		bulb = { { 120, 255, 238 }, { 255, 150, 236 } },
 		hangs = { { "tendril", 0.15 } },
 	},
@@ -169,7 +171,9 @@ local function cap_thickness(gx)
 	local cell = floor(gx / p)
 	local t = (gx - cell * p) / p * 2 - 1
 	local bump = sqrt(max(0, 1 - t * t))
-	return pal.cap_th + floor(bump * (2 + hash(cell, 7.7) * 3) + 0.5)
+	-- Slow macro variation makes some stretches of turf lush and others thin
+	local macro = floor((hash(floor(gx / 53), 3.3) - 0.5) * 5 + 0.5)
+	return pal.cap_th + macro + floor(bump * (2 + hash(cell, 7.7) * 3) + 0.5)
 end
 
 ---------------------------------------------------------
@@ -299,19 +303,24 @@ local function shade_solid(gx, gy, idx, nd, run, cap_th)
 		return c[1], c[2], c[3]
 	end
 
+	local ni = ((gy + noise_oy) % NOISE_SIZE) * NOISE_SIZE + ((gx + noise_ox) % NOISE_SIZE) + 1
+	local n1, n2 = noise_a[ni], noise_b[ni]
+
 	local r, g, b
-	if nd < cap_th then
+	-- Wavy cap boundary so the turf/sand/snow edge is organic instead of a ruler-straight band
+	local cap_edge = nd + (n1 - 0.5) * 3.0
+	if cap_edge < cap_th then
 		-- Biome cap: highlight band, body, darker drip bottoms
 		local c
-		if nd <= 2 then
+		if cap_edge <= 2 then
 			c = P.cap_hi
-		elseif nd >= cap_th - 2 then
+		elseif cap_edge >= cap_th - 2.5 then
 			c = P.cap_lo
 		else
 			c = P.cap
 		end
 		r, g, b = c[1], c[2], c[3]
-		if P.cap_fleck and nd > 2 and hash(gx, gy) < 0.06 then
+		if P.cap_fleck and cap_edge > 2 and hash(gx, gy) < 0.06 then
 			c = P.cap_fleck
 			r, g, b = c[1], c[2], c[3]
 		end
@@ -329,8 +338,6 @@ local function shade_solid(gx, gy, idx, nd, run, cap_th)
 			r, g, b = r * m, g * m, b * m
 		end
 
-		local ni = ((gy + noise_oy) % NOISE_SIZE) * NOISE_SIZE + ((gx + noise_ox) % NOISE_SIZE) + 1
-		local n1, n2 = noise_a[ni], noise_b[ni]
 		local body = P.body
 
 		if body == "strata" then
@@ -510,6 +517,38 @@ local function stamp_bulb(gx, gy, h1)
 	put(gx - 1, cy + 1, glow, 1.0)
 end
 
+local function stamp_rocks(gx, gy, h1)
+	local P = pal
+	local r = 2 + floor(h1 * 2)
+	local by = gy + r
+	for dy = -r, r do
+		local span = floor(sqrt(max(0, r * r - dy * dy)) + 0.5)
+		for dx = -span, span do
+			local col = P.stone
+			if dy == r then
+				col = P.stone_hi
+			elseif dy == -r then
+				col = P.stone_lo
+			elseif dx < -span * 0.35 then
+				col = P.stone_hi
+			end
+			put(gx + dx, by + dy, col)
+		end
+	end
+	-- A small companion stone keeps rock clusters from looking like perfect domes
+	if h1 > 0.45 then
+		local r2 = 1 + floor(h1 * 2)
+		local bx = gx + r + 2
+		for dy = -r2, r2 do
+			for dx = -r2, r2 do
+				if dx * dx + dy * dy <= r2 * r2 then
+					put(bx + dx, gy + r2 + dy, (dy == r2) and P.stone_hi or ((dy == -r2) and P.stone_lo or P.stone))
+				end
+			end
+		end
+	end
+end
+
 local function stamp_surface(gx, gy)
 	local P = pal
 	local hc = hash(gx * 0.917, 3.31)
@@ -539,6 +578,8 @@ local function stamp_surface(gx, gy)
 		put(gx, gy + 3 + floor(h1 * 4) + 1, s[3])
 	elseif kind == "bulb" then
 		stamp_bulb(gx, gy, h1)
+	elseif kind == "rocks" then
+		stamp_rocks(gx, gy, h1)
 	end
 end
 
@@ -622,6 +663,7 @@ function M.paint(stream, grid, carved, w, h, x0, y0, x1, y1)
 		local nd = DEPTH_CAP -- depth below the original (pre-crater) surface
 		local run = 99       -- live solid cells above (0 = air directly above)
 		local prev_live, prev_orig = true, true
+		local top_seen = false -- first original surface of this column (sky/space boundary)
 
 		for gy = scan_top, scan_bot, -1 do
 			local idx = gy * w + gx + 1
@@ -630,11 +672,17 @@ function M.paint(stream, grid, carved, w, h, x0, y0, x1, y1)
 			local orig = live or cv
 
 			if orig then
-				if prev_orig then
-					if nd < DEPTH_CAP then nd = nd + 1 end
-				else
-					nd = 0
+				if not top_seen then
+					top_seen = true
+					-- If the scan already starts inside rock, this is not a real surface
+					nd = prev_orig and DEPTH_CAP or 0
+				elseif nd < DEPTH_CAP then
+					nd = nd + 1
 				end
+			elseif top_seen and nd < DEPTH_CAP then
+				-- Caves and overhangs keep descending from the original surface, so
+				-- their floors stay rock instead of growing a second biome cap
+				nd = nd + 1
 			end
 
 			if live then
@@ -642,7 +690,7 @@ function M.paint(stream, grid, carved, w, h, x0, y0, x1, y1)
 					if run < 99 then run = run + 1 end
 				else
 					run = 0
-					if gy + 1 <= y1 and not carved[idx + w] then
+					if nd == 0 and gy + 1 <= y1 and not carved[idx + w] then
 						n_surf = n_surf + 1
 						surf_x[n_surf], surf_y[n_surf] = gx, gy
 					end

@@ -9,11 +9,13 @@ local menu_home = require("gui.main_menu.menu_home")
 local menu_settings = require("gui.main_menu.menu_settings")
 local menu_shop = require("gui.main_menu.menu_shop")
 local menu_lobby = require("gui.main_menu.menu_lobby")
+local menu_upgrades = require("gui.main_menu.menu_upgrades")
 
 local WINDOWS = {
 	settings = menu_settings,
 	shop = menu_shop,
 	lobby = menu_lobby,
+	upgrades = menu_upgrades,
 }
 
 local function open_window(self, name)
@@ -46,6 +48,7 @@ function init(self)
 		arsenal = function() open_overlay(self, "/gui_arsenal") end,
 		squad = function() open_overlay(self, "/gui_squad") end,
 		hats = function() open_window(self, "shop") end,
+		upgrades = function() open_window(self, "upgrades") end,
 		quick = function() open_window(self, "lobby") end,
 		campaign = function()
 			msg.post(".", "disable")
@@ -55,6 +58,7 @@ function init(self)
 	})
 	menu_settings.build(self, close)
 	menu_shop.build(self, close)
+	menu_upgrades.build(self, close)
 	menu_lobby.build(self, close, function(config)
 		open_window(self, nil)
 		msg.post(".", "disable")

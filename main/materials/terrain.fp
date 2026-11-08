@@ -61,20 +61,29 @@ void main()
         shaded_color += vec3(grain);
     }
 
-    // Rich dark comic outline along crater rims and surface edges for crisp foreground separation
-    vec3 outline_color = vec3(0.04, 0.03, 0.04);
-    shaded_color = mix(shaded_color, outline_color, edge_factor * 0.94);
+    // Rich comic outline that keeps the local biome hue instead of dead black
+    vec3 outline_color = mix(base_color.rgb * 0.16 + vec3(0.02, 0.015, 0.02), vec3(0.03, 0.02, 0.03), 0.30);
+    shaded_color = mix(shaded_color, outline_color, edge_factor * 0.92);
 
     // Inner rim backlight: subtle luminous bevel just inside the dark outline
     float inner_rim = smoothstep(0.18, 0.45, edge_factor) * (1.0 - smoothstep(0.62, 0.90, edge_factor));
-    shaded_color += vec3(inner_rim * 0.18);
+    shaded_color += vec3(inner_rim * 0.16);
 
-    // Top surface rim highlight (sunlight bouncing off grass/snow/soil crest)
-    float top_edge = max(0.0, (a_down - a_up)) * (1.0 - edge_factor * 0.5);
-    shaded_color += vec3(top_edge * 0.16);
+    // Directional bevel: warm top sunlight and a cooler bounce from the upper left
+    float top_light = max(0.0, a_down - a_up);
+    float left_light = max(0.0, a_right - a_left);
+    shaded_color += vec3((top_light * 0.16 + left_light * 0.07) * (1.0 - edge_factor * 0.55));
+
+    // Soft contact occlusion in tight pockets and under overhangs
+    float openness = smoothstep(0.0, 1.0, min_neighbor);
+    shaded_color *= mix(0.90, 1.0, openness);
 
     // Boost terrain contrast & vibrancy so foreground gameplay terrain pops forward
-    shaded_color = clamp(pow(shaded_color, vec3(0.92)) * 1.08, 0.0, 1.0);
+    shaded_color = clamp(pow(shaded_color, vec3(0.94)) * 1.06, 0.0, 1.0);
+
+    // Tiny ordered dither prevents banding in the large dark soil gradients
+    float dither = (hash21(floor(var_world_pos * 2.0)) - 0.5) * (1.0 / 255.0);
+    shaded_color += vec3(dither);
 
     // Final color with pre-multiplied alpha
     vec4 final_color = vec4(shaded_color * tint.rgb, alpha * tint.a);

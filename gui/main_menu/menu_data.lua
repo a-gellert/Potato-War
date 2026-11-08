@@ -19,6 +19,11 @@ M.RELIEFS = {
 	{ id = "bunkers", ru = "Бункеры", en = "Bunkers", pt = "Bunkers", fr = "Bunkers", es = "Búnkeres", tr = "Sığınaklar" },
 	{ id = "islands", ru = "Острова", en = "Islands", pt = "Ilhas", fr = "Îles", es = "Islas", tr = "Adalar" },
 	{ id = "swiss_cheese", ru = "Сырный Каньон", en = "Swiss Cheese", pt = "Queijo Suíço", fr = "Gruyère", es = "Queso Suizo", tr = "İsviçre Peyniri" },
+	{ id = "pyramid_temple", ru = "Пирамиды", en = "Pyramid Temple", pt = "Templo Pirâmide", fr = "Temple Pyramide", es = "Templo Pirámide", tr = "Piramit Tapınağı" },
+	{ id = "twin_peaks", ru = "Двойные Вершины", en = "Twin Peaks", pt = "Picos Gêmeos", fr = "Pics Jumeaux", es = "Picos Gemelos", tr = "İkiz Zirveler" },
+	{ id = "valley_caves", ru = "Долина Пещер", en = "Valley Caves", pt = "Cavernas do Vale", fr = "Vallée des cavernes", es = "Cavernas del Valle", tr = "Vadi Mağaraları" },
+	{ id = "crater_field", ru = "Поле Воронок", en = "Crater Field", pt = "Campo de Crateras", fr = "Champ de cratères", es = "Campo de Cráteres", tr = "Krater Alanı" },
+	{ id = "mushroom_grove", ru = "Грибная Роща", en = "Mushroom Grove", pt = "Bosque de Cogumelos", fr = "Bosquet de champignons", es = "Bosque de Setas", tr = "Mantar Korusu" },
 	{ id = "flat", ru = "Равнина", en = "Flat Field", pt = "Campo Plano", fr = "Terrain plat", es = "Campo Llano", tr = "Düz Arazi" },
 }
 

@@ -9,6 +9,7 @@ local sound_manager = require("lua_modules.sound_manager")
 local level_config = require("lua_modules.level_config")
 local inventory_manager = require("lua_modules.inventory_manager")
 local classes = require("lua_modules.classes")
+local meta_progression = require("lua_modules.meta_progression")
 
 local sdk = require("main.sdk")
 
@@ -332,8 +333,7 @@ function M.start_match(mode, campaign_lvl)
 			bazooka = -1, -- Unlimited bazooka shots in tutorial!
 			grenade = 0,
 		}
-		M.wind = 0 -- No wind in tutorial!
-		M.wind_vector = vmath.vector3(0, 0, 0)
+		M.wind_vector = vmath.vector3(0, 0, 0) -- No wind in tutorial!
 	elseif M.mode == constants.MODE_CAMPAIGN then
 		if M.campaign_level == 1 then
 			player_profile.reset_campaign_hp()
@@ -382,8 +382,8 @@ function M.start_match(mode, campaign_lvl)
 	-- Offer bonus card selection in campaign mode only for subsequent levels (level > 1)
 	-- Level 1 starts INSTANTLY with 0 friction into battle!
 	if M.mode == constants.MODE_CAMPAIGN and M.campaign_level > 1 then
-		local max_p_hp = constants.PLAYER_HP
-		local p_hp = player_profile.get_campaign_hp() or max_p_hp
+		local max_p_hp = meta_progression.get_player_max_hp()
+		local p_hp = math.min(player_profile.get_campaign_hp() or max_p_hp, max_p_hp)
 		local c1, c2 = cards.draw_2_cards(p_hp, max_p_hp, M.campaign_level)
 		M.current_cards = { c1, c2 }
 		M.set_state(constants.STATE_CARD_SELECT)
@@ -525,6 +525,11 @@ local function begin_current_turn()
 		end
 	end
 
+	-- Meta-progression regeneration: heal the player's active fighter at the start of its turn
+	if M.mode == constants.MODE_CAMPAIGN and M.active_team == constants.TEAM_BLUE then
+		meta_progression.apply_round_regen(M.active_potato, M)
+	end
+
 	if M.on_turn_changed then
 		M.on_turn_changed(M.active_team, M.active_potato)
 	end
@@ -574,7 +579,7 @@ function M.select_card(card_index)
 
 	if chosen_card.type == "heal" then
 		sound_manager.play_heal()
-		local max_p_hp = constants.PLAYER_HP
+		local max_p_hp = meta_progression.get_player_max_hp()
 		local heal_amt = chosen_card.heal_amount or 30
 		local cur = player_profile.get_campaign_hp() or max_p_hp
 		local next_hp = math.min(max_p_hp, cur + heal_amt)

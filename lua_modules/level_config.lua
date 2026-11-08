@@ -561,8 +561,8 @@ M.LEVELS = {
 
 -- Procedural generator for endless/high levels beyond the preconfigured 18 levels
 function M.generate_endless_level(level_num)
-	local presets = { "hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "islands", "bunkers" }
-	local biomes = { "grass", "arctic", "desert", "volcano", "alien", "grass", "desert" }
+	local presets = { "hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese", "islands", "bunkers", "pyramid_temple", "twin_peaks", "valley_caves", "crater_field", "mushroom_grove" }
+	local biomes = { "grass", "arctic", "desert", "volcano", "alien", "grass", "desert", "desert", "arctic", "grass", "desert", "grass" }
 	local idx = ((level_num - 1) % #presets) + 1
 
 	local enemy_cnt = math.min(4, 2 + math.floor((level_num - 18) / 3))
@@ -706,7 +706,8 @@ end
 function M.get_quick_match(mode)
 	local pool_presets = {
 		"hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese",
-		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves"
+		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves",
+		"crater_field", "mushroom_grove"
 	}
 	local pool_biomes = { "grass", "arctic", "desert", "volcano", "alien" }
 	local pick_preset = pool_presets[math.random(1, #pool_presets)]

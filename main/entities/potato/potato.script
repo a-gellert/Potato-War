@@ -5,6 +5,7 @@ local weapons = require("lua_modules.weapons")
 local i18n = require("lua_modules.i18n")
 local sound_manager = require("lua_modules.sound_manager")
 local classes = require("lua_modules.classes")
+local constants = require("lua_modules.constants")
 
 local STEP_SOUND_EVERY = 0.26
 
@@ -24,11 +25,11 @@ end
 local function update_hp_bar(self)
 	local pct = math.max(0, math.min(1.0, self.hp / self.max_hp))
 
-	-- Compact shoulder-width HP bar (~34px wide)
-	local total_w = 2.05
+	-- Compact shoulder-width HP bar (~39px wide)
+	local total_w = 2.45
 	local cur_w = total_w * pct
 	local offset_x = -((total_w - cur_w) * 16.0) * 0.5
-	go.set("#hp_fill", "scale", vmath.vector3(cur_w, 0.38, 1.0))
+	go.set("#hp_fill", "scale", vmath.vector3(cur_w, 0.40, 1.0))
 	go.set("#hp_fill", "position", vmath.vector3(offset_x, 38.75, 0.09))
 
 	-- Crisp white HP counter inside bar
@@ -131,6 +132,58 @@ local function clean_expired_statuses(self)
 	end
 end
 
+-- Team-coloured readability layer: soft glow, ground ring and team badge
+local STATUS_NODES = {
+	burning = "status_burn",
+	poisoned = "status_poison",
+	glued = "status_glue",
+	concussed = "status_stun",
+}
+
+local function team_color(self, alpha)
+	if self.team == constants.TEAM_BLUE then
+		return vmath.vector4(0.35, 0.72, 1.0, alpha)
+	end
+	return vmath.vector4(1.0, 0.36, 0.30, alpha)
+end
+
+local function update_team_visuals(self)
+	local blue = (self.team == constants.TEAM_BLUE)
+	pcall(function()
+		sprite.play_flipbook("#team_ring", hash(blue and "team_ring_blue" or "team_ring_red"))
+		sprite.play_flipbook("#team_badge", hash(blue and "team_blue" or "team_red"))
+		go.set("#unit_glow", "tint", team_color(self, 0.32))
+		go.set("#team_ring", "tint", team_color(self, 0.55))
+	end)
+end
+
+local function update_status_icons(self)
+	for status, node in pairs(STATUS_NODES) do
+		local active = has_active_status(self, status)
+		local key = "icon_" .. status
+		if active ~= self[key] then
+			self[key] = active
+			pcall(function() msg.post("#" .. node, active and "enable" or "disable") end)
+		end
+		if active then
+			local pulse = 0.78 + 0.22 * math.sin((self.breath_timer or 0) * 6.0)
+			pcall(function() go.set("#" .. node, "tint", vmath.vector4(1, 1, 1, pulse)) end)
+		end
+	end
+end
+
+local function hide_team_visuals(self)
+	pcall(function()
+		msg.post("#unit_glow", "disable")
+		msg.post("#team_ring", "disable")
+		msg.post("#team_badge", "disable")
+	end)
+	for status, node in pairs(STATUS_NODES) do
+		self["icon_" .. status] = false
+		pcall(function() msg.post("#" .. node, "disable") end)
+	end
+end
+
 function init(self)
 	self.rig = factory.create("#rig_factory", nil, nil, {}, 1)
 	go.set_parent(self.rig, go.get_id(), false)
@@ -151,6 +204,11 @@ function init(self)
 
 	-- Setup class appearance (natural potato color, no colored tint)
 	update_class_sprite(self)
+	update_team_visuals(self)
+	for status, node in pairs(STATUS_NODES) do
+		self["icon_" .. status] = false
+		pcall(function() msg.post("#" .. node, "disable") end)
+	end
 
 	-- Apply initial facing
 	update_facing(self, self.facing or 1)
@@ -227,6 +285,16 @@ function update(self, dt)
 			go.set_rotation(vmath.quat_rotation_z(0))
 			go.set("#sprite", "tint", self.skin_tint)
 		end
+
+		-- Readability layer: status icons above the HP bar, team glow and ground ring pulse
+		update_status_icons(self)
+		local pulse = 0.85 + 0.15 * math.sin(self.breath_timer * 3.0)
+		local glow_alpha = self.is_active and (0.50 * pulse) or 0.24
+		local ring_alpha = self.is_active and (0.78 * pulse) or 0.42
+		go.set("#unit_glow", "tint", team_color(self, glow_alpha))
+		go.set("#team_ring", "tint", team_color(self, ring_alpha))
+		local ring_scale = self.is_active and (0.42 * pulse) or 0.36
+		go.set("#team_ring", "scale", vmath.vector3(ring_scale, ring_scale * 0.5, 1.0))
 	end
 
 	if self.alert_timer > 0 then
@@ -556,6 +624,16 @@ function on_message(self, message_id, message, sender)
 			end
 		end)
 
+		-- Impact flash on the team glow, so hits read even on dark terrain
+		pcall(function()
+			go.cancel_animations("#unit_glow", "tint")
+			go.cancel_animations("#unit_glow", "scale")
+			go.set("#unit_glow", "tint", vmath.vector4(2.4, 1.8, 0.9, 1.0))
+			go.set("#unit_glow", "scale", vmath.vector3(0.72, 0.72, 1.0))
+			go.animate("#unit_glow", "tint", go.PLAYBACK_ONCE_FORWARD, team_color(self, 0.45), go.EASING_OUTQUAD, 0.35)
+			go.animate("#unit_glow", "scale", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(0.52, 0.52, 1.0), go.EASING_OUTQUAD, 0.30)
+		end)
+
 		-- Particle burst: potato crumbs & hit sparks
 		pcall(function()
 			msg.post("#hit_spark1", "enable")
@@ -611,6 +689,7 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
 		pcall(function() msg.post("#hp_text", "disable") end)
+		hide_team_visuals(self)
 
 	elseif message_id == hash("drowned") then
 		self.is_alive = false
@@ -624,6 +703,7 @@ function on_message(self, message_id, message, sender)
 		msg.post("#hp_bg", "disable")
 		msg.post("#hp_fill", "disable")
 		pcall(function() msg.post("#hp_text", "disable") end)
+		hide_team_visuals(self)
 		go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -40, go.EASING_INQUAD, 0.5, 0, function()
 			go.delete()
 		end)

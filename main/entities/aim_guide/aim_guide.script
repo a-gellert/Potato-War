@@ -36,6 +36,7 @@ local function hide_guide(self)
 		self.aim_notified = false
 		pcall(msg.post, "/gui_hud#gui", "aim_state", { is_aiming = false })
 	end
+	pcall(notify_meter, 0, 0, false, false, true)
 end
 
 -- Airstrike targeting: only the crosshair, standing on the ground below the marked x
@@ -54,6 +55,9 @@ local function show_target(self, wx, wy)
 	msg.post(self.crosshair, "enable")
 	go.set_position(vmath.vector3(wx, y, 0.35), self.crosshair)
 	go.set(msg.url(nil, self.crosshair, "sprite"), "tint", vmath.vector4(1, 1, 1, 1))
+	pcall(function()
+		go.set(msg.url(nil, self.crosshair, "blast_ring"), "scale", vmath.vector3(0, 0, 1))
+	end)
 	self.crosshair_tint = nil
 	game_state.aim_target_x = wx
 	game_state.aim_target_y = y
@@ -63,6 +67,26 @@ end
 local TINT_NORMAL = vmath.vector4(1, 1, 1, 1)
 local TINT_DANGER = vmath.vector4(1.0, 0.25, 0.2, 1)   -- the blast would catch the shooter
 local TINT_ON_TARGET = vmath.vector4(0.45, 1.0, 0.4, 1) -- an enemy stands inside the blast
+
+-- Colour ramp for the shot power: cyan (weak) -> gold -> red (full power)
+local function power_tint(ratio)
+	if ratio >= 0.86 then
+		return vmath.vector4(1.0, 0.34, 0.18, 1)
+	elseif ratio >= 0.56 then
+		return vmath.vector4(1.0, 0.78, 0.18, 1)
+	end
+	return vmath.vector4(0.28, 0.86, 1.0, 1)
+end
+
+local function notify_meter(power, angle, danger, on_target, hidden)
+	msg.post("/gui_hud#gui", "aim_meter", {
+		hidden = hidden == true,
+		power = power or 0,
+		angle = angle or 0,
+		danger = danger == true,
+		on_target = on_target == true,
+	})
+end
 
 -- How the shot's end point relates to the shooter and the enemies
 local function impact_tint(shooter, weapon, x, y, ended_on_ground)
@@ -84,11 +108,18 @@ local function impact_tint(shooter, weapon, x, y, ended_on_ground)
 	return TINT_NORMAL
 end
 
-local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
+local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon, notify)
 	local points = physics_sim.calculate_trajectory(origin_x, origin_y, vx, vy, weapon, terrain_grid, MAX_DOTS, game_state.wind_vector)
 	local last_pt = points[#points]
 	-- The preview stops early on long arcs: only a stop short of MAX_DOTS is a real impact
 	local tint = last_pt and impact_tint(game_state.active_potato, weapon, last_pt.x, last_pt.y, #points < MAX_DOTS) or TINT_NORMAL
+
+	-- Shot power and angle drive both the trail colour and the HUD meter
+	local speed = math.sqrt(vx * vx + vy * vy)
+	local max_speed = math.max(1, (weapon.max_power or 700) * physics_sim.LAUNCH_BOOST)
+	local power_ratio = weapon.fixed_power and 1.0 or math.min(1.0, speed / max_speed)
+	local angle_deg = math.deg(math.atan2(vy, vx))
+	local dot_tint = (tint == TINT_NORMAL) and power_tint(power_ratio) or tint
 
 	for i = 1, MAX_DOTS do
 		local dot_url = self.dots[i]
@@ -96,12 +127,20 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 			if i <= #points then
 				msg.post(dot_url, "enable")
 				go.set_position(vmath.vector3(points[i].x, points[i].y, 0.3), dot_url)
-				local s = 0.28 * (1.0 - (i / (MAX_DOTS + 4)))
+				local s = 0.30 * (1.0 - (i / (MAX_DOTS + 4)))
 				go.set_scale(vmath.vector3(s, s, 1.0), dot_url)
 				-- Dots fade out towards the end of the preview
-				local c = vmath.vector4(tint)
+				local c = vmath.vector4(dot_tint)
 				c.w = 1.0 - 0.55 * (i - 1) / MAX_DOTS
 				go.set(msg.url(nil, dot_url, "sprite"), "tint", c)
+				pcall(function()
+					local glow_url = msg.url(nil, dot_url, "glow")
+					-- The glow texture is 64px vs. the 32px dot; 1.2 gives ~2.4x dot size
+					go.set(glow_url, "scale", vmath.vector3(1.2, 1.2, 1.0))
+					local g = vmath.vector4(dot_tint)
+					g.w = 0.40 * c.w
+					go.set(glow_url, "tint", g)
+				end)
 			else
 				msg.post(dot_url, "disable")
 			end
@@ -112,6 +151,16 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 		msg.post(self.crosshair, "enable")
 		go.set_position(vmath.vector3(last_pt.x, last_pt.y, 0.35), self.crosshair)
 		go.set(msg.url(nil, self.crosshair, "sprite"), "tint", tint)
+		-- Show the predicted blast radius under the crosshair
+		pcall(function()
+			local blast = weapon.blast_radius or 20
+			local ring_scale = math.max(0.18, blast / 128)
+			go.set(msg.url(nil, self.crosshair, "blast_ring"), "scale", vmath.vector3(ring_scale, ring_scale, 1.0))
+			local ring_tint = (tint == TINT_NORMAL) and dot_tint or tint
+			local rc = vmath.vector4(ring_tint)
+			rc.w = (tint == TINT_DANGER) and 0.52 or 0.32
+			go.set(msg.url(nil, self.crosshair, "blast_ring"), "tint", rc)
+		end)
 		if tint ~= self.crosshair_tint then
 			-- Pop the crosshair when its meaning changes
 			self.crosshair_tint = tint
@@ -136,10 +185,16 @@ local function show_trajectory(self, origin_x, origin_y, vx, vy, weapon)
 				end
 			end
 		end
+		if notify then
+			notify_meter(power_ratio, angle_deg, tint == TINT_DANGER, tint == TINT_ON_TARGET, false)
+		end
 	elseif self.crosshair then
 		msg.post(self.crosshair, "disable")
 		game_state.aim_target_x = nil
 		game_state.aim_target_y = nil
+		if notify then
+			notify_meter(0, 0, false, false, true)
+		end
 	end
 end
 
@@ -197,6 +252,7 @@ local function on_target_input(self, potato, weapon, action)
 
 	local wx, wy = camera_controller.screen_to_world(action.x, action.y)
 	local tx = show_target(self, wx, wy)
+	notify_meter(1.0, 90, false, true, false)
 	game_state.is_aiming = true
 	if not self.aim_notified then
 		self.aim_notified = true
@@ -325,7 +381,7 @@ function on_input(self, action_id, action)
 					msg.post(potato.url, "set_aim", { vx = vx, vy = vy })
 				end
 
-				show_trajectory(self, potato.pos.x, potato.pos.y + 8, vx, vy, weapon)
+				show_trajectory(self, potato.pos.x, potato.pos.y + 8, vx, vy, weapon, true)
 			else
 				game_state.is_aiming = false
 				if self.aim_notified then
@@ -403,7 +459,7 @@ function on_message(self, message_id, message, sender)
 			local potato = game_state.active_potato
 			if potato and potato.is_alive then
 				local weapon = weapons.get(message.weapon_id or game_state.selected_weapon_id or "bazooka")
-				show_trajectory(self, potato.pos.x, potato.pos.y + 8, message.vx, message.vy, weapon)
+				show_trajectory(self, potato.pos.x, potato.pos.y + 8, message.vx, message.vy, weapon, true)
 				local facing_dir = (message.vx >= 0) and 1 or -1
 				potato.facing = facing_dir
 				if potato.url then

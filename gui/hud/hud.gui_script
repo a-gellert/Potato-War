@@ -13,6 +13,9 @@ local hud_indicators = require("gui.hud.hud_indicators")
 local hud_tutorial = require("gui.hud.hud_tutorial")
 local hud_popups = require("gui.hud.hud_popups")
 local hud_pause = require("gui.hud.hud_pause")
+local hud_aim = require("gui.hud.hud_aim")
+local hud_banner = require("gui.hud.hud_banner")
+local hud_fx = require("gui.hud.hud_fx")
 
 local ACTIVE_BTN_COLOR = vmath.vector4(0.78, 0.58, 0.22, 1.0) -- Warm tactical brass on hold
 local NORMAL_BTN_COLOR = vmath.vector4(0.20, 0.23, 0.26, 1.0) -- Graphite steel plate
@@ -144,6 +147,9 @@ function init(self)
 	end)
 	register_buttons(self)
 	hud_pause.build(self)
+	hud_aim.build(self)
+	hud_banner.build(self)
+	hud_fx.build(self)
 	self.update_localization = update_localization
 	update_localization(self)
 
@@ -243,10 +249,13 @@ function update(self, dt)
 	hud_indicators.update_badges(self, dt)
 	hud_tutorial.update(self, dt)
 	hud_weapons.update_panels(self)
+	hud_aim.update(self, dt)
 end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("turn_changed") then
+		hud_aim.hide(self)
+		hud_banner.show_turn(self, game_state.active_team)
 		self.last_weapon = game_state.selected_weapon_id
 		self.last_potato_id = game_state.active_potato and game_state.active_potato.id
 		hud_weapons.update_selection(self, game_state.selected_weapon_id)
@@ -254,6 +263,8 @@ function on_message(self, message_id, message, sender)
 			hud_weapons.update_inventory(self)
 		end
 	elseif message_id == hash("match_started") then
+		hud_aim.hide(self)
+		hud_banner.show_fight(self)
 		hud_pause.toggle(self, false)
 		hud_tutorial.reset(self)
 		hud_timer.reset(self)
@@ -276,6 +287,7 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("tutorial_tap_hint") then
 		hud_tutorial.on_tap_hint(self)
 	elseif message_id == hash("show_damage") then
+		pcall(hud_fx.on_damage, self, message)
 		pcall(hud_popups.show_damage, message)
 	elseif message_id == hash("show_achievement_toast") then
 		pcall(hud_popups.show_toast, message)
@@ -286,7 +298,10 @@ function on_message(self, message_id, message, sender)
 			player_profile.mark_ftue_seen("status_" .. st)
 			pcall(hud_popups.show_ftue, st)
 		end
+	elseif message_id == hash("aim_meter") then
+		hud_aim.set_values(self, message)
 	elseif message_id == hash("aim_state") then
+		hud_aim.set_aiming(self, message.is_aiming == true)
 		self.is_aiming_declutter = (message.is_aiming == true)
 		local target_alpha = self.is_aiming_declutter and 0.15 or 1.0
 		local dur = 0.20

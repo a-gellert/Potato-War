@@ -4,7 +4,14 @@
 .DS_Store
 Thumbs.db
 game_debug.log
-game_debug.log
+
+# Signing material and service credentials must never be committed.
+# Keep local copies outside the index (see SECURITY.md).
+*.keystore
+*.jks
+*.keystore.pass.txt
+google-services.json
+serviceAccountKey.json
 Playgama/wasm-web/Great Potato War.zip
 Playgama/wasm-web/Great Potato War/dmloader.js
 /Playgama

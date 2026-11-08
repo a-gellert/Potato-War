@@ -9,22 +9,24 @@ local progression = require("lua_modules.progression")
 local classes = require("lua_modules.classes")
 local territory_map = require("lua_modules.territory_map")
 local strategic_campaign = require("lua_modules.strategic_campaign")
+local meta_progression = require("lua_modules.meta_progression")
 
 local M = {}
 
 local HERO_H = 170 -- potato body height on screen
 local NAV = {
 	{ id = "nav_arsenal", icon = "ic_arsenal", key = "ui_arsenal", y = 92 },
-	{ id = "nav_squad", icon = "ic_squad", key = "ui_squad", y = -10 },
-	{ id = "nav_hats", icon = "ic_hat", key = "ui_hats", y = -112 },
+	{ id = "nav_squad", icon = "ic_squad", key = "ui_squad", y = -2 },
+	{ id = "nav_hats", icon = "ic_hat", key = "ui_hats", y = -96 },
+	{ id = "nav_upgrades", icon = "ic_up", key = "ui_upgrades", y = -190 },
 }
 
 -- Tall menu button: icon above the label, notification badge in the corner
 local function nav_button(self, root, def, on_click)
-	local btn = kit.button(self.ui, root, def.id, -372, def.y, 132, 94, { style = "dark", on_click = on_click })
-	kit.icon(btn.node, def.icon, 0, 14, 46)
-	local label = kit.text(btn.node, "", 0, -28, 16, { font = "label", max_w = 118 })
-	local badge = kit.badge(btn.node, 56, 38)
+	local btn = kit.button(self.ui, root, def.id, -372, def.y, 132, 84, { style = "dark", on_click = on_click })
+	kit.icon(btn.node, def.icon, 0, 10, 42)
+	local label = kit.text(btn.node, "", 0, -24, 15, { font = "label", max_w = 118 })
+	local badge = kit.badge(btn.node, 52, 32)
 	return { btn = btn, label = label, badge = badge, key = def.key }
 end
 
@@ -72,6 +74,7 @@ function M.build(self, handlers)
 		nav_button(self, root, NAV[1], handlers.arsenal),
 		nav_button(self, root, NAV[2], handlers.squad),
 		nav_button(self, root, NAV[3], handlers.hats),
+		nav_button(self, root, NAV[4], handlers.upgrades),
 	}
 
 	-- Campaign card
@@ -120,6 +123,7 @@ function M.refresh(self)
 	-- Anything left to spend in the arsenal or the barracks lights a badge
 	gui.set_enabled(h.nav[1].badge, progression.any_weapon_upgrade())
 	gui.set_enabled(h.nav[2].badge, progression.squad_can_improve())
+	gui.set_enabled(h.nav[4].badge, meta_progression.any_affordable())
 
 	local stats = territory_map.get_stats()
 	kit.set_text(h.camp_title, i18n.t("ui_campaign_card"), 180, 18, "title")

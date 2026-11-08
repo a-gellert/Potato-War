@@ -16,7 +16,12 @@ function M.get_defense_name(lvl)
 end
 
 function M.get_terrain_display_name(preset)
-	local known = { hills = true, flat = true, canyon_bridge = true, swiss_cheese = true, floating_islands = true, cavern = true, bunkers = true, islands = true }
+	local known = {
+		hills = true, flat = true, canyon_bridge = true, swiss_cheese = true,
+		floating_islands = true, cavern = true, bunkers = true, islands = true,
+		pyramid_temple = true, twin_peaks = true, valley_caves = true,
+		crater_field = true, mushroom_grove = true
+	}
 	return i18n.t("ter_" .. (known[preset] and preset or "hills"))
 end
 

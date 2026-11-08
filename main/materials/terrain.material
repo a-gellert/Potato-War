@@ -23,7 +23,7 @@ fragment_constants {
   value {
     x: 960.0
     y: 480.0
-    z: 1.25
+    z: 1.4
     w: 0.0
   }
 }

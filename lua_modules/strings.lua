@@ -10,6 +10,22 @@ return {
 	ui_squad = { ru = "ОТРЯД", en = "SQUAD", pt = "ESQUADRÃO", fr = "ESCOUADE", es = "ESCUADRÓN", tr = "TİM" },
 	ui_hats = { ru = "ШАПКИ", en = "HATS", pt = "CHAPÉUS", fr = "CHAPEAUX", es = "SOMBREROS", tr = "ŞAPKALAR" },
 	ui_settings = { ru = "НАСТРОЙКИ", en = "SETTINGS", pt = "OPÇÕES", fr = "OPTIONS", es = "AJUSTES", tr = "AYARLAR" },
+	ui_upgrades = { ru = "УЛУЧШЕНИЯ", en = "UPGRADES", pt = "MELHORIAS", fr = "AMÉLIORATIONS", es = "MEJORAS", tr = "GELİŞTİRMELER" },
+	ui_upgrades_hint = { ru = "Постоянные бонусы, действующие во всех боях", en = "Permanent bonuses that apply in every battle", pt = "Bônus permanentes válidos em todas as batalhas", fr = "Bonus permanents valables dans tous les combats", es = "Bonificaciones permanentes válidas en todas las batallas", tr = "Her savaşta geçerli kalıcı bonuslar" },
+
+	-- aiming meter
+	aim_power = { ru = "СИЛА ВЫСТРЕЛА", en = "SHOT POWER", pt = "FORÇA DO TIRO", fr = "PUISSANCE DU TIR", es = "FUERZA DEL TIRO", tr = "ATIŞ GÜCÜ" },
+	aim_angle = { ru = "УГОЛ", en = "ANGLE", pt = "ÂNGULO", fr = "ANGLE", es = "ÁNGULO", tr = "AÇI" },
+	aim_target = { ru = "ЦЕЛЬ!", en = "ON TARGET!", pt = "NO ALVO!", fr = "CIBLE !", es = "¡EN EL BLANCO!", tr = "HEDEFTE!" },
+	aim_target_hint = { ru = "Враг в зоне взрыва", en = "Enemy inside the blast", pt = "Inimigo na área da explosão", fr = "Ennemi dans la zone d'explosion", es = "Enemigo dentro de la explosión", tr = "Düşman patlama alanında" },
+	aim_danger = { ru = "РИСК!", en = "DANGER!", pt = "PERIGO!", fr = "DANGER !", es = "¡PELIGRO!", tr = "TEHLİKE!" },
+	aim_danger_hint = { ru = "Вы в зоне взрыва", en = "You are inside the blast", pt = "Você está na área da explosão", fr = "Vous êtes dans la zone d'explosion", es = "Estás dentro de la explosión", tr = "Patlama alanındasınız" },
+
+	-- turn banner
+	turn_your = { ru = "ВАШ ХОД", en = "YOUR TURN", pt = "SEU TURNO", fr = "À VOUS !", es = "TU TURNO", tr = "SENİN SIRAN" },
+	turn_enemy = { ru = "ХОД ВРАГА", en = "ENEMY TURN", pt = "TURNO INIMIGO", fr = "TOUR ENNEMI", es = "TURNO ENEMIGO", tr = "DÜŞMAN SIRASI" },
+	turn_fight = { ru = "В БОЙ!", en = "FIGHT!", pt = "LUTAR!", fr = "AU COMBAT !", es = "¡A LUCHAR!", tr = "SAVAŞ!" },
+	turn_fight_sub = { ru = "Уничтожь команду противника", en = "Destroy the enemy squad", pt = "Destrua o esquadrão inimigo", fr = "Détruisez l'escadron ennemi", es = "Destruye al escuadrón enemigo", tr = "Düşman timini yok et" },
 	ui_commander = { ru = "КОМАНДИР", en = "COMMANDER", pt = "COMANDANTE", fr = "COMMANDANT", es = "COMANDANTE", tr = "KOMUTAN" },
 	ui_campaign_card = { ru = "КАМПАНИЯ", en = "CAMPAIGN", pt = "CAMPANHA", fr = "CAMPAGNE", es = "CAMPAÑA", tr = "SEFER" },
 	ui_sectors_fmt = { ru = "Секторы: %d/%d", en = "Sectors: %d/%d", pt = "Setores: %d/%d", fr = "Secteurs : %d/%d", es = "Sectores: %d/%d", tr = "Sektörler: %d/%d" },

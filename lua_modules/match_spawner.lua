@@ -12,6 +12,7 @@ local classes = require("lua_modules.classes")
 local inventory_manager = require("lua_modules.inventory_manager")
 local tutorial = require("lua_modules.tutorial")
 local progression = require("lua_modules.progression")
+local meta_progression = require("lua_modules.meta_progression")
 local weapons = require("lua_modules.weapons")
 
 local M = {}
@@ -262,6 +263,22 @@ local function make_spawn_slots(total, from_wy)
 	return slots
 end
 
+-- Meta-progression starting arsenal: merge the bonus ammo on top of the class base arsenal.
+-- A base value of -1 means unlimited and must stay unlimited.
+local function meta_ammo_overrides(class_def)
+	local overrides = nil
+	for weapon_id, count in pairs(meta_progression.get_starting_weapons()) do
+		local base = class_def.base_arsenal and class_def.base_arsenal[weapon_id]
+		overrides = overrides or {}
+		if base == -1 then
+			overrides[weapon_id] = -1
+		else
+			overrides[weapon_id] = (base or 0) + count
+		end
+	end
+	return overrides
+end
+
 -- Regular battle: both squads, defensive crate and TNT barrels.
 -- ctx: { config, lobby_config, is_campaign, is_defense, active_level, terrain_preset }
 function M.spawn_battle(self, ctx)
@@ -285,8 +302,12 @@ function M.spawn_battle(self, ctx)
 		or (config and (config.enemy_count or config.red_count))
 		or level_config.get_enemy_count(active_level) or 1
 
-	local player_max_hp = constants.PLAYER_HP
-	local player_hp = is_campaign and player_profile.get_campaign_hp() or player_max_hp
+	-- Meta-progression: extra max HP and bonus starting weapons for the player's team
+	local meta_hp_bonus = meta_progression.get_max_hp_bonus()
+	local player_max_hp = constants.PLAYER_HP + meta_hp_bonus
+	local player_hp = is_campaign
+		and math.min(player_profile.get_campaign_hp() or player_max_hp, player_max_hp)
+		or player_max_hp
 	local from_wy = (ctx.terrain_preset == "cavern") and (constants.WORLD_HEIGHT * 0.55)
 		or ((ctx.terrain_preset == "floating_islands") and (constants.WORLD_HEIGHT * 0.85))
 		or nil
@@ -299,8 +320,9 @@ function M.spawn_battle(self, ctx)
 			local member = player_squad[i]
 			local c_def = classes.get(member.class_id)
 			local rank = progression.member_rank(member)
-			local hp = math.floor(c_def.stats.max_hp * progression.rank_hp_mult(rank) + 0.5)
-			local record = M.spawn_potato(self, x, constants.TEAM_BLUE, i, hp, hp, from_wy, c_def.id, rank)
+			local hp = math.floor(c_def.stats.max_hp * progression.rank_hp_mult(rank) + 0.5) + meta_hp_bonus
+			local record = M.spawn_potato(self, x, constants.TEAM_BLUE, i, hp, hp, from_wy, c_def.id, rank,
+				meta_ammo_overrides(c_def))
 			record.squad_slot = i
 			record.rank = rank
 		else
@@ -309,9 +331,17 @@ function M.spawn_battle(self, ctx)
 				or (is_campaign and (player_squad and player_squad[i] and player_squad[i].class_id or "recruit"))
 				or classes.get_random_specialized_class()
 			local u_lvl = is_campaign and (player_squad and player_squad[i] and player_squad[i].level or 1) or math.random(1, 2)
-			local cur_hp = is_campaign and player_hp or nil
-			local cur_max = is_campaign and player_max_hp or nil
-			M.spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl)
+			local c_def = classes.get(c_id)
+			local cur_hp, cur_max
+			if is_campaign then
+				cur_hp = player_hp
+				cur_max = player_max_hp
+			else
+				cur_max = (c_def.stats.max_hp or constants.PLAYER_HP) + meta_hp_bonus
+				cur_hp = math.min((c_def.stats.base_hp or cur_max) + meta_hp_bonus, cur_max)
+			end
+			M.spawn_potato(self, x, constants.TEAM_BLUE, i, cur_hp, cur_max, from_wy, c_id, u_lvl,
+				meta_ammo_overrides(c_def))
 		end
 	end
 

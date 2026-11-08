@@ -29,12 +29,12 @@ embedded_components {
   "  texture: \"/main/assets/terrain.atlas\"\n"
   "}\n"
   position {
-    y: 80.0
+    y: 60.0
     z: -0.35
   }
   scale {
     x: 2.4
-    y: 2.2
+    y: 2.0
   }
 }
 embedded_components {
@@ -47,12 +47,31 @@ embedded_components {
   "  texture: \"/main/assets/terrain.atlas\"\n"
   "}\n"
   position {
-    y: 120.0
+    y: 20.0
     z: -0.25
   }
   scale {
     x: 2.2
     y: 2.0
+  }
+}
+embedded_components {
+  id: "bg_clouds"
+  type: "sprite"
+  data: "default_animation: \"bg_clouds\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/terrain.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: 200.0
+    z: -0.32
+  }
+  scale {
+    x: 2.4
+    y: 1.8
   }
 }
 embedded_components {

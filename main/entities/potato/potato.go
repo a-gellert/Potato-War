@@ -22,6 +22,143 @@ embedded_components {
   }
 }
 embedded_components {
+  id: "unit_glow"
+  type: "sprite"
+  data: "default_animation: \"unit_glow\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: 2.0
+    z: -0.02
+  }
+  scale {
+    x: 0.52
+    y: 0.52
+  }
+}
+embedded_components {
+  id: "team_ring"
+  type: "sprite"
+  data: "default_animation: \"team_ring_blue\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: -15.0
+    z: -0.015
+  }
+  scale {
+    x: 0.38
+    y: 0.19
+  }
+}
+embedded_components {
+  id: "team_badge"
+  type: "sprite"
+  data: "default_animation: \"team_blue\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    y: 64.0
+    z: 0.11
+  }
+  scale {
+    x: 0.22
+    y: 0.22
+  }
+}
+embedded_components {
+  id: "status_burn"
+  type: "sprite"
+  data: "default_animation: \"status_burn\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: -21.0
+    y: 51.0
+    z: 0.11
+  }
+  scale {
+    x: 0.17
+    y: 0.17
+  }
+}
+embedded_components {
+  id: "status_poison"
+  type: "sprite"
+  data: "default_animation: \"status_poison\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: -7.0
+    y: 51.0
+    z: 0.11
+  }
+  scale {
+    x: 0.17
+    y: 0.17
+  }
+}
+embedded_components {
+  id: "status_glue"
+  type: "sprite"
+  data: "default_animation: \"status_glue\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: 7.0
+    y: 51.0
+    z: 0.11
+  }
+  scale {
+    x: 0.17
+    y: 0.17
+  }
+}
+embedded_components {
+  id: "status_stun"
+  type: "sprite"
+  data: "default_animation: \"status_stun\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "textures {\n"
+  "  sampler: \"texture_sampler\"\n"
+  "  texture: \"/main/assets/game.atlas\"\n"
+  "}\n"
+  ""
+  position {
+    x: 21.0
+    y: 51.0
+    z: 0.11
+  }
+  scale {
+    x: 0.17
+    y: 0.17
+  }
+}
+embedded_components {
   id: "reticle"
   type: "sprite"
   data: "default_animation: \"crosshair\"\n"
@@ -74,8 +211,8 @@ embedded_components {
     z: 0.08
   }
   scale {
-    x: 0.74
-    y: 0.70
+    x: 0.82
+    y: 0.72
   }
 }
 embedded_components {
@@ -93,8 +230,8 @@ embedded_components {
     z: 0.09
   }
   scale {
-    x: 2.05
-    y: 0.38
+    x: 2.45
+    y: 0.40
   }
 }
 embedded_components {
@@ -117,8 +254,8 @@ embedded_components {
     z: 0.10
   }
   scale {
-    x: 0.22
-    y: 0.22
+    x: 0.23
+    y: 0.23
   }
 }
 embedded_components {

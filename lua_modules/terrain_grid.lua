@@ -486,6 +486,77 @@ local function add_mushroom_spire(cx, cy, stem_w, stem_h, cap_rx, cap_ry, seed)
 	add_blob(cx, cy, cap_rx, cap_ry, seed + 33, 0.18)
 end
 
+-- Deterministic per-map random sample in 0..1 (used to vary structure layout by seed)
+local function seed_rand(seed, salt)
+	return hash_val2d(seed * 0.0173 + salt * 3.71, salt * 1.93 + 0.5)
+end
+
+-- Topmost solid cell of a column (0 when the column is empty)
+local function column_top(gx)
+	gx = math.max(0, math.min(M.width - 1, gx))
+	for gy = M.height - 1, 0, -1 do
+		if M.grid[gy * M.width + gx + 1] == 1 then
+			return gy
+		end
+	end
+	return 0
+end
+
+-- Elliptical artillery crater: scoops a bowl and pushes an ejected rubble rim around it
+local function add_crater(gcx, radius, seed, depth_scale)
+	depth_scale = depth_scale or 0.85
+	radius = math.max(4, math.floor(radius))
+	local surface = column_top(gcx)
+	local cy = math.max(18, surface - math.floor(radius * 0.1))
+	local grx = radius
+	local gry = math.max(4, math.floor(radius * (0.62 + seed_rand(seed, 1) * 0.22) * depth_scale))
+	local min_gx = math.max(2, gcx - grx)
+	local max_gx = math.min(M.width - 3, gcx + grx)
+	local min_gy = math.max(16, cy - gry)
+	local max_gy = math.min(M.height - 2, cy + gry)
+
+	for gy = min_gy, max_gy do
+		local dy = (gy - cy) / gry
+		local row = gy * M.width
+		for gx = min_gx, max_gx do
+			local dx = (gx - gcx) / grx
+			if dx * dx + dy * dy <= 1.0 then
+				M.grid[row + gx + 1] = 0
+			end
+		end
+	end
+
+	-- Raised lip of displaced earth around the bowl
+	local rim = 2 + math.floor(seed_rand(seed, 2) * 4)
+	local reach = math.floor(grx * 0.55) + 4
+	for gx = math.max(2, gcx - grx - reach), math.min(M.width - 3, gcx + grx + reach) do
+		local d = math.abs(gx - gcx) / grx
+		if d > 0.62 and d < 1.45 then
+			local lift = math.floor(rim * math.max(0.0, 1.0 - math.abs(d - 1.0) / 0.45) + 0.5)
+			if lift > 0 then
+				local top = column_top(gx)
+				for gy = top + 1, math.min(M.height - 2, top + lift) do
+					M.grid[gy * M.width + gx + 1] = 1
+				end
+			end
+		end
+	end
+
+	-- A couple of ejected boulders break up the perfect rim silhouette
+	for k = 1, 2 do
+		local bx = gcx + math.floor((seed_rand(seed, 10 + k) - 0.5) * grx * 1.8)
+		local br = 2 + math.floor(seed_rand(seed, 20 + k) * 3)
+		add_blob(bx, column_top(bx), br, math.max(2, br - 1), seed + k * 17, 0.30)
+	end
+end
+
+-- Small boulder sitting on the current surface (mostly embedded, changes the silhouette a little)
+local function add_surface_boulder(gx, r, seed)
+	r = math.max(2, math.floor(r))
+	local top = column_top(gx)
+	add_blob(gx, top, r, math.max(2, math.floor(r * 0.72)), seed, 0.26)
+end
+
 ---------------------------------------------------------
 -- Terrain Preset Generators (Domain-warped & noise-rich)
 ---------------------------------------------------------
@@ -494,7 +565,8 @@ function M.generate(preset_type, campaign_level, is_defense)
 	preset_type = preset_type or "hills"
 	local all_presets = {
 		"hills", "floating_islands", "canyon_bridge", "cavern", "swiss_cheese",
-		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves"
+		"bunkers", "islands", "pyramid_temple", "twin_peaks", "valley_caves",
+		"crater_field", "mushroom_grove"
 	}
 	if preset_type == "random" then
 		preset_type = all_presets[math.random(1, #all_presets)]
@@ -542,24 +614,33 @@ function M.generate(preset_type, campaign_level, is_defense)
 		end
 
 		-- Three majestic floating sky islands: Left, Center Citadel (high altitude), Right
-		add_island(math.floor(w * 0.22), math.floor(h * 0.52), math.floor(w * 0.16), math.floor(h * 0.16), seed, true)
-		add_island(math.floor(w * 0.50), math.floor(h * 0.68), math.floor(w * 0.17), math.floor(h * 0.18), seed + 40, true)
-		add_island(math.floor(w * 0.78), math.floor(h * 0.52), math.floor(w * 0.16), math.floor(h * 0.16), seed + 80, true)
+		local j = function(salt) return seed_rand(seed, salt) - 0.5 end
+		local i1x = math.floor(w * (0.22 + j(1) * 0.05))
+		local i2x = math.floor(w * (0.50 + j(2) * 0.06))
+		local i3x = math.floor(w * (0.78 + j(3) * 0.05))
+		local i1y = math.floor(h * (0.52 + j(4) * 0.09))
+		local i2y = math.floor(h * (0.68 + j(5) * 0.09))
+		local i3y = math.floor(h * (0.52 + j(6) * 0.09))
+		add_island(i1x, i1y, math.floor(w * (0.14 + seed_rand(seed, 7) * 0.05)), math.floor(h * (0.14 + seed_rand(seed, 8) * 0.05)), seed, true)
+		add_island(i2x, i2y, math.floor(w * (0.15 + seed_rand(seed, 9) * 0.05)), math.floor(h * (0.16 + seed_rand(seed, 10) * 0.05)), seed + 40, true)
+		add_island(i3x, i3y, math.floor(w * (0.14 + seed_rand(seed, 11) * 0.05)), math.floor(h * (0.14 + seed_rand(seed, 12) * 0.05)), seed + 80, true)
 
 		-- Stepping stone ice shards connecting the islands
-		add_island(math.floor(w * 0.35), math.floor(h * 0.38), math.floor(w * 0.05), math.floor(h * 0.08), seed + 120, true)
-		add_island(math.floor(w * 0.65), math.floor(h * 0.38), math.floor(w * 0.05), math.floor(h * 0.08), seed + 160, true)
+		local s1x = math.floor((i1x + i2x) * 0.5)
+		local s2x = math.floor((i2x + i3x) * 0.5)
+		add_island(s1x, math.floor(h * (0.38 + j(13) * 0.06)), math.floor(w * 0.05), math.floor(h * 0.08), seed + 120, true)
+		add_island(s2x, math.floor(h * (0.38 + j(14) * 0.06)), math.floor(w * 0.05), math.floor(h * 0.08), seed + 160, true)
 
 		-- Carve ice caves & worm tunnels through the floating islands
-		carve_worm_tunnel(math.floor(w * 0.22), math.floor(h * 0.52), 16, 0.0, 16, 0.35, seed + 200)
-		carve_worm_tunnel(math.floor(w * 0.50), math.floor(h * 0.68), 18, 0.1, 18, 0.30, seed + 210)
-		carve_worm_tunnel(math.floor(w * 0.78), math.floor(h * 0.52), 16, 3.14, 16, 0.35, seed + 220)
+		carve_worm_tunnel(i1x, i1y, 16, 0.0, 16, 0.35, seed + 200)
+		carve_worm_tunnel(i2x, i2y, 18, 0.1, 18, 0.30, seed + 210)
+		carve_worm_tunnel(i3x, i3y, 16, 3.14, 16, 0.35, seed + 220)
 
 	elseif preset_type == "canyon_bridge" or preset_type == "canyon" then
 		-- Arena 3 (Desert): Grand Canyon with sheer sandstone mesas, hoodoos, and a colossal arch bridge!
-		local canyon_left = math.floor(w * 0.28)
-		local canyon_right = math.floor(w * 0.72)
-		local mesa_top = math.floor(h * 0.66)
+		local canyon_left = math.floor(w * (0.26 + (seed_rand(seed, 1) - 0.5) * 0.06))
+		local canyon_right = math.floor(w * (0.74 + (seed_rand(seed, 2) - 0.5) * 0.06))
+		local mesa_top = math.floor(h * (0.64 + (seed_rand(seed, 3) - 0.5) * 0.06))
 		local floor_h = 24
 
 		-- Left & Right towering mesas with stepped geological strata terraces
@@ -705,13 +786,22 @@ function M.generate(preset_type, campaign_level, is_defense)
 
 	elseif preset_type == "islands" then
 		-- 4 Distinct scenic sea islands with sea stacks, coastal shelves, and marine grottos
+		local c1 = 0.18 + (seed_rand(seed, 1) - 0.5) * 0.05
+		local c2 = 0.44 + (seed_rand(seed, 2) - 0.5) * 0.05
+		local c3 = 0.68 + (seed_rand(seed, 3) - 0.5) * 0.05
+		local c4 = 0.88 + (seed_rand(seed, 4) - 0.5) * 0.04
+		local needle_x = 0.33 + (seed_rand(seed, 5) - 0.5) * 0.05
+		local a1 = h * (0.38 + seed_rand(seed, 6) * 0.08)
+		local a2 = h * (0.54 + seed_rand(seed, 7) * 0.08)
+		local a3 = h * (0.40 + seed_rand(seed, 8) * 0.08)
+		local a4 = h * (0.42 + seed_rand(seed, 9) * 0.08)
 		for gx = 0, w - 1 do
 			local nx = gx / w
 			local wx = warp_coord_1d(nx, seed, 0.09, 3.5)
-			local i1 = math.exp(-((wx - 0.18) * 7.0) ^ 2) * (h * 0.42)
-			local i2 = math.exp(-((wx - 0.44) * 8.5) ^ 2) * (h * 0.58) -- Tall needle peak
-			local i3 = math.exp(-((wx - 0.68) * 8.0) ^ 2) * (h * 0.44)
-			local i4 = math.exp(-((wx - 0.88) * 7.5) ^ 2) * (h * 0.46)
+			local i1 = math.exp(-((wx - c1) * 7.0) ^ 2) * a1
+			local i2 = math.exp(-((wx - c2) * 8.5) ^ 2) * a2 -- Tall needle peak
+			local i3 = math.exp(-((wx - c3) * 8.0) ^ 2) * a3
+			local i4 = math.exp(-((wx - c4) * 7.5) ^ 2) * a4
 			local peak = math.max(i1, math.max(i2, math.max(i3, i4)))
 
 			local height_val = 8 -- submerged seabed
@@ -721,8 +811,8 @@ function M.generate(preset_type, campaign_level, is_defense)
 				height_val = 8 + shelf + cliff_warp
 			end
 
-			-- Towering sea stack needle rock in center-left channel
-			local needle = math.exp(-((nx - 0.33) * 45) ^ 2) * (h * 0.52)
+			-- Towering sea stack needle rock in a channel
+			local needle = math.exp(-((nx - needle_x) * 45) ^ 2) * (h * 0.52)
 			height_val = math.max(height_val, 8 + needle)
 
 			local max_gy = math.floor(math.max(4, math.min(math.floor(h * 0.68), height_val)))
@@ -731,8 +821,8 @@ function M.generate(preset_type, campaign_level, is_defense)
 			end
 		end
 
-		-- Natural sea cave arch through center island at waterline
-		carve_worm_tunnel(math.floor(w * 0.44), math.floor(h * 0.16), 18, 0.0, 18, 0.20, seed + 99)
+		-- Natural sea cave arch through the central island at waterline
+		carve_worm_tunnel(math.floor(w * c2), math.floor(h * 0.16), 18, 0.0, 18, 0.20, seed + 99)
 
 	elseif preset_type == "bunkers" then
 		-- Fortified concrete bunkers with multi-tier ramparts, watchtowers, embrasure slits, and shell craters
@@ -829,11 +919,17 @@ function M.generate(preset_type, campaign_level, is_defense)
 
 	elseif preset_type == "twin_peaks" then
 		-- Two towering mountain peaks soaring up to h * 0.75 flanking a deep chasm with an elevated rock bridge
+		local p1x = 0.24 + (seed_rand(seed, 1) - 0.5) * 0.05
+		local p2x = 0.76 + (seed_rand(seed, 2) - 0.5) * 0.05
+		local p1w = 4.4 + seed_rand(seed, 3) * 1.2
+		local p2w = 4.4 + seed_rand(seed, 4) * 1.2
+		local p1h = h * (0.50 + seed_rand(seed, 5) * 0.10)
+		local p2h = h * (0.50 + seed_rand(seed, 6) * 0.10)
 		for gx = 0, w - 1 do
 			local nx = gx / w
 			local wx = warp_coord_1d(nx, seed, 0.09, 3.5)
-			local p1 = math.exp(-((wx - 0.24) * 4.8) ^ 2) * (h * 0.56)
-			local p2 = math.exp(-((wx - 0.76) * 4.8) ^ 2) * (h * 0.56)
+			local p1 = math.exp(-((wx - p1x) * p1w) ^ 2) * p1h
+			local p2 = math.exp(-((wx - p2x) * p2w) ^ 2) * p2h
 			local peak = math.max(p1, p2)
 			local ridged = ridged_noise(wx * 10.0, 3, seed) * (h * 0.12)
 
@@ -844,11 +940,11 @@ function M.generate(preset_type, campaign_level, is_defense)
 		end
 
 		-- Suspended high rock bridge connecting both peaks
-		add_arch(math.floor(w * 0.50), math.floor(h * 0.44), math.floor(w * 0.20), math.floor(h * 0.12), math.floor(h * 0.06), seed + 55)
+		add_arch(math.floor(w * (p1x + p2x) * 0.5), math.floor(h * 0.44), math.floor(w * 0.20), math.floor(h * 0.12), math.floor(h * 0.06), seed + 55)
 
 		-- Mountain cave hollows
-		carve_bubble(math.floor(w * 0.24), math.floor(h * 0.35), 30, 20, seed + 81, 0.20)
-		carve_bubble(math.floor(w * 0.76), math.floor(h * 0.35), 30, 20, seed + 82, 0.20)
+		carve_bubble(math.floor(w * p1x), math.floor(h * 0.35), 30, 20, seed + 81, 0.20)
+		carve_bubble(math.floor(w * p2x), math.floor(h * 0.35), 30, 20, seed + 82, 0.20)
 
 	elseif preset_type == "valley_caves" then
 		-- Rolling highlands with 2-tier interconnecting underground cavern tunnels
@@ -868,6 +964,106 @@ function M.generate(preset_type, campaign_level, is_defense)
 		carve_worm_tunnel(math.floor(w * 0.25), math.floor(h * 0.32), 34, 0.3, 18, 0.4, seed + 101)
 		carve_worm_tunnel(math.floor(w * 0.75), math.floor(h * 0.32), 34, 2.8, 18, 0.4, seed + 202)
 		carve_worm_tunnel(math.floor(w * 0.50), math.floor(h * 0.20), 32, 0.0, 20, 0.3, seed + 303)
+
+		-- Scattered surface rubble keeps the ridge line from feeling machine-made
+		for i = 1, 3 do
+			add_surface_boulder(math.floor(w * (0.16 + seed_rand(seed, 320 + i) * 0.68)), 2 + math.floor(seed_rand(seed, 330 + i) * 3), seed + i * 29)
+		end
+
+	elseif preset_type == "crater_field" then
+		-- No-man's-land: rolling earthworks pocked by overlapping artillery craters,
+		-- a ruined strongpoint and deep dugout tunnels beneath the shell-torn surface
+		local base_h = math.floor(h * 0.30)
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wx = warp_coord_1d(nx, seed, 0.07, 3.0)
+			local roll = math.sin(wx * 6.28 * 1.35 + seed * 0.07) * (h * 0.055)
+			local ridge = ridged_noise(wx * 7.5, 3, seed + 7) * (h * 0.09)
+			local warp = (fractal_noise(nx * 9.0, 2, seed + 15) - 0.5) * (h * 0.035)
+			local height_val = base_h + roll + ridge + warp
+			local max_gy = math.floor(math.max(20, math.min(math.floor(h * 0.60), height_val)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+		-- Overlapping crater clusters across the whole battlefield
+		local n_craters = 5 + math.floor(seed_rand(seed, 31) * 4)
+		for i = 1, n_craters do
+			local slot = (i - 0.5) / n_craters
+			local jitter = (seed_rand(seed, 40 + i) - 0.5) * 0.10
+			local cx = math.floor(w * math.max(0.04, math.min(0.96, 0.08 + slot * 0.84 + jitter)))
+			local radius = 13 + math.floor(seed_rand(seed, 60 + i) * 20)
+			add_crater(cx, radius, seed + i * 23)
+		end
+
+		-- Ruined concrete strongpoint on one flank (stepped, broken silhouette)
+		local fort_cx = math.floor(w * (seed_rand(seed, 80) < 0.5 and 0.20 or 0.80))
+		local fort_base = column_top(fort_cx)
+		for k = 0, 2 do
+			local bx = fort_cx + (k - 1) * 15
+			local top = math.max(column_top(bx), fort_base)
+			local step_h = 7 + k * 3
+			for gx = bx - 6, bx + 6 do
+				local t = math.max(column_top(gx), top)
+				for gy = t + 1, math.min(h - 2, t + step_h) do
+					M.grid[gy * w + gx + 1] = 1
+				end
+			end
+		end
+
+		-- Dugouts and communication tunnels under the craters
+		carve_worm_tunnel(math.floor(w * 0.18), math.floor(h * 0.22), 18, 0.10, 14, 0.40, seed + 101)
+		carve_worm_tunnel(math.floor(w * 0.82), math.floor(h * 0.22), 18, 3.00, 14, 0.40, seed + 102)
+
+	elseif preset_type == "mushroom_grove" then
+		-- Alien grove: low rolling moss with a forest of mushroom rock spires and
+		-- connecting ledges, hollow stems and small suspended spore stones
+		local base_h = math.floor(h * 0.27)
+		for gx = 0, w - 1 do
+			local nx = gx / w
+			local wx = warp_coord_1d(nx, seed, 0.08, 3.1)
+			local roll = math.sin(wx * 6.28 * 1.4 + seed * 0.05) * (h * 0.06)
+			local micro = fractal_noise(nx * 11.0, 3, seed + 5) * (h * 0.035)
+			local max_gy = math.floor(math.max(20, math.min(math.floor(h * 0.52), base_h + roll + micro)))
+			for gy = 0, max_gy do
+				M.grid[gy * w + gx + 1] = 1
+			end
+		end
+
+		local spire_xs = {}
+		local n_spires = 4 + math.floor(seed_rand(seed, 120) * 3)
+		for i = 1, n_spires do
+			local slot = (i - 0.5) / n_spires
+			local cx = math.floor(w * (0.09 + slot * 0.82 + (seed_rand(seed, 130 + i) - 0.5) * 0.05))
+			local base = column_top(cx)
+			local stem_h = math.floor(h * (0.07 + seed_rand(seed, 150 + i) * 0.13))
+			local stem_w = 10 + math.floor(seed_rand(seed, 170 + i) * 10)
+			local cap_rx = 18 + math.floor(seed_rand(seed, 190 + i) * 18)
+			local cap_ry = 7 + math.floor(seed_rand(seed, 210 + i) * 6)
+			add_mushroom_spire(cx, base + stem_h, stem_w, stem_h, cap_rx, cap_ry, seed + i * 19)
+			spire_xs[#spire_xs + 1] = { x = cx, base = base, stem_h = stem_h }
+		end
+
+		-- Natural ledge between two spires and hollow chambers inside the stems
+		if #spire_xs >= 2 then
+			local ax = spire_xs[1].x
+			local bx = spire_xs[#spire_xs].x
+			add_arch(math.floor((ax + bx) * 0.5), math.floor(h * (0.34 + seed_rand(seed, 240) * 0.06)), math.floor(w * 0.11), math.floor(h * 0.07), math.floor(h * 0.035), seed + 241)
+		end
+		for i = 1, math.min(3, #spire_xs) do
+			local sp = spire_xs[i]
+			carve_bubble(sp.x, sp.base + math.floor(sp.stem_h * 0.55), 9, 10, seed + 260 + i, 0.18)
+		end
+
+		-- Suspended spore stones floating over the grove
+		if seed_rand(seed, 280) > 0.35 then
+			add_island(math.floor(w * (0.28 + seed_rand(seed, 281) * 0.44)), math.floor(h * (0.66 + seed_rand(seed, 282) * 0.10)), math.floor(w * (0.03 + seed_rand(seed, 283) * 0.03)), math.floor(h * 0.03), seed + 284, true)
+		end
+
+		-- Shallow grottoes at the base of the grove
+		carve_worm_tunnel(math.floor(w * 0.22), math.floor(h * 0.20), 20, 0.15, 14, 0.38, seed + 301)
+		carve_worm_tunnel(math.floor(w * 0.78), math.floor(h * 0.20), 20, 2.95, 14, 0.38, seed + 302)
 
 	else
 		-- "hills" (default rolling terrain with majestic peaks, bridge arch, and caves)
@@ -891,12 +1087,13 @@ function M.generate(preset_type, campaign_level, is_defense)
 		end
 
 		if not is_lvl_1 then
-			-- High Stone Bridge Arch spanning the central valley (gx = 360 .. 600)
-			add_arch(math.floor(w * 0.50), math.floor(h * 0.34), math.floor(w * 0.14), math.floor(h * 0.10), math.floor(h * 0.05), seed + 77)
+			-- High Stone Bridge Arch spanning the central valley
+			local arch_cx = math.floor(w * (0.50 + (seed_rand(seed, 70) - 0.5) * 0.06))
+			add_arch(arch_cx, math.floor(h * (0.34 + (seed_rand(seed, 71) - 0.5) * 0.03)), math.floor(w * 0.14), math.floor(h * 0.10), math.floor(h * 0.05), seed + 77)
 
 			-- Cantilevered cliff diving-board ledge on the left mountain slope
-			local ledge_cx = math.floor(w * 0.34)
-			local ledge_cy = math.floor(h * 0.42)
+			local ledge_cx = math.floor(w * (0.34 + (seed_rand(seed, 72) - 0.5) * 0.05))
+			local ledge_cy = math.floor(h * (0.42 + (seed_rand(seed, 73) - 0.5) * 0.04))
 			for gx = ledge_cx - 28, ledge_cx + 28 do
 				local nx = (gx - ledge_cx) / 28
 				local env = math.cos(nx * 1.57079)
@@ -908,11 +1105,27 @@ function M.generate(preset_type, campaign_level, is_defense)
 			end
 
 			-- Mushroom rock spire with wide battle platform on the right
-			add_mushroom_spire(math.floor(w * 0.72), math.floor(h * 0.46), 14, math.floor(h * 0.12), 26, 10, seed + 88)
+			add_mushroom_spire(math.floor(w * (0.72 + (seed_rand(seed, 74) - 0.5) * 0.05)), math.floor(h * (0.46 + (seed_rand(seed, 75) - 0.5) * 0.05)), 14, math.floor(h * 0.12), 26, 10, seed + 88)
 
 			-- Procedural worm caves through the mountain bases
 			carve_worm_tunnel(math.floor(w * 0.22), math.floor(h * 0.24), 26, 0.2, 18, 0.35, seed + 111)
 			carve_worm_tunnel(math.floor(w * 0.78), math.floor(h * 0.24), 26, 2.9, 18, 0.35, seed + 222)
+
+			-- One signature landmark per map so repeated "hills" battles still feel different
+			local landmark = seed_rand(seed, 400)
+			if landmark < 0.34 then
+				-- Crumbling boulder field on the valley floor
+				local bx = math.floor(w * (0.38 + seed_rand(seed, 401) * 0.24))
+				for k = 1, 4 do
+					add_surface_boulder(bx + (k - 2) * 11 + math.floor(seed_rand(seed, 410 + k) * 6), 2 + math.floor(seed_rand(seed, 420 + k) * 3), seed + k * 31)
+				end
+			elseif landmark < 0.67 then
+				-- Collapsed sinkhole opening in the battlefield
+				add_crater(math.floor(w * (0.30 + seed_rand(seed, 402) * 0.40)), 15 + math.floor(seed_rand(seed, 403) * 12), seed + 404)
+			else
+				-- Suspended rock outcrop hanging above the valley
+				add_island(math.floor(w * (0.32 + seed_rand(seed, 405) * 0.36)), math.floor(h * (0.62 + seed_rand(seed, 406) * 0.08)), math.floor(w * 0.045), math.floor(h * 0.035), seed + 407, true)
+			end
 		end
 	end
 

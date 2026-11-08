@@ -250,4 +250,37 @@ images {
 images {
   image: "/main/assets/vfx_leaf.png"
 }
+images {
+  image: "/main/assets/fx/aim_glow.png"
+}
+images {
+  image: "/main/assets/fx/impact_ring.png"
+}
+images {
+  image: "/main/assets/fx/unit_glow.png"
+}
+images {
+  image: "/main/assets/fx/team_ring_blue.png"
+}
+images {
+  image: "/main/assets/fx/team_ring_red.png"
+}
+images {
+  image: "/main/assets/fx/team_blue.png"
+}
+images {
+  image: "/main/assets/fx/team_red.png"
+}
+images {
+  image: "/main/assets/fx/status_burn.png"
+}
+images {
+  image: "/main/assets/fx/status_poison.png"
+}
+images {
+  image: "/main/assets/fx/status_glue.png"
+}
+images {
+  image: "/main/assets/fx/status_stun.png"
+}
 extrude_borders: 2

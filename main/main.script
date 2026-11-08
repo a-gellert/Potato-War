@@ -23,6 +23,7 @@ local battle_camera = require("lua_modules.battle_camera")
 local world_events = require("lua_modules.world_events")
 local match_results = require("lua_modules.match_results")
 local progression = require("lua_modules.progression")
+local meta_progression = require("lua_modules.meta_progression")
 local sdk = require("main.sdk")
 
 -- Control Mode Flag: "auto" (Mobile=slingshot, PC=direct), "direct", or "slingshot"
@@ -112,6 +113,8 @@ local function start_game_match(self, mode, level, lobby_config)
 	battle_camera.cancel_victory(self)
 	achievements.reset_match()
 	tutorial.reset()
+	self.hitstop = 0
+	meta_progression.sync_campaign_max_hp()
 
 	if lobby_config then
 		game_state.start_battle(lobby_config)
@@ -233,6 +236,7 @@ end
 
 local function leave_match(self)
 	game_state.is_paused = false
+	self.hitstop = 0
 	pcall(msg.post, "/gui_loading#gui", "start_loading", {
 		title = require("lua_modules.i18n").pick({ ru = "ГЛАВНОЕ МЕНЮ", en = "MAIN MENU", pt = "MENU PRINCIPAL", fr = "MENU PRINCIPAL", es = "MENÚ PRINCIPAL", tr = "ANA MENÜ" }),
 		subtitle = ""
@@ -348,6 +352,7 @@ function init(self)
 	self.airship_url = nil
 	self.active_projectiles = {}
 	self.burst_queue = {} -- { weapon_id, origin_x, origin_y, vel_x, vel_y, owner_id, shots_left, delay_timer }
+	self.hitstop = 0 -- short impact freeze (seconds) for explosion/damage punch
 	self.seamless_stage = 0
 	constants.log(">>> INIT STEP 2: player_control & battle_camera reset")
 	player_control.reset(self)
@@ -397,6 +402,7 @@ function init(self)
 		pcall(function()
 			require("lua_modules.i18n").detect_language()
 		end)
+		meta_progression.sync_campaign_max_hp()
 
 		local is_tut_done = player_profile.is_tutorial_completed()
 		constants.log(">>> INIT STEP 6: check tutorial status after profile load: " .. tostring(is_tut_done))
@@ -440,6 +446,14 @@ end
 
 function update(self, dt)
 	if game_state.is_paused then
+		return
+	end
+	-- Impact hit-stop: freeze gameplay for a few frames while the camera and
+	-- explosion visuals keep moving, so big hits feel heavier.
+	if (self.hitstop or 0) > 0 then
+		self.hitstop = math.max(0, self.hitstop - dt)
+		camera_controller.update(dt)
+		battle_camera.update(self, dt)
 		return
 	end
 	world_events.update(self, dt)
@@ -603,7 +617,10 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("spawn_explosion") then
 		if not message.silent then
-			sound_manager.play_explosion(message.radius)
+			local radius = message.radius or 30
+			local hitstop = math.min(0.055, 0.018 + radius * 0.00055)
+			self.hitstop = math.max(self.hitstop or 0, hitstop)
+			sound_manager.play_explosion(radius)
 		end
 		if message.sfx then
 			sound_manager.play(message.sfx)
@@ -652,6 +669,7 @@ function on_message(self, message_id, message, sender)
 
 	elseif message_id == hash("potato_damaged") then
 		if message.damage and message.damage > 0 and message.x and message.y then
+			self.hitstop = math.max(self.hitstop or 0, 0.028)
 			-- Worms-style damage camera: linger at hit point and zoom in slightly for 1.5s
 			battle_camera.focus_damage(self, message.x, message.y, message.potato_id)
 			for _, p in ipairs(game_state.potatoes) do
