@@ -207,9 +207,13 @@ function M.evaluate_match_end(winner_team, player_hp)
 		end
 	end
 
+	-- After a revive the match ends a second time: each achievement's bonus is paid only once
 	local total_bonus = 0
 	for _, a in ipairs(M.match_state.unlocked_list) do
-		total_bonus = total_bonus + (a.points or 0)
+		if not a.paid then
+			total_bonus = total_bonus + (a.points or 0)
+			a.paid = true
+		end
 	end
 
 	return M.match_state.unlocked_list, total_bonus

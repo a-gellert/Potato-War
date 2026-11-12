@@ -39,6 +39,8 @@ function M.build(self)
 	-- Fullscreen dark dimmer covering any mobile aspect ratio (4000x3000)
 	local dimmer = kit.box(root, "dim", 0, 0, 4000, 3000, vmath.vector4(1, 1, 1, 0.78))
 	gui.set_adjust_mode(dimmer, gui.ADJUST_STRETCH)
+	-- Modal: swallows taps so the HUD buttons registered earlier (inventory, pause) don't fire below it
+	self.ui:blocker(dimmer)
 
 	-- 1. Main Pause / Settings panel
 	local panel = kit.panel(root, 0, 0, 520, 370)
@@ -109,8 +111,15 @@ function M.build(self)
 		label = "",
 		px = 20,
 		on_click = function()
-			M.toggle(self, false)
+			if self.exit_pending then
+				return
+			end
+			-- Stay paused while the exit ad loads: on the web the callback only comes when the ad
+			-- closes, and the battle must not run (or be ended) underneath it
+			self.exit_pending = true
 			game_state.on_level_closed(function()
+				self.exit_pending = false
+				M.toggle(self, false)
 				msg.post("/main#main", "show_menu")
 			end, true, false)
 		end
@@ -161,6 +170,9 @@ function M.is_open(self)
 end
 
 function M.toggle(self, force_state)
+	if self.exit_pending then
+		return -- leaving the battle: ignore pause/resume until the exit ad calls back
+	end
 	if force_state ~= nil then
 		self.is_pause_open = force_state
 	else

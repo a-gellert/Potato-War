@@ -20,7 +20,7 @@ app_icon_72x72 = /main/assets/logo2 (1).png
 app_icon_48x48 = /main/assets/logo2 (1).png
 app_icon_36x36 = /main/assets/logo2 (1).png
 package = com.turnbased.artillery.potato.war
-version_code = 2
+version_code = 3
 
 [html5]
 scale_mode = stretch
@@ -31,14 +31,14 @@ htmlfile = /bridge/engine_template.html
 
 [project]
 title = Great Potato War
+version = 1.1.0
 bundle_resources = /res
 dependencies#0 = https://github.com/Playgama/bridge-defold/archive/refs/tags/v2.3.0.zip
 dependencies#1 = https://github.com/Insality/druid/archive/master.zip
 dependencies#2 = https://github.com/britzl/defold-orthographic/archive/master.zip
-dependencies#3 = https://github.com/defold/extension-poki-sdk/archive/refs/tags/4.1.0.zip
-dependencies#4 = https://github.com/defold/extension-applovin/archive/refs/tags/2.0.0.zip
-dependencies#5 = https://github.com/defold/extension-firebase/archive/refs/tags/2.3.2.zip
-dependencies#6 = https://github.com/defold/extension-firebase-analytics/archive/refs/tags/3.3.1.zip
+dependencies#3 = https://github.com/defold/extension-applovin/archive/refs/tags/2.0.0.zip
+dependencies#4 = https://github.com/defold/extension-firebase/archive/refs/tags/2.3.2.zip
+dependencies#5 = https://github.com/defold/extension-firebase-analytics/archive/refs/tags/3.3.1.zip
 
 [graphics]
 opengl_version_hint = 42

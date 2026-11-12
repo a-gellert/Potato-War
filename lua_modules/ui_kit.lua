@@ -298,7 +298,12 @@ end
 -- Window with a title strip and a close button. Returns { root, panel, title, close }
 function M.window(ui, parent, id, w, h, title, on_close)
 	local root = M.group(parent, 480, 270, 960, 540)
-	M.dim(root, 0.72)
+	local dim = M.dim(root, 0.72)
+	if ui then
+		-- Modal: the window's own buttons are registered after this and stay on top; the buttons of
+		-- the screen behind (registered earlier) no longer fire through the dim
+		ui:blocker(dim)
+	end
 	local panel = M.panel(root, 0, -8, w, h)
 	local header = M.box(panel, "header", 0, h / 2 - 22, w - 8, 44)
 	local title_node = M.text(header, title, 0, 2, 26, { font = "title", color = M.C.gold, max_w = w - 140 })

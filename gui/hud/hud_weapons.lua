@@ -10,7 +10,8 @@ local ui_manager = require("lua_modules.ui_manager")
 local M = {}
 
 M.SLOT_COUNT = 5
-M.INVENTORY_COUNT = 12
+-- One inventory cell per carried weapon; hud.gui has inv_slot_1..16 (4x4 grid)
+M.INVENTORY_COUNT = #weapons.PLAYER_LIST
 
 local WHITE = vmath.vector4(1, 1, 1, 1)
 local GOLD = vmath.vector4(0.95, 0.77, 0.06, 1.0)
@@ -60,7 +61,7 @@ function M.update_inventory(self)
 
 	for i = 1, M.INVENTORY_COUNT do
 		local ok, err = pcall(function()
-			local w = weapons.LIST[i]
+			local w = weapons.PLAYER_LIST[i]
 			if not w then return end
 
 			local slot_node = gui.get_node("inv_slot_" .. i)
@@ -128,7 +129,9 @@ end
 -- Weapon controls and touch jump are shown during player turn
 function M.update_panels(self)
 	pcall(function()
+		-- Hidden while paused: ui_manager checks hold buttons before the pause dimmer can swallow a touch
 		local is_player_turn = not game_state.is_bot_turn() and game_state.state == constants.STATE_TURN_ACTIVE
+			and not self.is_pause_open
 
 		gui.set_enabled(gui.get_node("touch_controls"), is_player_turn and self.is_touch_screen)
 		gui.set_enabled(gui.get_node("touch_jump"), is_player_turn and self.is_touch_screen)

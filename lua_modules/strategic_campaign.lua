@@ -38,6 +38,13 @@ function M.set_phase(new_phase)
 	end
 end
 
+-- Forgets the sector battle in progress. A stale id made later quick matches count as sector battles
+-- (campaign stars, captures, turn income). active_battle_type is kept on purpose (see main.script).
+function M.clear_active_battle()
+	M.active_battle_sector_id = nil
+	M.selected_target_id = nil
+end
+
 function M.get_turn()
 	return player_profile.get_campaign_turn() or 1
 end
@@ -427,6 +434,7 @@ function M.resolve_battle(winner_team, points_earned)
 			M.set_phase(M.PHASE_VICTORY)
 			outcome.campaign_won = true
 			player_profile.set_campaign_stats(stats)
+			M.clear_active_battle()
 			return outcome
 		end
 	else
@@ -466,6 +474,7 @@ function M.resolve_battle(winner_team, points_earned)
 			M.set_phase(M.PHASE_DEFEAT)
 			outcome.campaign_lost = true
 			player_profile.set_campaign_stats(stats)
+			M.clear_active_battle()
 			return outcome
 		end
 	end
@@ -478,6 +487,7 @@ function M.resolve_battle(winner_team, points_earned)
 	if territory_map.is_defeat("blue") then
 		M.set_phase(M.PHASE_DEFEAT)
 		outcome.campaign_lost = true
+		M.clear_active_battle()
 		return outcome
 	end
 	outcome.income = M.collect_income()
@@ -490,8 +500,7 @@ function M.resolve_battle(winner_team, points_earned)
 	end
 	outcome.counter_target = counter_target
 
-	M.active_battle_sector_id = nil
-	M.selected_target_id = nil
+	M.clear_active_battle()
 	return outcome
 end
 

@@ -55,10 +55,13 @@ local function on_drowned(p)
 		end
 	end
 
-	-- Conclude the turn upon drowning
-	msg.post("/aim_guide#aim_guide", "hide_aim")
-	game_state.set_state(constants.STATE_SETTLING)
-	game_state.settle_timer = 0
+	-- Conclude the turn upon drowning. Only an active turn is cut short: during a shot the projectile
+	-- count settles it, and after the game over the state must stay put.
+	if game_state.state == constants.STATE_TURN_ACTIVE then
+		msg.post("/aim_guide#aim_guide", "hide_aim")
+		game_state.set_state(constants.STATE_SETTLING)
+		game_state.settle_timer = 0
+	end
 end
 
 -- Landing faster than a plain jump shakes the camera; half of it already kicks up dust

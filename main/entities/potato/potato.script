@@ -302,29 +302,32 @@ function update(self, dt)
 	end
 end
 
--- Process Turn-Start DoT and Debuffs
-local function process_turn_start(self)
+-- Process Turn-Start DoT and Debuffs.
+-- dot = { burn, poison }: damage game_state already took off the logic record; the script only mirrors it.
+local function process_turn_start(self, dot)
 	if not self.is_alive then return end
+	dot = dot or {}
 
 	local p_pos = go.get_position()
 	local took_dot = false
 
 	-- 1. Burning DoT
-	if has_active_status(self, "burning") then
-		local burn_data = self.statuses.burning
-		local dmg = burn_data.power or 14
-		self.hp = math.max(0, self.hp - dmg)
+	local burn_dmg = dot.burn or 0
+	if burn_dmg > 0 then
+		self.hp = math.max(0, self.hp - burn_dmg)
 		update_hp_bar(self)
 		took_dot = true
 
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = p_pos.x,
 			y = p_pos.y + 16,
-			amount = dmg,
+			amount = burn_dmg,
 			status = "burning",
 			label = i18n.pick({ ru = "ОЖОГ", en = "BURN", pt = "QUEIMADURA", fr = "BRÛLURE", es = "QUEMADURA", tr = "YANIK" })
 		})
-
+	end
+	if has_active_status(self, "burning") then
+		local burn_data = self.statuses.burning
 		burn_data.duration = (burn_data.duration or 1) - 1
 		if burn_data.duration <= 0 then
 			self.statuses.burning = nil
@@ -332,21 +335,22 @@ local function process_turn_start(self)
 	end
 
 	-- 2. Poisoned DoT
-	if self.is_alive and has_active_status(self, "poisoned") then
-		local poison_data = self.statuses.poisoned
-		local dmg = poison_data.power or 10
-		self.hp = math.max(0, self.hp - dmg)
+	local poison_dmg = dot.poison or 0
+	if poison_dmg > 0 then
+		self.hp = math.max(0, self.hp - poison_dmg)
 		update_hp_bar(self)
 		took_dot = true
 
 		msg.post("/gui_hud#gui", "show_damage", {
 			x = p_pos.x,
 			y = p_pos.y + 16,
-			amount = dmg,
+			amount = poison_dmg,
 			status = "poisoned",
 			label = i18n.pick({ ru = "ЯД", en = "POISON", pt = "VENENO", fr = "POISON", es = "VENENO", tr = "ZEHİR" })
 		})
-
+	end
+	if has_active_status(self, "poisoned") then
+		local poison_data = self.statuses.poisoned
 		poison_data.duration = (poison_data.duration or 1) - 1
 		if poison_data.duration <= 0 then
 			self.statuses.poisoned = nil
@@ -381,6 +385,7 @@ local function process_turn_start(self)
 		pcall(function() msg.post("#hp_text", "enable") end)
 		self.hp_bar_timer = 3.0
 
+		-- The logic record is dying too: potato_updater posts "die" once the body has settled
 		if self.hp <= 0 then
 			self.is_alive = false
 			self.is_dying = true
@@ -388,9 +393,6 @@ local function process_turn_start(self)
 			rig_post(self, "hide")
 			set_emotion(self, "hurt", 1.4)
 			sound_manager.play("hurt", { vary = 0.1 })
-			timer.delay(0.35, false, function()
-				msg.post(".", "die")
-			end)
 		end
 	end
 end
@@ -499,6 +501,10 @@ function on_message(self, message_id, message, sender)
 		if not self.is_alive then return end
 
 		local heal_amt = message.amount or 0
+		-- A medkit at full HP raises max HP on the logic record; mirror it
+		if message.max_hp then
+			self.max_hp = message.max_hp
+		end
 		self.hp = math.min(self.max_hp, self.hp + heal_amt)
 		update_hp_bar(self)
 		set_emotion(self, "happy", 1.8)
@@ -519,8 +525,8 @@ function on_message(self, message_id, message, sender)
 		local p_pos = go.get_position()
 		set_emotion(self, "hurt", 1.2)
 
-		-- Check elemental combo with existing statuses
-		local combo = weapons.eval_combo(self.statuses, st_type)
+		-- Elemental combo: decided on the logic record by projectile.script, mirrored here
+		local combo = message.combo_id and weapons.COMBOS[message.combo_id]
 		if combo then
 			-- Combo triggered!
 			if combo.bonus_damage and combo.bonus_damage > 0 then
@@ -533,6 +539,15 @@ function on_message(self, message_id, message, sender)
 					status = "combo",
 					label = i18n.field(combo, "name")
 				})
+				-- The combo finished the potato off: same dying state as apply_damage; the
+				-- settle step in game_state posts "die"
+				if self.hp <= 0 then
+					self.is_alive = false
+					self.is_dying = true
+					msg.post("#reticle", "disable")
+					rig_post(self, "hide")
+					return
+				end
 			end
 			if combo.duration_bonus then
 				duration = duration + combo.duration_bonus
@@ -571,7 +586,7 @@ function on_message(self, message_id, message, sender)
 		go.set("#sprite", "tint", self.skin_tint)
 
 	elseif message_id == hash("on_turn_start") then
-		process_turn_start(self)
+		process_turn_start(self, message)
 
 	elseif message_id == hash("on_turn_end") then
 		process_turn_end(self)

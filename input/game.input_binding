@@ -87,6 +87,10 @@ key_trigger {
   action: "escape"
 }
 key_trigger {
+  input: KEY_BACK
+  action: "escape"
+}
+key_trigger {
   input: KEY_ENTER
   action: "enter"
 }

@@ -401,6 +401,11 @@ M.DEFAULT_SECTORS = {
 -- Current active sectors table
 M.sectors = {}
 
+-- The player_profile.data.campaign_map table the sectors were built from or last saved to. When the
+-- profile gets another table (cloud restore, campaign reset) the sectors are rebuilt from it; before,
+-- the stale map was kept and its next save overwrote the restored campaign.
+local synced_map = nil
+
 local function deep_copy_sectors(source)
 	local res = {}
 	for id, s in pairs(source) do
@@ -439,7 +444,8 @@ function M.reset_map()
 end
 
 function M.get_sectors()
-	if not M.sectors or next(M.sectors) == nil then
+	local profile_map = player_profile.data and player_profile.data.campaign_map
+	if not M.sectors or next(M.sectors) == nil or profile_map ~= synced_map then
 		M.load_from_profile()
 	end
 	return M.sectors
@@ -788,11 +794,13 @@ function M.save_to_profile()
 	if not M.sectors or next(M.sectors) == nil then return end
 	local serialized = M.get_state()
 	player_profile.set_campaign_map(serialized)
+	synced_map = serialized
 end
 
 function M.load_from_profile()
 	M.sectors = deep_copy_sectors(M.DEFAULT_SECTORS)
 	local saved = player_profile.data and player_profile.data.campaign_map
+	synced_map = saved
 	if saved and type(saved) == "table" then
 		for id, data in pairs(saved) do
 			local s = M.sectors[tonumber(id)]

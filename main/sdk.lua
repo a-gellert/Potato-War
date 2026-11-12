@@ -184,15 +184,7 @@ local function pause_audio()
 	pcall(sound.set_group_gain, hash("sfx"), 0)
 	pcall(sound.set_group_gain, "sfx", 0)
 
-	-- 2. Stop music via sound / sound_manager module if present
-	local snd_ok, snd = pcall(require, "main.sound")
-	if snd_ok and snd then
-		snd.current_sfx_volume = 0
-		snd.current_music_volume = 0
-		if snd.stop_music then
-			pcall(snd.stop_music)
-		end
-	end
+	-- 2. Stop the music track (sound_manager restarts it on resume)
 	local sm_ok, sm = pcall(require, "lua_modules.sound_manager")
 	if sm_ok and sm and sm.pause_all then
 		pcall(sm.pause_all)
@@ -240,30 +232,16 @@ local function resume_audio()
 	end
 
 	log("🔊 Restoring game audio")
-	local state_ok, state = pcall(require, "main.state")
-	local sfx_vol = (state_ok and state.sfx_volume) or 1.0
-	local music_vol = (state_ok and state.music_volume) or 0.8
-
-	-- 1. Defold Sound Groups Gain
-	pcall(sound.set_group_gain, hash("master"), 1)
-	pcall(sound.set_group_gain, "master", 1)
-	pcall(sound.set_group_gain, hash("music"), music_vol)
-	pcall(sound.set_group_gain, "music", music_vol)
-	pcall(sound.set_group_gain, hash("sfx"), sfx_vol)
-	pcall(sound.set_group_gain, "sfx", sfx_vol)
-
-	-- 2. Restore sound module state if present
-	local snd_ok, snd = pcall(require, "main.sound")
-	if snd_ok and snd then
-		snd.current_sfx_volume = sfx_vol
-		snd.current_music_volume = music_vol
-		if snd.play_music and music_vol > 0.001 then
-			pcall(snd.play_music)
-		end
-	end
+	-- Group gains come from the player's volume settings (sound_manager), not fixed values:
+	-- a player who turned the music off used to get it back at 80% after every ad or tab switch.
 	local sm_ok, sm = pcall(require, "lua_modules.sound_manager")
-	if sm_ok and sm and sm.resume_all then
-		pcall(sm.resume_all)
+	if sm_ok and sm and sm.apply_gains then
+		pcall(sm.apply_gains)
+		if sm.resume_all then
+			pcall(sm.resume_all)
+		end
+	else
+		pcall(sound.set_group_gain, hash("master"), 1)
 	end
 
 	-- 3. Web Audio Context resume (Web/HTML5)
@@ -826,6 +804,9 @@ local function setup_playgama_listeners()
 						window._syncAudio(true);
 					} else {
 						window._gameVisibilityState = 'visible';
+						// Lua may have paused the main loop when it saw the tab hidden; Lua timers
+						// cannot run while it is paused, so the resume has to come from JS
+						if (!window._isPlatformPaused) window._resumeEngineLoop();
 						window._syncAudio(shouldAudioBeMuted());
 					}
 				});
@@ -838,10 +819,15 @@ end
 ----------------------------------------------------------
 -- INITIALIZATION
 ----------------------------------------------------------
-function M.init(custom_config)
-	if M.initialized then return end
-	M.initialized = true
-	M.last_interstitial_time = os.time()
+-- Resolves which platform the game runs on without creating any Lua callbacks or listeners, so it
+-- is safe from any context. Getters (language, platform id, device info) call this instead of
+-- M.init(): i18n asks for the language while modules are still being loaded, and Lua callbacks
+-- created there are rejected by the engine ("CreateCallback failed: missing INSTANCE_CONTEXT").
+-- Before this split, that early call ran the full init outside a script instance, so the AppLovin,
+-- Firebase and Playgama listeners were never registered and M.init() from main.script was skipped.
+local function detect_platform()
+	if M.platform_detected then return end
+	M.platform_detected = true
 
 	local sys_info = sys.get_sys_info()
 	local is_android = (sys_info.system_name == "Android")
@@ -864,15 +850,10 @@ function M.init(custom_config)
 	end
 	log("⚙️ SDK Target from config:", configured_target)
 
-	-- 1. Mobile Native Build (Android / iOS) -> Unity Ads
+	-- 1. Mobile Native Build (Android / iOS) -> AppLovin MAX
 	if is_android or is_ios then
 		M.active_platform = M.PLATFORM_ANDROID
-		log("📱 Mobile build detected (" .. sys_info.system_name .. ") — Initializing AppLovin MAX")
-		mobile_ads.init()
-		firebase_analytics.init()
-		gameanalytics.init()
-		adjust_module.init()
-		facebook_module.init()
+		log("📱 Mobile build detected (" .. sys_info.system_name .. ")")
 		return
 	end
 
@@ -925,7 +906,6 @@ function M.init(custom_config)
 	if configured_target == "poki" and (M.has_poki or is_web) then
 		M.active_platform = M.PLATFORM_POKI
 		log("🌐 Poki SDK active via config (has_poki_sdk: " .. tostring(_G.poki_sdk ~= nil) .. ")")
-		gameanalytics.init()
 		return
 	end
 
@@ -933,6 +913,38 @@ function M.init(custom_config)
 	if configured_target == "playgama" and (is_web or mod ~= nil or M.has_playgama) then
 		bridge = mod
 		M.active_platform = M.PLATFORM_PLAYGAMA
+		return
+	end
+
+	-- 4. Fallback Mock Desktop / Editor
+	M.active_platform = M.PLATFORM_MOCK
+end
+M.detect_platform = detect_platform
+
+--- Starts the platform SDKs (ads, analytics) and registers the platform listeners.
+--- Call it once from a script's init() (main.script): see detect_platform for why not earlier.
+function M.init(custom_config)
+	if M.initialized then return end
+	M.initialized = true
+	M.last_interstitial_time = os.time()
+	detect_platform()
+
+	if M.active_platform == M.PLATFORM_ANDROID then
+		log("📱 Initializing AppLovin MAX + Firebase")
+		mobile_ads.init()
+		firebase_analytics.init()
+		gameanalytics.init()
+		adjust_module.init()
+		facebook_module.init()
+		return
+	end
+
+	if M.active_platform == M.PLATFORM_POKI then
+		gameanalytics.init()
+		return
+	end
+
+	if M.active_platform == M.PLATFORM_PLAYGAMA then
 		local platform_id = M.get_platform_id()
 		log("🌐 Playgama Bridge active (Platform: " .. tostring(platform_id) .. ", has_lua_bridge: " .. tostring(bridge ~= nil) .. ")")
 		setup_playgama_listeners()
@@ -1093,7 +1105,6 @@ function M.init(custom_config)
 	end
 
 	-- 4. Fallback Mock Desktop / Editor
-	M.active_platform = M.PLATFORM_MOCK
 	log("💻 Running in Editor / Desktop fallback mock")
 	mobile_ads.init()
 	gameanalytics.init()
@@ -1105,11 +1116,34 @@ function M.init(custom_config)
 end
 
 ----------------------------------------------------------
+-- POKI HELPERS
+----------------------------------------------------------
+local function poki_js_call(fn)
+	if html5 and html5.run then
+		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK." .. fn .. " === 'function') PokiSDK." .. fn .. "(); } catch(e){} })();")
+	end
+end
+
+-- Poki lifecycle calls go through the extension; the page's PokiSDK object is only a fallback when
+-- the extension is absent. Calling both reported every gameplayStart/Stop to Poki twice. Other
+-- targets never call Poki directly: on Poki-hosted Playgama builds the bridge does it.
+local function poki_call(ext_fn, js_fn)
+	if M.active_platform ~= M.PLATFORM_POKI then return end
+	if _G.poki_sdk and _G.poki_sdk[ext_fn] then
+		pcall(_G.poki_sdk[ext_fn])
+	else
+		poki_js_call(js_fn)
+	end
+end
+
+----------------------------------------------------------
 -- DUAL-CHANNEL PLATFORM MESSAGE SENDER (LUA BINDING + HTML5 JS)
 ----------------------------------------------------------
 local function send_platform_message(msg_name, options)
 	options = options or {}
-	if not M.initialized then M.init() end
+	detect_platform()
+	-- Only the Playgama bridge understands these messages (Poki/Android/desktop have no bridge)
+	if M.active_platform ~= M.PLATFORM_PLAYGAMA then return end
 
 	log("📤 send_platform_message: '" .. tostring(msg_name) .. "'")
 
@@ -1211,14 +1245,10 @@ function M.send_game_ready()
 	send_platform_message("game_ready")
 	send_platform_message("in_game_loading_stopped")
 
-	-- Poki SDK gameLoadingFinished
-	pcall(function()
-		if _G.poki_sdk and _G.poki_sdk.game_loading_finished then
-			_G.poki_sdk.game_loading_finished()
-		end
-	end)
-	if html5 and html5.run then
-		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameLoadingFinished === 'function') PokiSDK.gameLoadingFinished(); } catch(e){} })();")
+	-- Poki: the extension's HTML template reports gameLoadingFinished itself when the engine has
+	-- loaded; only a build without the extension (raw PokiSDK on the page) needs it from here.
+	if M.active_platform == M.PLATFORM_POKI and not _G.poki_sdk then
+		poki_js_call("gameLoadingFinished")
 	end
 end
 
@@ -1227,20 +1257,10 @@ end
 ----------------------------------------------------------
 function M.in_game_loading_started()
 	send_platform_message("in_game_loading_started")
-	pcall(function()
-		if _G.poki_sdk and _G.poki_sdk.game_loading_start then
-			_G.poki_sdk.game_loading_start()
-		end
-	end)
 end
 
 function M.in_game_loading_stopped()
 	send_platform_message("in_game_loading_stopped")
-	pcall(function()
-		if _G.poki_sdk and _G.poki_sdk.game_loading_finished then
-			_G.poki_sdk.game_loading_finished()
-		end
-	end)
 end
 
 ----------------------------------------------------------
@@ -1257,15 +1277,7 @@ function M.gameplay_start(world, level)
 
 	send_platform_message("gameplay_started", opts)
 
-	-- Poki SDK
-	pcall(function()
-		if _G.poki_sdk and _G.poki_sdk.gameplay_start then
-			_G.poki_sdk.gameplay_start()
-		end
-	end)
-	if html5 and html5.run then
-		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameplayStart === 'function') PokiSDK.gameplayStart(); } catch(e){} })();")
-	end
+	poki_call("gameplay_start", "gameplayStart")
 end
 
 function M.gameplay_stop(world, level)
@@ -1279,15 +1291,7 @@ function M.gameplay_stop(world, level)
 
 	send_platform_message("gameplay_stopped", opts)
 
-	-- Poki SDK
-	pcall(function()
-		if _G.poki_sdk and _G.poki_sdk.gameplay_stop then
-			_G.poki_sdk.gameplay_stop()
-		end
-	end)
-	if html5 and html5.run then
-		pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.gameplayStop === 'function') PokiSDK.gameplayStop(); } catch(e){} })();")
-	end
+	poki_call("gameplay_stop", "gameplayStop")
 end
 
 ----------------------------------------------------------
@@ -1362,7 +1366,7 @@ end
 
 function M.measure(category, what, action)
 	log("📊 measure:", category, what, action)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.platform and bridge.platform.send_custom_message then
 		bridge.platform.send_custom_message(tostring(category), { what = tostring(what), action = tostring(action) })
@@ -1383,7 +1387,7 @@ M.first_interstitial_shown = false
 --- @param is_level_exit boolean|nil Whether the level is being closed/exited (default true)
 --- @param is_match_finish boolean|nil Whether this occurred upon a completed match (default false)
 function M.on_level_closed(callback, is_level_exit, is_match_finish)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if is_level_exit == nil then is_level_exit = true end
 	if is_match_finish == nil then is_match_finish = false end
@@ -1436,7 +1440,7 @@ function M.on_match_finished(callback, is_level_exit)
 end
 
 function M.commercial_break(callback, placement, force)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if M.has_no_ads() then
 		log("🚫 No-Ads active — skipping commercial_break")
@@ -1516,12 +1520,19 @@ function M.commercial_break(callback, placement, force)
 			if ok then dispatched = true end
 		end
 		if not dispatched and html5 and html5.run then
-			local ok_js = pcall(function()
-				html5.run("(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.commercialBreak === 'function') { PokiSDK.commercialBreak().then(function(){}).catch(function(){}); } } catch(e){} })();")
-			end)
-			if ok_js then
-				safe_timer_delay(0.5, false, on_poki_done)
+			-- Wait for the break to really end (it used to resume after a fixed 0.5 s, mid-ad)
+			local ok_js, started = pcall(html5.run, "(function() { try { if (typeof PokiSDK !== 'undefined' && typeof PokiSDK.commercialBreak === 'function') { window._pokiBreakDone = ''; PokiSDK.commercialBreak().then(function(){ window._pokiBreakDone = '1'; }).catch(function(){ window._pokiBreakDone = '1'; }); return '1'; } } catch(e){} return '0'; })()")
+			if ok_js and started == "1" then
 				dispatched = true
+				local waited = 0
+				safe_timer_delay(0.1, true, function(_, handle, dt)
+					waited = waited + (dt or 0.1)
+					local ok_ev, res = pcall(html5.run, "window._pokiBreakDone || ''")
+					if (ok_ev and res == "1") or waited > 60 then
+						safe_timer_cancel(handle)
+						on_poki_done()
+					end
+				end)
 			end
 		end
 		if not dispatched then
@@ -1576,12 +1587,27 @@ function M.commercial_break(callback, placement, force)
 
 		if html5 and html5.run then
 			local poll_timer = nil
-			poll_timer = safe_timer_delay(0.05, true, function(_, handle)
+			-- Deadlines so a bridge that never reports "closed"/"failed" cannot hold the caller
+			-- (e.g. leaving a level) forever: no answer in 8 s, or an ad open for over 90 s
+			local waited, opened_for = 0, 0
+			poll_timer = safe_timer_delay(0.05, true, function(_, handle, dt)
+				local step = dt or 0.05
+				waited = waited + step
 				local ok_eval, res = pcall(html5.run, "window._interstitialState || ''")
+				if ok_eval and res == "opened" then
+					opened_for = opened_for + step
+				end
+				if (res ~= "opened" and waited > 8) or opened_for > 90 then
+					log("⏳ Interstitial gave no result in time — continuing")
+					res = "failed"
+					ok_eval = true
+				end
 				if ok_eval and res and res ~= "" then
 					if res == "opened" then
-						M.ad_showing = true
-						pause_audio()
+						if not M.ad_showing then
+							M.ad_showing = true
+							pause_audio()
+						end
 					elseif res == "closed" or res == "failed" then
 						safe_timer_cancel(handle)
 						M.ad_showing = false
@@ -1653,7 +1679,7 @@ function M.try_commercial_break(callback, placement)
 end
 
 function M.is_interstitial_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.advertisement and bridge.advertisement.is_interstitial_supported then
 		return bridge.advertisement.is_interstitial_supported()
 	elseif M.active_platform == M.PLATFORM_ANDROID then
@@ -1666,7 +1692,7 @@ end
 -- REWARDED ADS (REWARDED BREAK)
 ----------------------------------------------------------
 function M.rewarded_break(on_reward, on_close, placement_or_size)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	local placement = (placement_or_size and placement_or_size ~= "") and tostring(placement_or_size) or "rewarded"
 	log("🎁 rewarded_break() requested — placement: '" .. placement .. "', active_platform: " .. tostring(M.active_platform) .. ", platform_id: " .. tostring(M.get_platform_id()))
@@ -1974,7 +2000,7 @@ end
 M.show_rewarded = M.rewarded_break
 
 function M.is_rewarded_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.advertisement and bridge.advertisement.is_rewarded_supported then
 		return bridge.advertisement.is_rewarded_supported()
 	elseif M.active_platform == M.PLATFORM_ANDROID then
@@ -1989,7 +2015,7 @@ end
 function M.show_banner(position, placement)
 	position = position or "bottom"
 	log("🏷️ show_banner() requested (position: " .. tostring(position) .. ")")
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.advertisement and bridge.advertisement.show_banner then
 		pcall(function()
@@ -2004,7 +2030,7 @@ end
 
 function M.hide_banner()
 	log("🏷️ hide_banner() requested")
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.advertisement and bridge.advertisement.hide_banner then
 		pcall(function()
@@ -2018,7 +2044,7 @@ function M.hide_banner()
 end
 
 function M.is_banner_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.advertisement and bridge.advertisement.is_banner_supported then
 		return bridge.advertisement.is_banner_supported()
 	end
@@ -2046,7 +2072,7 @@ function M.set_leaderboard_score(id_or_score, score_or_cb, on_success_or_failure
 	end
 
 	log("🏆 set_leaderboard_score:", board_id, score)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.leaderboards and bridge.leaderboards.set_score then
 		bridge.leaderboards.set_score(board_id, score, success_cb, failure_cb)
@@ -2059,7 +2085,7 @@ end
 function M.get_leaderboard_entries(id, on_success, on_failure)
 	local board_id = tostring(id or "leaderboard")
 	log("🏆 get_leaderboard_entries:", board_id)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.leaderboards and bridge.leaderboards.get_entries then
 		bridge.leaderboards.get_entries(board_id, on_success, on_failure)
@@ -2072,7 +2098,7 @@ end
 function M.show_leaderboard_popup(id, on_success, on_failure)
 	local board_id = tostring(id or "leaderboard")
 	log("🏆 show_leaderboard_popup:", board_id)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.leaderboards and bridge.leaderboards.show_native_popup then
 		bridge.leaderboards.show_native_popup(board_id, on_success, on_failure)
@@ -2083,7 +2109,7 @@ function M.show_leaderboard_popup(id, on_success, on_failure)
 end
 
 function M.is_leaderboard_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.leaderboards and bridge.leaderboards.type then
 		return bridge.leaderboards.type() ~= "not_available"
 	end
@@ -2094,7 +2120,7 @@ end
 -- CLOUD STORAGE (PLAYGAMA STORAGE WITH LOCAL & CRAZYGAMES FALLBACK)
 ----------------------------------------------------------
 function M.storage_get(keys, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	local keys_list = keys
 	if type(keys) == "string" then
@@ -2147,10 +2173,12 @@ function M.storage_get(keys, on_success, on_failure)
 	end
 
 	-- Safety timeout: if storage doesn't respond in 3 seconds, proceed gracefully
+	-- A timeout is "no answer", not "no cloud save": reporting it as an empty store let the next save
+	-- push a fresh profile over the player's real cloud progress (player_profile retries instead)
 	local timeout_handle = safe_timer_delay(3.0, false, function()
 		if not responded then
 			log("⏳ storage_get timed out — continuing with local profile")
-			finish_success(nil)
+			finish_failure("timeout")
 		end
 	end)
 
@@ -2306,7 +2334,7 @@ function M.storage_get(keys, on_success, on_failure)
 end
 
 function M.storage_set(data_or_key, value_or_cb, on_success_or_failure, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	local data = {}
 	local success_cb = nil
@@ -2421,7 +2449,7 @@ function M.storage_set(data_or_key, value_or_cb, on_success_or_failure, on_failu
 end
 
 function M.storage_delete(keys, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	local keys_list = keys
 	if type(keys) == "string" then
@@ -2446,7 +2474,7 @@ function M.storage_delete(keys, on_success, on_failure)
 end
 
 function M.is_storage_supported(storage_type)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.storage and bridge.storage.is_supported then
 		return bridge.storage.is_supported(storage_type or "platform_internal")
 	end
@@ -2457,7 +2485,7 @@ end
 -- PLAYER PROFILE & AUTHORIZATION
 ----------------------------------------------------------
 function M.get_player_id()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.id then
 		return bridge.player.id()
 	end
@@ -2465,7 +2493,7 @@ function M.get_player_id()
 end
 
 function M.get_player_name()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.name then
 		return bridge.player.name()
 	end
@@ -2473,7 +2501,7 @@ function M.get_player_name()
 end
 
 function M.get_player_photos()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.photos then
 		return bridge.player.photos()
 	end
@@ -2481,7 +2509,7 @@ function M.get_player_photos()
 end
 
 function M.is_player_authorized()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.is_authorized then
 		return bridge.player.is_authorized()
 	end
@@ -2489,7 +2517,7 @@ function M.is_player_authorized()
 end
 
 function M.is_player_authorization_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.is_authorization_supported then
 		return bridge.player.is_authorization_supported()
 	end
@@ -2497,7 +2525,7 @@ function M.is_player_authorization_supported()
 end
 
 function M.authorize_player(options, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.player and bridge.player.authorize then
 		bridge.player.authorize(options, on_success, on_failure)
 		return
@@ -2509,7 +2537,7 @@ end
 -- SOCIAL & SHARE & RATING
 ----------------------------------------------------------
 function M.share(options, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.share then
 		bridge.social.share(options, on_success, on_failure)
 		return
@@ -2518,7 +2546,7 @@ function M.share(options, on_success, on_failure)
 end
 
 function M.is_share_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.is_share_supported then
 		return bridge.social.is_share_supported()
 	end
@@ -2526,7 +2554,7 @@ function M.is_share_supported()
 end
 
 function M.rate(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.rate then
 		bridge.social.rate(on_success, on_failure)
 		return
@@ -2535,7 +2563,7 @@ function M.rate(on_success, on_failure)
 end
 
 function M.is_rate_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.is_rate_supported then
 		return bridge.social.is_rate_supported()
 	end
@@ -2543,7 +2571,7 @@ function M.is_rate_supported()
 end
 
 function M.add_to_favorites(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.add_to_favorites then
 		bridge.social.add_to_favorites(on_success, on_failure)
 		return
@@ -2552,7 +2580,7 @@ function M.add_to_favorites(on_success, on_failure)
 end
 
 function M.is_add_to_favorites_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.is_add_to_favorites_supported then
 		return bridge.social.is_add_to_favorites_supported()
 	end
@@ -2560,7 +2588,7 @@ function M.is_add_to_favorites_supported()
 end
 
 function M.add_to_home_screen(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.add_to_home_screen then
 		bridge.social.add_to_home_screen(on_success, on_failure)
 		return
@@ -2569,7 +2597,7 @@ function M.add_to_home_screen(on_success, on_failure)
 end
 
 function M.is_add_to_home_screen_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.social and bridge.social.is_add_to_home_screen_supported then
 		return bridge.social.is_add_to_home_screen_supported()
 	end
@@ -2577,7 +2605,7 @@ function M.is_add_to_home_screen_supported()
 end
 
 function M.get_server_time(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	if bridge and bridge.platform and bridge.platform.get_server_time then
 		bridge.platform.get_server_time(on_success, on_failure)
 		return
@@ -2589,7 +2617,7 @@ end
 -- DEVICE & PLATFORM INFO
 ----------------------------------------------------------
 function M.get_device_info()
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.device and bridge.device.type then
 		local dev_type = bridge.device.type()
@@ -2619,7 +2647,7 @@ function M.get_device_info()
 end
 
 function M.get_platform()
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.platform and bridge.platform.id then
 		return bridge.platform.id()
@@ -2632,7 +2660,7 @@ function M.get_platform()
 end
 
 function M.get_language()
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	-- 1. Poki SDK (Lua / Web) if in Poki mode
 	if M.active_platform == M.PLATFORM_POKI and _G.poki_sdk then
@@ -2733,7 +2761,7 @@ function M.get_language_code()
 end
 
 function M.is_adblock_detected(callback)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.advertisement and bridge.advertisement.check_ad_block then
 		bridge.advertisement.check_ad_block(function(self, is_blocked)
@@ -2854,7 +2882,7 @@ function M.has_no_ads()
 end
 
 function M.is_payments_supported()
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if bridge and bridge.payments and bridge.payments.is_supported then
 		local ok, supp = pcall(bridge.payments.is_supported)
@@ -2884,7 +2912,7 @@ function M.is_payments_supported()
 end
 
 function M.get_catalog(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	log("🛒 Fetching in-app products catalog...")
 
 	-- 1. Bridge Lua
@@ -2924,7 +2952,7 @@ function M.get_catalog(on_success, on_failure)
 end
 
 function M.get_purchases(on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	log("🛍️ Fetching player purchases...")
 
 	if bridge and bridge.payments and bridge.payments.get_purchases then
@@ -2944,7 +2972,7 @@ function M.get_purchases(on_success, on_failure)
 end
 
 function M.consume_purchase(purchase_id_or_token, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 	local id = tostring(purchase_id_or_token or "")
 	log("🔄 Consuming purchase:", id)
 
@@ -2981,7 +3009,7 @@ function M.consume_purchase(purchase_id_or_token, on_success, on_failure)
 end
 
 function M.purchase(id, options, on_success, on_failure)
-	if not M.initialized then M.init() end
+	detect_platform()
 
 	if type(options) == "function" then
 		on_failure = on_success

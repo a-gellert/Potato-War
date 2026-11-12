@@ -72,6 +72,11 @@ function update(self)
 	local offset_x = (proj_w - target_w) * 0.5
 	local offset_y = (proj_h - target_h) * 0.5
 
+	-- Publish the visible world size (shared_state = 1): screen<->world conversions and the
+	-- camera clamp in camera_controller need it on non-16:9 windows
+	camera_controller.view_w = proj_w
+	camera_controller.view_h = proj_h
+
 	local world_view = camera_controller.get_view_matrix() or self.view
 	render.set_view(world_view)
 	render.set_projection(vmath.matrix4_orthographic(-offset_x, target_w + offset_x, -offset_y, target_h + offset_y, -1000, 1000))

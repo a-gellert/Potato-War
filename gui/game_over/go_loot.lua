@@ -176,7 +176,7 @@ function M.show(self, data)
 	else
 		gui.set_text(lp.note, i18n.t("ui_no_crate"))
 		-- Defeat outside the tutorial: the rewarded revive is offered here
-		local can_revive = data.winner == constants.TEAM_RED and not data.seamless and not data.is_tutorial
+		local can_revive = data.winner == constants.TEAM_RED and not data.seamless and not data.is_tutorial and data.campaign_outcome == nil -- sector losses are already applied to the map
 		gui.set_enabled(lp.revive.node, can_revive)
 		lp.revive.set_label(i18n.t("ui_revive"))
 	end

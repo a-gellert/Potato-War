@@ -1,20 +1,17 @@
 -- main/entities/terrain/terrain.script
--- Manages destructible terrain texture updates, dynamic biomes, procedural background art,
--- and ambient background warfare simulation for Potato War.
+-- Manages destructible terrain texture updates, dynamic biomes and the parallax background
+-- sprites for Potato War. (The old procedural "dynamic_bg" texture + bg_battle simulation was
+-- never bound to any sprite, yet cost a full 960x480 upload 25x/s; it has been removed.)
 
 local constants = require("lua_modules.constants")
 local game_state = require("lua_modules.game_state")
 local terrain_grid = require("lua_modules.terrain_grid")
 local terrain_painter = require("lua_modules.terrain_painter")
-local bg_battle = require("lua_modules.bg_battle")
 local camera_controller = require("lua_modules.camera_controller")
 local debris_fx = require("lua_modules.debris_fx")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
-
-local TEXTURE_BG_PATH = "/dynamic_bg.texturec"
-local ATLAS_BG_PATH = "/dynamic_bg.texturesetc"
 
 local BIOME_THEMES = {
 	grass = {
@@ -54,25 +51,6 @@ local BIOME_THEMES = {
 	},
 }
 
--- Fast value noise helper for background generation
-local function hash_val2d(x, y)
-    local n = math.sin(x * 12.9898 + y * 78.233) * 43758.5453
-    return n - math.floor(n)
-end
-
-local function bg_noise(x, seed)
-	local ix = math.floor(x)
-	local fx = x - ix
-	fx = fx * fx * (3.0 - 2.0 * fx)
-	local a = hash_val2d(ix, seed)
-	local b = hash_val2d(ix + 1, seed)
-	return a + (b - a) * fx
-end
-
-local function clamp(v, min_v, max_v)
-	return math.max(min_v, math.min(max_v, v))
-end
-
 ---------------------------------------------------------
 -- Hybrid-casual terrain shading (see lua_modules/terrain_painter.lua)
 ---------------------------------------------------------
@@ -85,265 +63,6 @@ end
 local function fill_full_stream(self)
 	terrain_painter.reset(self.current_biome or "grass", terrain_grid.seed)
 	paint_region(self, 0, 0, self.w - 1, self.h - 1)
-end
-
----------------------------------------------------------
--- Procedural Multi-Layer Background Generator
----------------------------------------------------------
-
-local function generate_base_background(self, biome)
-	local w = self.w
-	local h = self.h
-	local stream = self.bg_base_stream
-	local seed = math.random(1, 99999)
-	self.horizon_profile = {}
-
-	local total = self.w * self.h * 4
-	for i = 1, total do
-		stream[i] = 0
-		if self.bg_stream then
-			self.bg_stream[i] = 0
-		end
-	end
-
-	-- Helper: Draw filled circle on bg stream
-	local function draw_bg_circle(cx, cy, r_val, cr, cg, cb, max_a)
-		local min_x = math.max(0, math.floor(cx - r_val))
-		local max_x = math.min(w - 1, math.ceil(cx + r_val))
-		local min_y = math.max(0, math.floor(cy - r_val))
-		local max_y = math.min(h - 1, math.ceil(cy + r_val))
-		local r2 = r_val * r_val
-		for py = min_y, max_y do
-			local dy2 = (py - cy) * (py - cy)
-			for px = min_x, max_x do
-				local dx = px - cx
-				local d2 = dx * dx + dy2
-				if d2 <= r2 then
-					local dist = math.sqrt(d2)
-					local falloff = 1.0 - (dist / r_val)
-					local alpha = max_a * falloff
-					local idx = (py * w + px) * 4 + 1
-					local inv_a = 1.0 - alpha
-					stream[idx]     = clamp(math.floor(stream[idx] * inv_a + cr * alpha), 0, 255)
-					stream[idx + 1] = clamp(math.floor(stream[idx + 1] * inv_a + cg * alpha), 0, 255)
-					stream[idx + 2] = clamp(math.floor(stream[idx + 2] * inv_a + cb * alpha), 0, 255)
-				end
-			end
-		end
-	end
-
-	-- 1. Sky Gradient & Atmosphere
-	for gy = 0, h - 1 do
-		local ny = gy / h
-		local sr, sg, sb = 100, 150, 200
-
-		if biome == "desert" then
-			-- Sunset amber to fiery coral to golden horizon
-			if ny > 0.65 then
-				local t = (ny - 0.65) / 0.35
-				sr = 155 * t + 242 * (1 - t)
-				sg = 52 * t + 115 * (1 - t)
-				sb = 110 * t + 52 * (1 - t)
-			else
-				local t = ny / 0.65
-				sr = 255 * (1 - t) + 242 * t
-				sg = 215 * (1 - t) + 115 * t
-				sb = 125 * (1 - t) + 52 * t
-			end
-
-		elseif biome == "arctic" then
-			-- Polar twilight to cyan-pink aurora band to frosted horizon
-			if ny > 0.70 then
-				local t = (ny - 0.70) / 0.30
-				sr = 22 * t + 75 * (1 - t)
-				sg = 28 * t + 165 * (1 - t)
-				sb = 68 * t + 215 * (1 - t)
-			else
-				local t = ny / 0.70
-				sr = 185 * (1 - t) + 75 * t
-				sg = 225 * (1 - t) + 165 * t
-				sb = 248 * (1 - t) + 215 * t
-			end
-
-		elseif biome == "volcano" then
-			-- Dark charcoal/blood crimson to smoky glowing magma horizon
-			if ny > 0.65 then
-				local t = (ny - 0.65) / 0.35
-				sr = 48 * t + 175 * (1 - t)
-				sg = 18 * t + 42 * (1 - t)
-				sb = 28 * t + 24 * (1 - t)
-			else
-				local t = ny / 0.65
-				sr = 238 * (1 - t) + 175 * t
-				sg = 98 * (1 - t) + 42 * t
-				sb = 22 * (1 - t) + 24 * t
-			end
-
-		elseif biome == "alien" then
-			-- Deep cosmic space purple to magenta nebula to electric cyan horizon
-			if ny > 0.65 then
-				local t = (ny - 0.65) / 0.35
-				sr = 18 * t + 115 * (1 - t)
-				sg = 10 * t + 35 * (1 - t)
-				sb = 35 * t + 142 * (1 - t)
-			else
-				local t = ny / 0.65
-				sr = 38 * (1 - t) + 115 * t
-				sg = 168 * (1 - t) + 35 * t
-				sb = 185 * (1 - t) + 142 * t
-			end
-
-		else
-			-- Grass / Meadow: Atmospheric Sunset Dusk (Navy Twilight -> Dusky Mauve -> Sunset Amber -> Golden Horizon)
-			if ny > 0.65 then
-				local t = (ny - 0.65) / 0.35
-				sr = 28 * t + 88 * (1 - t)
-				sg = 36 * t + 62 * (1 - t)
-				sb = 68 * t + 85 * (1 - t)
-			elseif ny > 0.35 then
-				local t = (ny - 0.35) / 0.30
-				sr = 88 * t + 218 * (1 - t)
-				sg = 62 * t + 115 * (1 - t)
-				sb = 85 * t + 55 * (1 - t)
-			else
-				local t = ny / 0.35
-				sr = 218 * t + 245 * (1 - t)
-				sg = 115 * t + 175 * (1 - t)
-				sb = 55 * t + 82 * (1 - t)
-			end
-		end
-
-		local row = gy * w
-		for gx = 0, w - 1 do
-			local idx = (row + gx) * 4 + 1
-			stream[idx]     = math.floor(sr)
-			stream[idx + 1] = math.floor(sg)
-			stream[idx + 2] = math.floor(sb)
-			stream[idx + 3] = 255
-		end
-	end
-
-	-- 2. Celestial Bodies (Sun, Moon, Ringed Planet, Aurora)
-	local sky_body_y = math.floor(h * 0.76)
-	if biome == "grass" then
-		-- Radiant golden sun
-		draw_bg_circle(math.floor(w * 0.75), sky_body_y, 45, 255, 245, 180, 0.45)
-		draw_bg_circle(math.floor(w * 0.75), sky_body_y, 22, 255, 252, 220, 0.95)
-	elseif biome == "desert" then
-		-- Giant setting sun
-		local d_sun_y = math.floor(h * 0.58)
-		draw_bg_circle(math.floor(w * 0.28), d_sun_y, 55, 255, 140, 50, 0.55)
-		draw_bg_circle(math.floor(w * 0.28), d_sun_y, 28, 255, 230, 120, 0.95)
-	elseif biome == "arctic" then
-		-- Crescent moon + Aurora Borealis glow
-		draw_bg_circle(math.floor(w * 0.80), sky_body_y, 18, 220, 245, 255, 0.90)
-		for gx = 0, w - 1 do
-			local wave = math.sin(gx * 0.02 + seed) * 15 + math.cos(gx * 0.04) * 8
-			local ay = math.floor(sky_body_y - 15 + wave)
-			draw_bg_circle(gx, ay, 12, 65, 235, 215, 0.28)
-			draw_bg_circle(gx, ay + 6, 10, 225, 115, 255, 0.20)
-		end
-	elseif biome == "volcano" then
-		-- Blood moon obscured by smoke
-		draw_bg_circle(math.floor(w * 0.50), sky_body_y, 32, 245, 55, 25, 0.65)
-		draw_bg_circle(math.floor(w * 0.50), sky_body_y, 16, 255, 140, 55, 0.92)
-	elseif biome == "alien" then
-		-- Ringed Saturn-like gas giant + twinkling stars
-		local cx = math.floor(w * 0.70)
-		draw_bg_circle(cx, sky_body_y, 26, 175, 75, 215, 0.92)
-		-- Ring
-		for rx = -44, 44 do
-			local ry = math.floor(rx * 0.28)
-			draw_bg_circle(cx + rx, sky_body_y + ry, 3, 225, 165, 255, 0.75)
-		end
-		-- Moonlet
-		draw_bg_circle(math.floor(w * 0.22), math.floor(h * 0.82), 9, 55, 235, 215, 0.95)
-		-- Twinkling stars
-		for i = 1, 65 do
-			local sx = math.floor((bg_noise(i * 12.3, seed + 1) * 0.95) * w)
-			local sy = math.floor((bg_noise(i * 23.7, seed + 2) * 0.35 + 0.65) * h)
-			draw_bg_circle(sx, sy, 1.5, 255, 255, 255, 0.85)
-		end
-	end
-
-	-- 3. Far Mountain Range (Silhouette Layer 1)
-	local far_h_base = math.floor(h * 0.38)
-	for gx = 0, w - 1 do
-		local nx = gx / w
-		local m1 = bg_noise(nx * 4.0, seed + 10) * (h * 0.18)
-		local m2 = bg_noise(nx * 9.0, seed + 20) * (h * 0.08)
-		local max_gy = math.floor(far_h_base + m1 + m2)
-
-		for gy = 0, max_gy do
-			local idx = (gy * w + gx) * 4 + 1
-			local haze = 0.55
-			local mr = (biome == "alien") and 75 or ((biome == "desert") and 185 or ((biome == "volcano") and 125 or 95))
-			local mg = (biome == "alien") and 35 or ((biome == "desert") and 85 or ((biome == "volcano") and 35 or 145))
-			local mb = (biome == "alien") and 115 or ((biome == "desert") and 75 or ((biome == "volcano") and 35 or 195))
-
-			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
-			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
-			stream[idx + 2] = clamp(math.floor(stream[idx + 2] * (1 - haze) + mb * haze), 0, 255)
-		end
-	end
-
-	-- 4. Mid-Ground: Depth-of-Field Rural Potato Battlefield (Ridges, Fence, Old Barn, Barrels)
-	local mid_h_base = math.floor(h * 0.24)
-	local barn_x = math.floor(w * 0.24)
-	local barn_w = 34
-
-	for gx = 0, w - 1 do
-		local nx = gx / w
-		-- Undulating tilled potato garden beds (грядки)
-		local r1 = bg_noise(nx * 5.5, seed + 30) * (h * 0.12)
-		local garden_ridge = math.sin(nx * 24.0) * (h * 0.02)
-		local max_gy = math.floor(mid_h_base + r1 + garden_ridge)
-
-		-- Silhouette: Old Farm Barn / Shed (старый сарай с двускатной крышей)
-		if gx >= barn_x and gx <= barn_x + barn_w then
-			local bx = gx - barn_x
-			local roof_peak = 18 - math.abs(bx - (barn_w * 0.5)) * 1.0
-			max_gy = max_gy + math.max(0, math.floor(roof_peak))
-		end
-
-		-- Silhouette: Rustic Wooden Post Fence (деревянный забор)
-		if (gx % 18 == 0) and (gx > barn_x + barn_w + 10) then
-			max_gy = max_gy + 7 -- Post
-		elseif (gx % 18 == 4 or gx % 18 == 5) and (gx > barn_x + barn_w + 10) then
-			max_gy = max_gy + 4 -- Rail
-		end
-
-		-- Silhouette: Overturned Buckets and Barrels (бочки и ведра)
-		local b1 = math.floor(w * 0.65)
-		local b2 = math.floor(w * 0.82)
-		if (gx >= b1 and gx <= b1 + 8) or (gx >= b2 and gx <= b2 + 7) then
-			max_gy = max_gy + 6
-		end
-
-		self.horizon_profile[gx] = max_gy
-
-		for gy = 0, max_gy do
-			local idx = (gy * w + gx) * 4 + 1
-			-- Depth-of-field soft atmospheric perspective haze
-			local haze = (biome == "grass") and 0.68 or 0.82
-			local mr = (biome == "alien") and 42 or ((biome == "desert") and 125 or ((biome == "volcano") and 65 or 52))
-			local mg = (biome == "alien") and 22 or ((biome == "desert") and 55 or ((biome == "volcano") and 24 or 42))
-			local mb = (biome == "alien") and 68 or ((biome == "desert") and 45 or ((biome == "volcano") and 28 or 36))
-
-			stream[idx]     = clamp(math.floor(stream[idx] * (1 - haze) + mr * haze), 0, 255)
-			stream[idx + 1] = clamp(math.floor(stream[idx + 1] * (1 - haze) + mg * haze), 0, 255)
-			stream[idx + 2] = clamp(math.floor(stream[idx + 2] * (1 - haze) + mb * haze), 0, 255)
-		end
-	end
-
-	-- Initialize target background stream from base stream (once per level start)
-	local total_bytes = w * h * 4
-	for i = 1, total_bytes do
-		self.bg_stream[i] = self.bg_base_stream[i]
-	end
-
-	-- Initialize ambient background warfare simulation with this horizon
-	bg_battle.init(w, h, biome, function(gx) return self.horizon_profile[gx] or 75 end)
 end
 
 local function apply_biome_environment(self, biome)
@@ -415,15 +134,13 @@ end
 ---------------------------------------------------------
 
 function init(self)
-	constants.log(">>> TERRAIN INIT STARTED WITH DYNAMIC BG AND WARFARE")
+	constants.log(">>> TERRAIN INIT STARTED")
 	self.w = constants.PVP_TERRAIN_WIDTH
 	self.h = constants.TERRAIN_HEIGHT
 	self.mode = constants.MODE_CAMPAIGN
 	self.is_initialized = false
 	self.current_biome = "grass"
 	self.current_preset = "hills"
-	self.bg_update_timer = 0
-	self.horizon_profile = {}
 
 	-- Water shimmer animation (calm gentle wave)
 	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
@@ -437,22 +154,11 @@ function init(self)
 	})
 	self.stream = buffer.get_stream(self.tex_buffer, hash("rgba"))
 
-	-- 2. Create pixel buffers for procedural background & live war compositing
-	self.bg_base_buffer = buffer.create(self.w * self.h, {
-		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
-	})
-	self.bg_base_stream = buffer.get_stream(self.bg_base_buffer, hash("rgba"))
-
-	self.bg_buffer = buffer.create(self.w * self.h, {
-		{ name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
-	})
-	self.bg_stream = buffer.get_stream(self.bg_buffer, hash("rgba"))
-
 	-- Lazy loading: initialize lightweight grid structure on boot; defer heavy rasterization until match starts
 	terrain_grid.init(constants.TERRAIN_WIDTH, self.h, constants.TERRAIN_SCALE)
 	self.battle_active = false
 
-	-- 3. Create dynamic texture and atlas for Foreground Terrain (960x270 base quad)
+	-- 2. Create dynamic texture and atlas for Foreground Terrain (960x270 base quad)
 	local t_params = {
 		width = self.w,
 		height = self.h,
@@ -512,54 +218,6 @@ function init(self)
 		end)
 	end
 
-	-- 4. Create dynamic texture and atlas for Procedural Background (960x270 base quad)
-	local bg_t_params = {
-		width = self.w,
-		height = self.h,
-		type = graphics.TEXTURE_TYPE_2D,
-		format = graphics.TEXTURE_FORMAT_RGBA,
-		num_mip_maps = 1
-	}
-	local ok_bgt, bg_tex_res = pcall(resource.create_texture, TEXTURE_BG_PATH, bg_t_params, self.bg_buffer)
-
-	local bg_atlas_params = {
-		texture = TEXTURE_BG_PATH,
-		animations = {
-			{
-				id = "bg",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			},
-			{
-				id = "bg_pvp",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			},
-			{
-				id = "bg_campaign",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			}
-		},
-		geometries = {
-			{
-				id = "bg",
-				width = self.w,
-				height = self.h,
-				pivot_x = 0.5,
-				pivot_y = 0.5,
-				vertices = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
-				uvs = { 0, 0,  0, self.h,  self.w, self.h,  self.w, 0 },
-				indices = { 0, 1, 2,  0, 2, 3 }
-			}
-		}
-	}
 	self.is_initialized = true
 	constants.log(">>> TERRAIN INITIALIZED WITH HIGH-RES ILLUSTRATED BIOME SKIES & ISLANDS!")
 
@@ -670,27 +328,6 @@ function update(self, dt)
 			end)
 		end
 	end
-
-	-- Update background warfare simulation at smooth 25 FPS rate (only during active battle)
-	if self.battle_active and self.is_initialized and self.bg_stream and self.bg_base_stream then
-		self.bg_update_timer = (self.bg_update_timer or 0) + dt
-		if self.bg_update_timer >= 0.04 then
-			self.bg_update_timer = 0
-			bg_battle.update(0.04, function(gx) return self.horizon_profile[gx] or 75 end)
-			bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
-
-			pcall(function()
-				resource.set_texture(TEXTURE_BG_PATH, {
-					x = 0,
-					y = 0,
-					width = self.w,
-					height = self.h,
-					type = graphics.TEXTURE_TYPE_2D,
-					format = graphics.TEXTURE_FORMAT_RGBA
-				}, self.bg_buffer)
-			end)
-		end
-	end
 end
 
 function on_message(self, message_id, message, sender)
@@ -751,28 +388,9 @@ function on_message(self, message_id, message, sender)
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome, "mode:", message.mode)
 		apply_biome_environment(self, biome)
 
-		-- Re-generate base procedural background and warfare simulation for this biome
-		if self.bg_base_stream then
-			generate_base_background(self, biome)
-			bg_battle.render_overlay(self.bg_stream, self.bg_base_stream)
-			if self.is_initialized then
-				pcall(function()
-					resource.set_texture(TEXTURE_BG_PATH, {
-						x = 0,
-						y = 0,
-						width = self.w,
-						height = self.h,
-						type = graphics.TEXTURE_TYPE_2D,
-						format = graphics.TEXTURE_FORMAT_RGBA
-					}, self.bg_buffer)
-				end)
-			end
-		end
-
 		if not message.already_generated then
 			terrain_grid.generate(preset, message.campaign_level)
 		end
-		bg_battle.set_menu_mode(false, function(gx) return self.horizon_profile[gx] or 75 end)
 		update_full_texture(self)
 
 	elseif message_id == hash("set_menu_mode") then
@@ -804,10 +422,10 @@ function on_message(self, message_id, message, sender)
 				end
 			end)
 		end
-		bg_battle.set_menu_mode(is_menu, function(gx) return self.horizon_profile[gx] or 75 end)
 
 	elseif message_id == hash("victory_salute") then
-		bg_battle.trigger_victory_salute()
+		-- No-op: the fireworks were drawn into the unbound dynamic_bg texture and never showed.
+		-- Kept so main.script's message stays valid; add a visible effect here if wanted.
 
 	elseif message_id == hash("carve_crater") then
 		local cx = message.x or 0

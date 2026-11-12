@@ -4,6 +4,7 @@
 local constants = require("lua_modules.constants")
 local terrain_grid = require("lua_modules.terrain_grid")
 local game_state = require("lua_modules.game_state")
+local inventory_manager = require("lua_modules.inventory_manager")
 local sound_manager = require("lua_modules.sound_manager")
 local weapons = require("lua_modules.weapons")
 local i18n = require("lua_modules.i18n")
@@ -69,7 +70,7 @@ local function collect_crate(self, potato)
 		end
 
 		if potato.url then
-			msg.post(potato.url, "apply_heal", { amount = heal_amt })
+			msg.post(potato.url, "apply_heal", { amount = heal_amt, max_hp = potato.max_hp })
 		end
 
 		msg.post("/gui_hud#gui", "show_damage", {
@@ -100,7 +101,12 @@ local function collect_crate(self, potato)
 			w = weapons.get_random_arena_pickup() or weapons.get("dynamite")
 		end
 		local count = self.amount or 2
-		game_state.add_ammo(w.id, count)
+		-- The ammo belongs to the potato that picked the crate up, not to whoever's turn it is
+		if potato ~= game_state.active_potato and inventory_manager.inventories[potato.id] then
+			inventory_manager.add_ammo(potato.id, w.id, count, true)
+		else
+			game_state.add_ammo(w.id, count)
+		end
 
 		local wn = i18n.field(w, "name")
 		if wn == "" then wn = w.id end

@@ -129,6 +129,8 @@ M.data = {
 	blueprints = {},
 	commander_xp = 0,
 	stats = { battles = 0, wins = 0, kills = 0, crates = 0 },
+	no_ads = false,
+	-- save_seq: grows on every M.save() and picks the newer of the local and cloud copies (nil in old saves)
 }
 
 -- Localized status messages (lazy require: i18n loads player_profile lazily)
@@ -147,7 +149,16 @@ end
 
 function M.load()
 	local path = get_save_path()
-	local loaded = (path and sys and sys.load) and sys.load(path) or nil
+	local loaded = nil
+	if path and sys and sys.load then
+		-- A damaged save file must not stop the game from booting: start fresh (the cloud copy can still restore it)
+		local ok, res = pcall(sys.load, path)
+		if ok then
+			loaded = res
+		else
+			print("[PROFILE] ⚠️ Could not read the save file:", tostring(res))
+		end
+	end
 	if loaded and type(loaded) == "table" and loaded.unlocked_skins then
 		M.has_local_save = true
 		M.data.language = loaded.language
@@ -187,6 +198,8 @@ function M.load()
 		M.data.commander_xp = loaded.commander_xp or 0
 		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
 		M.data.ftue_seen = loaded.ftue_seen or {}
+		M.data.no_ads = (loaded.no_ads == true)
+		M.data.save_seq = tonumber(loaded.save_seq) -- stays nil for saves made before the counter existed
 	else
 		M.has_local_save = false
 		M.data.language = nil
@@ -218,6 +231,8 @@ function M.load()
 		M.data.commander_xp = 0
 		M.data.stats = { battles = 0, wins = 0, kills = 0, crates = 0 }
 		M.data.ftue_seen = {}
+		M.data.no_ads = false
+		M.data.save_seq = nil
 	end
 	return M.data
 end
@@ -262,7 +277,9 @@ function M.apply_profile_data(loaded)
 	if loaded.ftue_seen ~= nil and type(loaded.ftue_seen) == "table" then
 		M.data.ftue_seen = loaded.ftue_seen
 	end
-	if loaded.no_ads ~= nil then M.data.no_ads = (loaded.no_ads == true) end
+	-- A bought "no ads" is permanent: an older copy without it must not switch the ads back on
+	if loaded.no_ads == true then M.data.no_ads = true end
+	if loaded.save_seq ~= nil then M.data.save_seq = tonumber(loaded.save_seq) or M.data.save_seq end
 end
 
 function M.is_ftue_seen(key)
@@ -277,7 +294,17 @@ end
 
 local cloud_save_timer = nil
 
+-- Nothing is pushed to the cloud until the store has given a definite answer (its data, or a confirmed
+-- empty store): a read that timed out used to let the next save overwrite the player's real cloud
+-- progress with a fresh profile. Local saves (sys.save) are not affected.
+M.cloud_ready = false
+-- Optional hook (set by main.script): called with (is_retry) after cloud data has replaced M.data
+M.on_cloud_applied = nil
+local CLOUD_RETRY_DELAYS = { 5, 15, 30 } -- seconds before each new read after a failed one
+local cloud_retry_timer = nil
+
 function M.save_cloud_now()
+	if not M.cloud_ready then return end
 	local sdk_ok, sdk = pcall(require, "main.sdk")
 	if sdk_ok and sdk and sdk.storage_set then
 		sdk.storage_set({ player_profile = M.data }, function()
@@ -289,6 +316,7 @@ function M.save_cloud_now()
 end
 
 function M.save_cloud_delayed()
+	if not M.cloud_ready then return end
 	if cloud_save_timer then
 		pcall(timer.cancel, cloud_save_timer)
 		cloud_save_timer = nil
@@ -305,6 +333,7 @@ function M.save_cloud_delayed()
 end
 
 function M.save()
+	M.data.save_seq = (tonumber(M.data.save_seq) or 0) + 1
 	local path = get_save_path()
 	if path and sys and sys.save then
 		sys.save(path, M.data)
@@ -312,70 +341,126 @@ function M.save()
 	M.save_cloud_delayed()
 end
 
-function M.load_cloud(callback)
+-- Progress estimate, only used to compare copies saved before save_seq existed
+local function progress_score(d)
+	if not d or type(d) ~= "table" then return 0 end
+	local score = 0
+	score = score + (tonumber(d.commander_xp) or 0) * 10
+	score = score + (tonumber(d.points) or 0)
+	score = score + (tonumber(d.stars) or 0) * 50
+	if d.stats and type(d.stats) == "table" then
+		score = score + (tonumber(d.stats.battles) or 0) * 20
+		score = score + (tonumber(d.stats.wins) or 0) * 50
+	end
+	if d.campaign_stats and type(d.campaign_stats) == "table" then
+		score = score + (tonumber(d.campaign_stats.battles_won) or 0) * 50
+		score = score + (tonumber(d.campaign_stats.sectors_conquered) or 0) * 100
+	end
+	if d.tutorial_completed then
+		score = score + 500
+	end
+	return score
+end
+
+-- True when the cloud copy should replace the local one
+local function cloud_is_newer(cd)
+	if not M.has_local_save then return true end
+	if cd.tutorial_completed and not M.data.tutorial_completed then return true end
+	-- The score drops when coins are spent, so a stale copy from before a purchase used to win:
+	-- the save counter says which copy is newer
+	local cloud_seq, local_seq = tonumber(cd.save_seq), tonumber(M.data.save_seq)
+	if cloud_seq and local_seq then
+		return cloud_seq >= local_seq
+	end
+	return progress_score(cd) >= progress_score(M.data)
+end
+
+-- The profile table out of whatever shape the storage returned (table, JSON string, list)
+local function decode_cloud(cloud_data)
+	local cd = nil
+	if type(cloud_data) == "table" then
+		if cloud_data.player_profile ~= nil then
+			cd = cloud_data.player_profile
+		elseif cloud_data[1] ~= nil then
+			cd = cloud_data[1]
+			if type(cd) == "table" and cd.player_profile ~= nil then
+				cd = cd.player_profile
+			end
+		end
+	elseif type(cloud_data) == "string" then
+		cd = cloud_data
+	end
+
+	if type(cd) == "string" and cd ~= "" then
+		local json_ok, decoded = pcall(json.decode, cd)
+		if json_ok and type(decoded) == "table" then
+			cd = decoded
+		else
+			cd = nil
+		end
+	end
+	return cd
+end
+
+local request_cloud
+
+-- attempt: number of the retry to schedule (1..#CLOUD_RETRY_DELAYS)
+local function schedule_cloud_retry(attempt)
+	local delay = CLOUD_RETRY_DELAYS[attempt]
+	if not delay or M.cloud_ready then return end
+	if cloud_retry_timer then
+		pcall(timer.cancel, cloud_retry_timer)
+		cloud_retry_timer = nil
+	end
+	local ok, handle = pcall(timer.delay, delay, false, function()
+		cloud_retry_timer = nil
+		request_cloud(attempt, nil)
+	end)
+	if ok then
+		cloud_retry_timer = handle
+		print(string.format("[PROFILE] ☁️ Cloud read retry %d in %d s", attempt, delay))
+	end
+end
+
+-- attempt: 0 for the boot read, 1.. for retries; callback(applied) is only passed for the boot read
+request_cloud = function(attempt, callback)
 	local sdk_ok, sdk = pcall(require, "main.sdk")
 	if not (sdk_ok and sdk and sdk.storage_get) then
 		if callback then callback(false) end
 		return
 	end
 
+	local function on_failure(err)
+		print("[PROFILE] ⚠️ Storage get error:", tostring(err))
+		if callback then callback(false) end
+		schedule_cloud_retry(attempt + 1)
+	end
+
 	print("[PROFILE] ☁️ Requesting cloud save from Storage SDK...")
 	sdk.storage_get({ "player_profile" }, function(err, cloud_data)
-		local cd = nil
-		if type(cloud_data) == "table" then
-			if cloud_data.player_profile ~= nil then
-				cd = cloud_data.player_profile
-			elseif cloud_data[1] ~= nil then
-				cd = cloud_data[1]
-				if type(cd) == "table" and cd.player_profile ~= nil then
-					cd = cd.player_profile
-				end
-			end
-		elseif type(cloud_data) == "string" then
-			cd = cloud_data
+		if err ~= nil and cloud_data == nil then
+			on_failure(err)
+			return
 		end
+		M.cloud_ready = true -- a definite answer: the saved data or an empty store
 
-		if type(cd) == "string" and cd ~= "" then
-			local json_ok, decoded = pcall(json.decode, cd)
-			if json_ok and type(decoded) == "table" then
-				cd = decoded
-			else
-				cd = nil
-			end
-		end
-
+		local cd = decode_cloud(cloud_data)
 		if type(cd) == "table" and next(cd) ~= nil then
-			local function calc_score(d)
-				if not d or type(d) ~= "table" then return 0 end
-				local score = 0
-				score = score + (tonumber(d.commander_xp) or 0) * 10
-				score = score + (tonumber(d.points) or 0)
-				score = score + (tonumber(d.stars) or 0) * 50
-				if d.stats and type(d.stats) == "table" then
-					score = score + (tonumber(d.stats.battles) or 0) * 20
-					score = score + (tonumber(d.stats.wins) or 0) * 50
-				end
-				if d.campaign_stats and type(d.campaign_stats) == "table" then
-					score = score + (tonumber(d.campaign_stats.battles_won) or 0) * 50
-					score = score + (tonumber(d.campaign_stats.sectors_conquered) or 0) * 100
-				end
-				if d.tutorial_completed then
-					score = score + 500
-				end
-				return score
-			end
-
-			local cloud_score = calc_score(cd)
-			local local_score = calc_score(M.data)
-			print(string.format("[PROFILE] ☁️ Cloud save received (score: %d, local: %d)", cloud_score, local_score))
-
-			if not M.has_local_save or cloud_score >= local_score or (cd.tutorial_completed and not M.data.tutorial_completed) then
-				print("[PROFILE] ☁️ Applying cloud save (cloud progress is >= local or fresh launch)...")
+			print(string.format("[PROFILE] ☁️ Cloud save received (seq: %s, local: %s)", tostring(cd.save_seq), tostring(M.data.save_seq)))
+			if cloud_is_newer(cd) then
+				print("[PROFILE] ☁️ Applying cloud save...")
 				M.apply_profile_data(cd)
 				M.has_local_save = true
 				local path = get_save_path()
 				if path and sys and sys.save then
 					sys.save(path, M.data)
+				end
+				-- territory_map rebuilds its sectors on its own once campaign_map is a different table
+				if M.on_cloud_applied then
+					local ok, hook_err = pcall(M.on_cloud_applied, attempt > 0)
+					if not ok then
+						print("[PROFILE] ⚠️ on_cloud_applied failed:", tostring(hook_err))
+					end
 				end
 				if callback then callback(true) end
 			else
@@ -384,13 +469,16 @@ function M.load_cloud(callback)
 				if callback then callback(false) end
 			end
 		else
+			-- Confirmed empty store: back up this device's profile (earlier saves were held back)
 			print("[PROFILE] ℹ️ No cloud save found in Storage.")
+			M.save_cloud_delayed()
 			if callback then callback(false) end
 		end
-	end, function(err)
-		print("[PROFILE] ⚠️ Storage get error:", tostring(err))
-		if callback then callback(false) end
-	end)
+	end, on_failure)
+end
+
+function M.load_cloud(callback)
+	request_cloud(0, callback)
 end
 
 function M.get_language()
@@ -459,6 +547,37 @@ function M.buy_star_with_points()
 		return true, M.data.stars
 	end
 	return false, msg_pick({ ru = "Недостаточно очков (требуется 1000 очков)", en = "Not enough points (1000 points required)", pt = "Pontos insuficientes (necessário 1000 pontos)", fr = "Pas assez de points (1000 points requis)", es = "Puntos insuficientes (se requieren 1000 puntos)", tr = "Yeterli puan yok (1000 puan gerekli)" })
+end
+
+-- In-app products (ids from res/playgama-bridge-config.json, amounts as in sdk.DEFAULT_PRODUCTS)
+local PURCHASE_REWARDS = {
+	coins_pack_1000 = { points = 1000 },
+	coins_pack_5000 = { points = 5000 },
+	stars_pack_5 = { stars = 5 },
+	stars_pack_20 = { stars = 20 },
+}
+
+function M.set_no_ads(enabled)
+	M.data.no_ads = (enabled ~= false)
+	M.save()
+end
+
+-- Grants a paid product; main/sdk.lua calls it when a purchase succeeds or an unconsumed one is found.
+-- Returns false for an unknown id.
+function M.apply_purchase(item_id)
+	if item_id == "no_ads" then
+		M.set_no_ads(true)
+		return true
+	end
+	local reward = PURCHASE_REWARDS[item_id]
+	if not reward then
+		print("[PROFILE] ⚠️ Unknown purchase id:", tostring(item_id))
+		return false
+	end
+	M.data.points = (M.data.points or 0) + (reward.points or 0)
+	M.data.stars = (M.data.stars or 0) + (reward.stars or 0)
+	M.save()
+	return true
 end
 
 function M.get_squad()

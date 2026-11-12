@@ -81,13 +81,14 @@ function init(self)
 		sound_manager.play("click")
 		refresh(self)
 	end
+	self.go_menu = function()
+		msg.post(".", "disable")
+		msg.post("/main#main", "show_menu")
+	end
 	camp_view.build(self, {
 		squad = function() open_overlay("/gui_squad") end,
 		arsenal = function() open_overlay("/gui_arsenal") end,
-		menu = function()
-			msg.post(".", "disable")
-			msg.post("/main#main", "show_menu")
-		end,
+		menu = self.go_menu,
 	})
 	camp_inspector.build(self, {
 		action = function() start_sector_battle(self) end,
@@ -98,6 +99,13 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
+	-- Esc / Android Back (bound to "escape") returns to the main menu like the home button.
+	-- Arsenal and squad opened on top take input focus first and close themselves.
+	if action_id == hash("escape") and action.pressed then
+		sound_manager.play("click")
+		self.go_menu()
+		return true
+	end
 	self.ui:on_input(action_id, action)
 	return true
 end

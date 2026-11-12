@@ -115,10 +115,11 @@ function init(self)
 	end)
 end
 
-local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
+-- hp_before: the potato's HP before this blast, so a kill is credited only once
+local function apply_potato_damage(self, p, dmg, hp_before)
 	if dmg > 0 and p.url then
-		local was_full_hp = (p.hp >= (p.max_hp or 100))
-		local is_kill = (p.hp <= 0)
+		local was_full_hp = (hp_before >= (p.max_hp or 100))
+		local is_kill = (hp_before > 0 and p.hp <= 0)
 		local dist = math.abs(p.pos.x - self.origin_x)
 
 		msg.post(p.url, "apply_damage", { damage = dmg })
@@ -131,22 +132,40 @@ local function apply_potato_damage(self, p, dmg, hit_x, hit_y)
 		end
 		if owner and owner.stats and owner.team ~= p.team then
 			owner.stats.damage = owner.stats.damage + dmg
-			if p.hp <= 0 then
+			if is_kill then
 				owner.stats.kills = owner.stats.kills + 1
 			end
 		end
 		msg.post("/main#main", "potato_damaged", { x = p.pos.x, y = p.pos.y, damage = dmg, potato_id = p.id })
 
-		if self.weapon.status_effect and p.is_alive then
+		local st = self.weapon.status_effect
+		if st and p.is_alive then
+			-- The logic record takes the combo damage; potato.script mirrors it through combo_id
+			local combo = p.statuses and weapons.eval_combo(p.statuses, st.type)
+			-- The training ground keeps the player's potatoes above 15 HP: no combo burst on them
+			if combo and game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
+				combo = nil
+			end
+			if combo and (combo.bonus_damage or 0) > 0 then
+				p.hp = math.max(0, p.hp - combo.bonus_damage)
+				if p.hp <= 0 then
+					p.is_alive = false
+					p.is_dying = true
+					if owner and owner.stats and owner.team ~= p.team then
+						owner.stats.kills = owner.stats.kills + 1
+					end
+				end
+			end
 			msg.post(p.url, "apply_status", {
-				status = self.weapon.status_effect.type,
-				duration = self.weapon.status_effect.duration,
-				power = self.weapon.status_effect.power,
+				status = st.type,
+				duration = st.duration,
+				power = st.power,
+				combo_id = combo and combo.id,
 			})
 			if p.statuses then
-				p.statuses[self.weapon.status_effect.type] = {
-					duration = self.weapon.status_effect.duration,
-					power = self.weapon.status_effect.power,
+				p.statuses[st.type] = {
+					duration = st.duration + ((combo and combo.duration_bonus) or 0),
+					power = st.power,
 				}
 			end
 		end
@@ -182,6 +201,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		for _, p in ipairs(game_state.potatoes) do
 			if p.is_alive or p.is_dying then
 				local dmg = 0
+				local hp_before = p.hp
 				if direct_hit_potato and p.id == direct_hit_potato.id then
 					dmg = self.weapon.max_damage
 					p.hp = math.max(0, p.hp - dmg)
@@ -194,7 +214,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 				else
 					dmg = physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, self.weapon.max_damage)
 				end
-				apply_potato_damage(self, p, dmg, hit_x, hit_y)
+				apply_potato_damage(self, p, dmg, hp_before)
 			end
 		end
 		
@@ -248,12 +268,12 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 		for _, p in ipairs(game_state.potatoes) do
 			if p.is_alive or p.is_dying then
 				local dmg = 0
+				local hp_before = p.hp
 				local max_dmg = self.weapon.max_damage
 				-- Tutorial fail-safe: the player cannot hurt themselves on the training ground, but enemy can retaliate
 				local is_self_hurt = (game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE and self.owner_id == p.id)
 
 				if is_self_hurt then
-					local hp_before = p.hp
 					physics_sim.apply_blast(p, hit_x, hit_y, self.weapon.blast_radius, self.weapon.blast_force, max_dmg)
 					p.hp = hp_before
 					p.is_alive = true
@@ -262,6 +282,7 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 					dmg = max_dmg
 					if game_state.mode == constants.MODE_TUTORIAL and p.team == constants.TEAM_BLUE then
 						p.hp = math.max(15, p.hp - dmg)
+						dmg = hp_before - p.hp -- the HP bar mirrors the floored loss
 					else
 						p.hp = math.max(0, p.hp - dmg)
 						if p.hp <= 0 then
@@ -279,9 +300,10 @@ local function detonate(self, hit_x, hit_y, direct_hit_potato)
 						p.hp = math.max(15, p.hp)
 						p.is_alive = true
 						p.is_dying = false
+						dmg = math.max(0, hp_before - p.hp)
 					end
 				end
-				apply_potato_damage(self, p, dmg, hit_x, hit_y)
+				apply_potato_damage(self, p, dmg, hp_before)
 			end
 		end
 	end

@@ -48,6 +48,10 @@ local function apply_gains()
 	pcall(sound.set_group_gain, GROUP_SFX, volume.sfx)
 	pcall(sound.set_group_gain, GROUP_MUSIC, volume.music)
 end
+-- Re-applied by main/sdk.lua after an ad / platform pause zeroed the groups
+M.apply_gains = apply_gains
+
+local music_paused = false
 
 -- Reads the saved volumes and mutes the game while the browser tab is in the background
 function M.init()
@@ -122,7 +126,8 @@ function M.music(name)
 		pcall(sound.stop, AUDIO_GO .. current_music)
 	end
 	current_music = name
-	if name then
+	-- While an ad / platform pause holds the music, only remember the track: resume_all starts it
+	if name and not music_paused then
 		local track_gain = MUSIC_GAINS[name] or 1.0
 		pcall(sound.play, AUDIO_GO .. name, { gain = track_gain })
 	end
@@ -145,13 +150,20 @@ function M.is_game_loaded()
 	return game_loaded
 end
 
+-- Pause/resume come in pairs from several SDK channels (ad state, platform pause, visibility).
+-- Only a real pause restarts the track: resuming twice used to start a second, overlapping copy.
 function M.pause_all()
-	if current_music then
+	if current_music and not music_paused then
 		pcall(sound.stop, AUDIO_GO .. current_music)
+		music_paused = true
 	end
 end
 
 function M.resume_all()
+	if not music_paused then
+		return
+	end
+	music_paused = false
 	if game_loaded and current_music then
 		local track_gain = MUSIC_GAINS[current_music] or 1.0
 		pcall(sound.play, AUDIO_GO .. current_music, { gain = track_gain })

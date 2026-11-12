@@ -119,8 +119,9 @@ local function register_buttons(self)
 	end)
 
 	for i = 1, hud_weapons.INVENTORY_COUNT do
-		local w = weapons.LIST[i]
-		if w then
+		local w = weapons.PLAYER_LIST[i]
+		-- gui.get_node throws on a missing id: a weapon added without a matching hud.gui slot is skipped
+		if w and pcall(gui.get_node, "inv_slot_" .. i) then
 			self.ui:button("inv_slot_" .. i, function()
 				hide_aim()
 				hud_weapons.select_inventory_weapon(self, w.id)
@@ -163,6 +164,10 @@ end
 
 function on_input(self, action_id, action)
 	if hud_pause.is_open(self) then
+		-- "Exit" confirmed: the menu waits for the exit ad, keep the pause dialog frozen until then
+		if self.exit_pending then
+			return true
+		end
 		if action_id == hash("escape") and action.pressed then
 			hud_pause.on_escape(self)
 			return true
@@ -265,6 +270,7 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("match_started") then
 		hud_aim.hide(self)
 		hud_banner.show_fight(self)
+		self.exit_pending = false
 		hud_pause.toggle(self, false)
 		hud_tutorial.reset(self)
 		hud_timer.reset(self)

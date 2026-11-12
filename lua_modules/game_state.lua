@@ -458,8 +458,8 @@ function M.get_current_config()
 			red_hats = M.match_config.red_hats,
 			is_seamless_battle = M.match_config.is_seamless_battle,
 			seamless_stage = M.match_config.seamless_stage,
-			enemy_skill = "normal",
-			bot_difficulty = "normal",
+			enemy_skill = M.match_config.enemy_skill or "normal",
+			bot_difficulty = M.match_config.bot_difficulty or "normal",
 		}
 	elseif M.mode == constants.MODE_CAMPAIGN then
 		return level_config.get(M.campaign_level)
@@ -500,6 +500,48 @@ function M.pick_active_potato()
 	return M.active_potato
 end
 
+-- Burn / poison tick on the logic record at the start of the unit's turn.
+-- Returns { burn, poison } so potato.script can mirror the same amounts on its HP bar.
+local function apply_turn_start_dot(p)
+	local dot = {}
+	if not (p.is_alive and p.statuses) then
+		return dot
+	end
+	for _, st in ipairs({ "burning", "poisoned" }) do
+		local s = p.statuses[st]
+		if s and (s.duration or 0) > 0 then
+			local dmg = s.power or ((st == "burning") and 14 or 10)
+			p.hp = math.max(0, p.hp - dmg)
+			dot[(st == "burning") and "burn" or "poison"] = dmg
+			s.duration = s.duration - 1
+			if s.duration <= 0 then
+				p.statuses[st] = nil
+			end
+		end
+	end
+	if p.hp <= 0 then
+		p.is_alive = false
+		p.is_dying = true
+	end
+	return dot
+end
+
+-- Glue and concussion wear off at the end of the unit's own turn (potato.script mirrors this)
+local function decay_turn_end_statuses(p)
+	if not p.statuses then
+		return
+	end
+	for _, st in ipairs({ "glued", "concussed" }) do
+		local s = p.statuses[st]
+		if s then
+			s.duration = (s.duration or 0) - 1
+			if s.duration <= 0 then
+				p.statuses[st] = nil
+			end
+		end
+	end
+end
+
 -- Begin turn for current active team (no turn interruptions during match!)
 local function begin_current_turn()
 	M.pick_active_potato()
@@ -520,8 +562,9 @@ local function begin_current_turn()
 			inventory_manager.update_turn(M.active_potato.id)
 			M.player_loadout = inventory_manager.get_loadout(M.active_potato.id)
 		end
+		local dot = apply_turn_start_dot(M.active_potato)
 		if M.active_potato.url then
-			msg.post(M.active_potato.url, "on_turn_start")
+			msg.post(M.active_potato.url, "on_turn_start", dot)
 		end
 	end
 
@@ -610,8 +653,15 @@ end
 
 -- Advance to next turn
 function M.next_turn()
-	if M.active_potato and M.active_potato.url and M.active_potato.is_alive then
-		pcall(function() msg.post(M.active_potato.url, "on_turn_end") end)
+	-- The result is already out: a late settle must not resolve the match (and pay rewards) twice
+	if M.state == constants.STATE_GAME_OVER then
+		return
+	end
+	if M.active_potato and M.active_potato.is_alive then
+		decay_turn_end_statuses(M.active_potato)
+		if M.active_potato.url then
+			pcall(function() msg.post(M.active_potato.url, "on_turn_end") end)
+		end
 	end
 
 	-- Check match end
@@ -691,6 +741,13 @@ function M.update(dt, active_projectiles_count)
 		-- No timeout pressure during card selection
 
 	elseif M.state == constants.STATE_TURN_ACTIVE then
+		-- The active unit died mid-turn without drowning (DoT at turn start, an airship bomb): end the turn.
+		-- TURN_ACTIVE is only entered from begin_current_turn / revive, so this never runs in the intro.
+		if not (M.active_potato and M.active_potato.is_alive) then
+			M.on_action_fired()
+			return
+		end
+
 		local is_tutorial_turn = (M.mode == constants.MODE_TUTORIAL) or (M.mode == constants.MODE_CAMPAIGN and (M.campaign_level or 1) == 1 and not M.tutorial_first_shot_done and M.active_team == constants.TEAM_BLUE)
 		if not is_tutorial_turn then
 			local before = math.ceil(M.turn_timer)
@@ -742,7 +799,10 @@ function M.update(dt, active_projectiles_count)
 			camera_ready = false
 		end
 
-		if camera_ready and ((all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT) then
+		-- Bomblets, burst rounds, napalm and the airstrike plane must resolve before the turn passes;
+		-- a projectile that never removes itself must not hang the match, hence the hard cap
+		local projectiles_done = (active_projectiles_count == 0) or (M.settle_timer > constants.SETTLE_TIMEOUT * 4)
+		if camera_ready and projectiles_done and ((all_settled and M.settle_timer > 0.8) or M.settle_timer > constants.SETTLE_TIMEOUT) then
 			for _, p in ipairs(M.potatoes) do
 				if p.is_dying then
 					p.is_dying = false

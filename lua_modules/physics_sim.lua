@@ -462,6 +462,11 @@ function M.apply_blast(p, blast_x, blast_y, blast_radius, blast_force, max_damag
 	p.vel.y = p.vel.y + ky
 	p.is_grounded = false
 
+	-- A dying potato is still thrown around, but its HP is gone: no damage (or kill) to credit again
+	if not p.is_alive then
+		return 0
+	end
+
 	p.hp = math.max(0, p.hp - dmg)
 	if p.hp <= 0 then
 		p.is_alive = false

@@ -55,9 +55,22 @@ local function apply_seamless_reward(data, stage)
 	data.total_coins = player_profile.get_points()
 end
 
+-- HP of the healthiest surviving blue unit (0 when none survived)
+local function best_blue_hp()
+	local best = 0
+	for _, p in ipairs(game_state.potatoes or {}) do
+		if p.team == constants.TEAM_BLUE and p.is_alive and (p.hp or 0) > best then
+			best = p.hp
+		end
+	end
+	return best
+end
+
 -- Builds the game over payload; seamless_stage is main.script's onboarding stage (0/1/2)
 function M.build(seamless_stage, winner_team, points_earned, hp_healed, current_hp, next_hp)
-	local player_hp = current_hp or (game_state.potatoes[1] and game_state.potatoes[1].hp) or 100
+	-- current_hp is only filled in the old campaign mode, every other mode passes 0 (truthy in Lua), so
+	-- "clutch" could never trigger: use the healthiest survivor (clutch = every survivor is at critical HP)
+	local player_hp = (current_hp and current_hp > 0) and current_hp or best_blue_hp()
 	local ach_list, ach_bonus = achievements.evaluate_match_end(winner_team, player_hp)
 	if ach_bonus > 0 then
 		player_profile.add_points(ach_bonus)

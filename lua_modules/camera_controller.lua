@@ -14,6 +14,20 @@ M.target_zoom = 1.0
 M.camera_id = nil
 M.view_matrix = vmath.matrix4()
 
+-- Visible world-pass size in design units (published by game.render_script every frame).
+-- 960x540 on 16:9; wider (20:9 phones) or taller (4:3 tablets) windows widen the projection,
+-- while input (action.x/y) and GUI positions stay in 960x540 design space.
+M.view_w = constants.SCREEN_WIDTH
+M.view_h = constants.SCREEN_HEIGHT
+
+local function view_size()
+	local vw = M.view_w or constants.SCREEN_WIDTH
+	local vh = M.view_h or constants.SCREEN_HEIGHT
+	if vw <= 0 then vw = constants.SCREEN_WIDTH end
+	if vh <= 0 then vh = constants.SCREEN_HEIGHT end
+	return vw, vh
+end
+
 function M.init(camera_url)
 	M.camera_id = camera_url or msg.url("camera")
 	M.reset(constants.SCREEN_WIDTH * 0.5, constants.SCREEN_HEIGHT * 0.5)
@@ -42,8 +56,9 @@ end
 -- Focus camera on a target coordinate
 function M.follow(x, y, immediate)
 	local effective_zoom = math.max(0.55, M.target_zoom or M.zoom or 1.0)
-	local half_w = (constants.SCREEN_WIDTH * 0.5) / effective_zoom
-	local half_h = (constants.SCREEN_HEIGHT * 0.5) / effective_zoom
+	local vw, vh = view_size()
+	local half_w = (vw * 0.5) / effective_zoom
+	local half_h = (vh * 0.5) / effective_zoom
 
 	local cur_w = constants.WORLD_WIDTH -- 1920
 	local max_h = constants.WORLD_HEIGHT + 350 -- High sky altitude for flying projectiles and sky islands
@@ -53,8 +68,17 @@ function M.follow(x, y, immediate)
 	local min_y = half_h - 40
 	local max_y = max_h - half_h + 80
 
-	x = math.max(min_x, math.min(max_x, x))
-	y = math.max(min_y, math.min(max_y, y))
+	-- A very wide view zoomed out can be wider than the world: centre it instead of pinning left
+	if min_x > max_x then
+		x = cur_w * 0.5
+	else
+		x = math.max(min_x, math.min(max_x, x))
+	end
+	if min_y > max_y then
+		y = max_h * 0.5
+	else
+		y = math.max(min_y, math.min(max_y, y))
+	end
 
 	M.target_pos.x = x
 	M.target_pos.y = y
@@ -91,7 +115,10 @@ function M.set_zoom(z)
 	M.target_zoom = math.max(0.55, math.min(2.0, z or 1.0))
 end
 
--- Convert world coordinates to screen (GUI) coordinates
+-- Convert world coordinates to GUI coordinates for unanchored, Fit-adjusted root GUI nodes.
+-- Defold scales such nodes uniformly and centres the 960x540 layout, exactly like the world
+-- pass in game.render_script, so no aspect correction is needed here. On non-16:9 windows the
+-- visible range is wider than 0..960 / 0..540: x in 480 +- view_w/2, y in 270 +- view_h/2.
 function M.world_to_screen(wx, wy)
 	local sw = constants.SCREEN_WIDTH
 	local sh = constants.SCREEN_HEIGHT
@@ -100,12 +127,16 @@ function M.world_to_screen(wx, wy)
 	return sx, sy
 end
 
--- Convert screen (GUI) coordinates to world coordinates
+-- Convert input coordinates (action.x / action.y) to world coordinates.
+-- Input is stretched per axis to 960x540 over the whole window, while the world pass shows
+-- view_w x view_h design units there, so offsets from the centre are scaled by view/design.
 function M.screen_to_world(sx, sy)
 	local sw = constants.SCREEN_WIDTH
 	local sh = constants.SCREEN_HEIGHT
-	local wx = (sx - sw * 0.5) / (M.zoom * (1 + M.punch)) + M.pos.x
-	local wy = (sy - sh * 0.5) / (M.zoom * (1 + M.punch)) + M.pos.y
+	local vw, vh = view_size()
+	local z = M.zoom * (1 + M.punch)
+	local wx = (sx - sw * 0.5) * (vw / sw) / z + M.pos.x
+	local wy = (sy - sh * 0.5) * (vh / sh) / z + M.pos.y
 	return wx, wy
 end
 

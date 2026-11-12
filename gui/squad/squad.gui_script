@@ -290,6 +290,12 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
+	-- Esc / Android Back (bound to "escape") closes the screen like its close button
+	if action_id == hash("escape") and action.pressed then
+		sound_manager.play("click")
+		close(self)
+		return true
+	end
 	self.ui:on_input(action_id, action)
 	return true -- modal
 end

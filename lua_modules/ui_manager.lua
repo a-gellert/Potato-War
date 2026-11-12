@@ -137,6 +137,15 @@ function M.create(script_instance)
 		return entry
 	end
 
+	-- Modal backdrop (window dim): swallows touches on `node` without a callback or sound, so the
+	-- buttons registered before it (the screen underneath) can't fire through it. Buttons registered
+	-- after it are checked first and keep working.
+	function ui:blocker(node)
+		local entry = { node = node, blocker = true, slop = 0 }
+		table.insert(self.buttons, entry)
+		return entry
+	end
+
 	local function evaluate_hold_buttons(self)
 		local has_multitouch = (self.frame_counter - self.last_multitouch_frame) <= 2
 		for _, hb in ipairs(self.hold_buttons) do
@@ -190,7 +199,7 @@ function M.create(script_instance)
 					local btn = self.buttons[i]
 					if pick_node_with_slop(btn.node, t.x, t.y, btn.slop) then
 						any_on_ui = true
-						if (t.pressed and btn.instant) or (t.released and not btn.instant) then
+						if not btn.blocker and ((t.pressed and btn.instant) or (t.released and not btn.instant)) then
 							animate_button_click(btn.node)
 							btn.callback()
 						end
@@ -232,8 +241,11 @@ function M.create(script_instance)
 				for i = #self.buttons, 1, -1 do
 					local btn = self.buttons[i]
 					if pick_node_with_slop(btn.node, action.x, action.y, btn.slop) then
-						self.active_btn = btn
 						self.captured_touch = true
+						if btn.blocker then
+							return true
+						end
+						self.active_btn = btn
 						if btn.instant then
 							animate_button_click(btn.node)
 							btn.callback()

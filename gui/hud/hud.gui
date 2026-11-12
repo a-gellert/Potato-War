@@ -1241,7 +1241,7 @@ nodes {
 nodes {
   size {
     x: 570.0
-    y: 340.0
+    y: 400.0
   }
   color {
     x: 0.1
@@ -1263,7 +1263,7 @@ nodes {
 }
 nodes {
   position {
-    y: 135.0
+    y: 165.0
   }
   scale {
     x: 0.75
@@ -1289,7 +1289,7 @@ nodes {
 }
 nodes {
   position {
-    y: 105.0
+    y: 135.0
   }
   scale {
     x: 0.4
@@ -1316,7 +1316,7 @@ nodes {
 nodes {
   position {
     x: 248.0
-    y: 135.0
+    y: 165.0
   }
   size {
     x: 42.0
@@ -2421,6 +2421,362 @@ nodes {
   font: "system_font"
   id: "inv_ammo_12"
   parent: "inv_slot_12"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -198.0
+    y: -155.0
+  }
+  size {
+    x: 124.0
+    y: 56.0
+  }
+  color {
+    x: 0.18
+    y: 0.24
+    z: 0.32
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "inv_slot_13"
+  parent: "inventory_modal"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: -36.0
+  }
+  size {
+    x: 32.0
+    y: 32.0
+  }
+  type: TYPE_BOX
+  texture: "game/w_cluster"
+  id: "inv_icon_13"
+  parent: "inv_slot_13"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 18.0
+    y: 10.0
+  }
+  scale {
+    x: 0.35
+    y: 0.35
+  }
+  size {
+    x: 170.0
+    y: 22.0
+  }
+  type: TYPE_TEXT
+  text: "Cluster Bomb"
+  font: "system_font"
+  id: "inv_name_13"
+  parent: "inv_slot_13"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 18.0
+    y: -10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 170.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "inv_ammo_13"
+  parent: "inv_slot_13"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -66.0
+    y: -155.0
+  }
+  size {
+    x: 124.0
+    y: 56.0
+  }
+  color {
+    x: 0.18
+    y: 0.24
+    z: 0.32
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "inv_slot_14"
+  parent: "inventory_modal"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: -36.0
+  }
+  size {
+    x: 32.0
+    y: 32.0
+  }
+  type: TYPE_BOX
+  texture: "game/w_homing"
+  id: "inv_icon_14"
+  parent: "inv_slot_14"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 18.0
+    y: 10.0
+  }
+  scale {
+    x: 0.35
+    y: 0.35
+  }
+  size {
+    x: 170.0
+    y: 22.0
+  }
+  type: TYPE_TEXT
+  text: "Homing Missile"
+  font: "system_font"
+  id: "inv_name_14"
+  parent: "inv_slot_14"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 18.0
+    y: -10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 170.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "inv_ammo_14"
+  parent: "inv_slot_14"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 66.0
+    y: -155.0
+  }
+  size {
+    x: 124.0
+    y: 56.0
+  }
+  color {
+    x: 0.18
+    y: 0.24
+    z: 0.32
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "inv_slot_15"
+  parent: "inventory_modal"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: -36.0
+  }
+  size {
+    x: 32.0
+    y: 32.0
+  }
+  type: TYPE_BOX
+  texture: "game/w_holy"
+  id: "inv_icon_15"
+  parent: "inv_slot_15"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 18.0
+    y: 10.0
+  }
+  scale {
+    x: 0.35
+    y: 0.35
+  }
+  size {
+    x: 170.0
+    y: 22.0
+  }
+  type: TYPE_TEXT
+  text: "Holy Grenade"
+  font: "system_font"
+  id: "inv_name_15"
+  parent: "inv_slot_15"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 18.0
+    y: -10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 170.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "inv_ammo_15"
+  parent: "inv_slot_15"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 198.0
+    y: -155.0
+  }
+  size {
+    x: 124.0
+    y: 56.0
+  }
+  color {
+    x: 0.18
+    y: 0.24
+    z: 0.32
+  }
+  type: TYPE_BOX
+  texture: "game/box"
+  id: "inv_slot_16"
+  parent: "inventory_modal"
+  inherit_alpha: true
+  slice9 {
+    x: 4.0
+    y: 4.0
+    z: 4.0
+    w: 4.0
+  }
+}
+nodes {
+  position {
+    x: -36.0
+  }
+  size {
+    x: 32.0
+    y: 32.0
+  }
+  type: TYPE_BOX
+  texture: "game/w_airstrike"
+  id: "inv_icon_16"
+  parent: "inv_slot_16"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 18.0
+    y: 10.0
+  }
+  scale {
+    x: 0.35
+    y: 0.35
+  }
+  size {
+    x: 170.0
+    y: 22.0
+  }
+  type: TYPE_TEXT
+  text: "Airstrike"
+  font: "system_font"
+  id: "inv_name_16"
+  parent: "inv_slot_16"
+  inherit_alpha: true
+  outline_alpha: 0.0
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 18.0
+    y: -10.0
+  }
+  scale {
+    x: 0.38
+    y: 0.38
+  }
+  size {
+    x: 170.0
+    y: 20.0
+  }
+  color {
+    x: 0.95
+    y: 0.77
+    z: 0.06
+  }
+  type: TYPE_TEXT
+  text: "x0"
+  font: "system_font"
+  id: "inv_ammo_16"
+  parent: "inv_slot_16"
   inherit_alpha: true
   outline_alpha: 0.0
   shadow_alpha: 0.0

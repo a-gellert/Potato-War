@@ -108,8 +108,19 @@ local function describe_battle(lobby_config, is_tutorial)
 	}
 end
 
+local function clear_sector_battle()
+	if strategic_campaign.clear_active_battle then
+		strategic_campaign.clear_active_battle()
+	end
+end
+
 local function start_game_match(self, mode, level, lobby_config)
 	match_spawner.clear(self)
+	-- Only war-map battles carry a sector: a quick battle must not be scored against a sector
+	-- left active by an abandoned (quit from pause) sector battle
+	if not (lobby_config and lobby_config.sector_id) then
+		clear_sector_battle()
+	end
 	battle_camera.cancel_victory(self)
 	achievements.reset_match()
 	tutorial.reset()
@@ -244,6 +255,7 @@ local function leave_match(self)
 	game_state.poki_gameplay_stop()
 	battle_camera.cancel_victory(self)
 	match_spawner.clear(self)
+	clear_sector_battle()
 	player_control.reset(self)
 	tutorial.reset()
 	self.seamless_stage = 0
@@ -404,6 +416,12 @@ function init(self)
 		end)
 		meta_progression.sync_campaign_max_hp()
 
+		-- Test hook for tools/web_smoke.js (debug builds only): start at the main menu
+		if sys.get_engine_info().is_debug and sys.get_config_int("potato_war.skip_onboarding", 0) == 1 then
+			player_profile.data.tutorial_completed = true
+			player_profile.data.onboarding_stage = 2
+		end
+
 		local is_tut_done = player_profile.is_tutorial_completed()
 		constants.log(">>> INIT STEP 6: check tutorial status after profile load: " .. tostring(is_tut_done))
 		if not is_tut_done then
@@ -437,6 +455,18 @@ function init(self)
 			proceed_after_cloud()
 		end
 	end)
+
+	-- A cloud save that arrives after boot (slow network, retry) is applied by player_profile;
+	-- refresh what the menu shows from it
+	player_profile.on_cloud_applied = function()
+		meta_progression.sync_campaign_max_hp()
+		pcall(function()
+			require("lua_modules.i18n").detect_language()
+		end)
+		if game_state.state == constants.STATE_MENU then
+			pcall(msg.post, "/gui_menu#gui", "refresh")
+		end
+	end
 
 	player_profile.load_cloud(function(applied)
 		constants.log("☁️ player_profile.load_cloud finished (applied: " .. tostring(applied) .. ")")
@@ -696,7 +726,11 @@ function on_message(self, message_id, message, sender)
 		game_state.poki_rewarded_break(function(success)
 			if success then
 				revive_player(self)
+			else
+				-- The results screen hid itself before the ad: without a reward (ad not ready,
+				-- skipped, failed) bring it back instead of leaving a frozen battlefield
+				msg.post("/gui_game_over", "enable")
 			end
-		end)
+		end, "revive")
 	end
 end
