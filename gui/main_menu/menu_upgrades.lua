@@ -54,6 +54,7 @@ local function build_row(self, parent, id, y)
 			else
 				sound_manager.play("tick")
 				message(self, i18n.t("ui_need_coins"))
+				if self.open_store then self.open_store(i18n.t("ui_need_coins")) end
 			end
 			M.refresh(self)
 		end,
@@ -104,6 +105,7 @@ function M.refresh(self)
 			gui.set_color(row.cost, meta_progression.can_afford(row.id) and kit.C.gold or kit.C.disabled)
 			row.buy.set_label(i18n.t("ui_upgrade"))
 			row.buy.set_enabled(meta_progression.can_afford(row.id))
+			row.buy.enabled = true -- a tap on a disabled-looking button opens the store (paywall)
 		end
 	end
 end

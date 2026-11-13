@@ -138,6 +138,13 @@ return {
 	ui_start_campaign = { ru = "НАЧАТЬ КАМПАНИЮ", en = "START CAMPAIGN", pt = "INICIAR CAMPANHA", fr = "LANCER LA CAMPAGNE", es = "EMPEZAR CAMPAÑA", tr = "SEFERE BAŞLA" },
 	ui_next_battle = { ru = "СЛЕДУЮЩИЙ БОЙ", en = "NEXT BATTLE", pt = "PRÓXIMA BATALHA", fr = "COMBAT SUIVANT", es = "SIGUIENTE BATALLA", tr = "SONRAKİ SAVAŞ" },
 
+	-- store
+	ui_store = { ru = "МАГАЗИН", en = "STORE", pt = "LOJA", fr = "BOUTIQUE", es = "TIENDA", tr = "MAĞAZA" },
+	ui_free_coins_fmt = { ru = "+%d монет за рекламу", en = "+%d coins for an ad", pt = "+%d moedas por um anúncio", fr = "+%d pièces pour une pub", es = "+%d monedas por un anuncio", tr = "Reklam için +%d jeton" },
+	ui_store_done = { ru = "Покупка выполнена. Спасибо!", en = "Purchase complete. Thank you!", pt = "Compra concluída. Obrigado!", fr = "Achat effectué. Merci !", es = "Compra completada. ¡Gracias!", tr = "Satın alma tamamlandı. Teşekkürler!" },
+	ui_store_failed = { ru = "Покупка не прошла, попробуй ещё раз", en = "The purchase did not go through, try again", pt = "A compra não foi concluída, tente de novo", fr = "L'achat a échoué, réessaie", es = "La compra no se completó, inténtalo de nuevo", tr = "Satın alma başarısız, tekrar dene" },
+	ui_store_empty = { ru = "Сейчас здесь пусто, загляни позже", en = "Nothing here right now, check back later", pt = "Nada aqui agora, volte mais tarde", fr = "Rien pour le moment, reviens plus tard", es = "No hay nada ahora, vuelve más tarde", tr = "Şu an burada bir şey yok, sonra tekrar bak" },
+
 	-- daily reward
 	ui_daily = { ru = "ЕЖЕДНЕВНАЯ НАГРАДА", en = "DAILY REWARD", pt = "RECOMPENSA DIÁRIA", fr = "RÉCOMPENSE DU JOUR", es = "RECOMPENSA DIARIA", tr = "GÜNLÜK ÖDÜL" },
 	ui_day_fmt = { ru = "День %d", en = "Day %d", pt = "Dia %d", fr = "Jour %d", es = "Día %d", tr = "Gün %d" },

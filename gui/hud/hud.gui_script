@@ -295,6 +295,8 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("show_damage") then
 		pcall(hud_fx.on_damage, self, message)
 		pcall(hud_popups.show_damage, message)
+	elseif message_id == hash("show_comic") then
+		pcall(hud_popups.show_comic, message)
 	elseif message_id == hash("show_achievement_toast") then
 		pcall(hud_popups.show_toast, message)
 	elseif message_id == hash("check_status_ftue") then

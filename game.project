@@ -39,6 +39,7 @@ dependencies#2 = https://github.com/britzl/defold-orthographic/archive/master.zi
 dependencies#3 = https://github.com/defold/extension-applovin/archive/refs/tags/2.0.0.zip
 dependencies#4 = https://github.com/defold/extension-firebase/archive/refs/tags/2.3.2.zip
 dependencies#5 = https://github.com/defold/extension-firebase-analytics/archive/refs/tags/3.3.1.zip
+dependencies#6 = https://github.com/defold/extension-iap/archive/refs/tags/8.4.1.zip
 
 [graphics]
 opengl_version_hint = 42
@@ -57,6 +58,13 @@ max_component_count = 64
 
 [sdk]
 target = playgama
+
+[potato_war]
+comic_fx = 1
+iap = 1
+
+[iap]
+auto_finish_transactions = 0
 
 [applovin]
 bigo_android = 1

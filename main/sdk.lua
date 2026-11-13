@@ -936,6 +936,10 @@ function M.init(custom_config)
 		gameanalytics.init()
 		adjust_module.init()
 		facebook_module.init()
+		-- Google Play Billing: transaction listener, pending purchases, store prices
+		safe_timer_delay(1.0, false, function()
+			M.check_pending_purchases()
+		end)
 		return
 	end
 
@@ -2778,12 +2782,12 @@ end
 M.DEFAULT_PRODUCTS = {
 	{
 		id = "coins_pack_1000",
-		name_ru = "1,000 Очков",
-		name_en = "1,000 Points",
-		name_tr = "1.000 Puan",
-		name_es = "1.000 Puntos",
-		name_pt = "1.000 Pontos",
-		name_fr = "1 000 Points",
+		name_ru = "1 000 монет",
+		name_en = "1,000 Coins",
+		name_tr = "1.000 Jeton",
+		name_es = "1.000 Monedas",
+		name_pt = "1.000 Moedas",
+		name_fr = "1 000 Pièces",
 		desc_ru = "Запас очков на покупку шапок",
 		desc_en = "Points pack for hats and items",
 		desc_tr = "Şapka ve eşya almak için puan paketi",
@@ -2797,12 +2801,12 @@ M.DEFAULT_PRODUCTS = {
 	},
 	{
 		id = "coins_pack_5000",
-		name_ru = "5,000 Очков",
-		name_en = "5,000 Points",
-		name_tr = "5.000 Puan",
-		name_es = "5.000 Puntos",
-		name_pt = "5.000 Pontos",
-		name_fr = "5 000 Points",
+		name_ru = "5 000 монет",
+		name_en = "5,000 Coins",
+		name_tr = "5.000 Jeton",
+		name_es = "5.000 Monedas",
+		name_pt = "5.000 Moedas",
+		name_fr = "5 000 Pièces",
 		desc_ru = "Огромный мешок картофельных очков",
 		desc_en = "Huge bag of potato points",
 		desc_tr = "Büyük patates puanı torbası",
@@ -2871,262 +2875,239 @@ M.DEFAULT_PRODUCTS = {
 		type = "permanent",
 		amount = 1,
 	},
+	{
+		id = "starter_pack",
+		name_ru = "Набор новобранца",
+		name_en = "Starter Pack",
+		name_tr = "Başlangıç Paketi",
+		name_es = "Pack de Inicio",
+		name_pt = "Pacote Inicial",
+		name_fr = "Pack de Départ",
+		desc_ru = "2500 монет, 8 звёзд и без рекламы. Один раз!",
+		desc_en = "2500 coins, 8 stars and no ads. One time only!",
+		desc_tr = "2500 jeton, 8 yıldız ve reklamsız. Tek seferlik!",
+		desc_es = "2500 monedas, 8 estrellas y sin anuncios. ¡Solo una vez!",
+		desc_pt = "2500 moedas, 8 estrelas e sem anúncios. Só uma vez!",
+		desc_fr = "2500 pièces, 8 étoiles et sans pub. Une seule fois !",
+		price = "2.99 USD",
+		price_value = 2.99,
+		type = "permanent",
+		amount = 1,
+	},
 }
 
 function M.has_no_ads()
 	local profile_ok, profile = pcall(require, "lua_modules.player_profile")
-	if profile_ok and profile and profile.data and profile.data.no_ads then
-		return true
+	return (profile_ok and profile and profile.data and profile.data.no_ads == true) or false
+end
+
+-- In-app purchases. game.project [potato_war] iap = 1 turns them on; tools/poki.settings sets 0
+-- (Poki forbids IAP). Web goes through the Playgama Bridge, and only where the portal supports
+-- payments (bridge.payments.is_supported()); Android goes through extension-iap (Google Play
+-- Billing). Permanent products are restored on every launch; consumables are granted only once
+-- the store confirms the consume, so an interrupted purchase is granted on the next launch instead.
+local IAP_ENABLED = sys.get_config_int("potato_war.iap", 0) == 1
+local PERMANENT = { no_ads = true, starter_pack = true }
+local prices = {} -- product id -> price string in the platform currency, from the store
+local google_pending = nil -- the Google Play purchase the player is waiting on: { id, done }
+M.on_purchase = nil -- UI hook: function(product_id), called after an item was granted
+
+local function to_table(v)
+	if type(v) == "string" and v ~= "" then
+		local ok, t = pcall(json.decode, v)
+		return ok and t or nil
 	end
-	return false
+	return type(v) == "table" and v or nil
+end
+
+local function grant(id)
+	local ok, profile = pcall(require, "lua_modules.player_profile")
+	if ok and profile and profile.apply_purchase then
+		profile.apply_purchase(id)
+	end
+	if M.on_purchase then
+		pcall(M.on_purchase, id)
+	end
+end
+
+local function use_google()
+	return M.active_platform == M.PLATFORM_ANDROID and iap ~= nil
+end
+
+-- Playgama portal whose payments module works (Yandex, MSN, Playgama, CrazyGames, ...)
+local function use_bridge()
+	if M.active_platform ~= M.PLATFORM_PLAYGAMA or not (bridge and bridge.payments) then
+		return false
+	end
+	local ok, supported = pcall(bridge.payments.is_supported)
+	return ok and supported == true
+end
+
+-- Debug builds in the editor or on the bridge's local "mock" platform: the store grants items
+-- without a real store so it can be tested. Never active in release builds.
+local function is_dev_mock()
+	if not sys.get_engine_info().is_debug then
+		return false
+	end
+	return M.active_platform == M.PLATFORM_MOCK or M.get_platform_id() == "mock"
 end
 
 function M.is_payments_supported()
+	if not IAP_ENABLED then
+		return false
+	end
 	detect_platform()
-
-	if bridge and bridge.payments and bridge.payments.is_supported then
-		local ok, supp = pcall(bridge.payments.is_supported)
-		if ok and supp ~= nil then return supp end
-	end
-
-	if html5 and html5.run then
-		local ok_eval, res = pcall(html5.run, [[
-			(function() {
-				var b = window.bridge || window.playgamaBridge;
-				if (b && b.payments) {
-					var s = b.payments.isSupported;
-					return (typeof s === 'function' ? s() : s) ? '1' : '0';
-				}
-				return '0';
-			})()
-		]])
-		if ok_eval and res == "1" then return true end
-	end
-
-	-- In mock platform or desktop editor, enable for testing
-	if M.active_platform == M.PLATFORM_MOCK then
-		return true
-	end
-
-	return false
+	return use_google() or use_bridge() or is_dev_mock()
 end
 
-function M.get_catalog(on_success, on_failure)
-	detect_platform()
-	log("🛒 Fetching in-app products catalog...")
-
-	-- 1. Bridge Lua
-	if bridge and bridge.payments and bridge.payments.get_catalog then
-		local ok = pcall(function()
-			bridge.payments.get_catalog(function(catalog)
-				log("🛒 Catalog loaded via Lua bridge, items:", catalog and #catalog or 0)
-				if on_success then on_success(catalog or M.DEFAULT_PRODUCTS) end
-			end, function(err)
-				log("⚠️ Bridge get_catalog failed, using default catalog:", tostring(err))
-				if on_success then on_success(M.DEFAULT_PRODUCTS) end
-			end)
-		end)
-		if ok then return end
+-- Store-formatted price, or nil while the store has not priced the product. Unpriced products are
+-- hidden: Playgama requires prices in the platform currency as the catalog gives them.
+function M.get_price(id)
+	if prices[id] then
+		return prices[id]
 	end
-
-	-- 2. HTML5 JS Bridge
-	if html5 and html5.run then
-		local js = [[
-			(function() {
-				try {
-					var b = window.bridge || window.playgamaBridge;
-					if (b && b.payments && typeof b.payments.getCatalog === 'function') {
-						b.payments.getCatalog().then(function(catalog) {
-							window._lastCatalog = JSON.stringify(catalog);
-						}).catch(function(e) { window._lastCatalog = ""; });
-					}
-				} catch(e) {}
-			})();
-		]]
-		pcall(html5.run, js)
-	end
-
-	if on_success then
-		on_success(M.DEFAULT_PRODUCTS)
-	end
-end
-
-function M.get_purchases(on_success, on_failure)
-	detect_platform()
-	log("🛍️ Fetching player purchases...")
-
-	if bridge and bridge.payments and bridge.payments.get_purchases then
-		local ok = pcall(function()
-			bridge.payments.get_purchases(function(purchases)
-				log("🛍️ Purchases loaded via Lua bridge, count:", purchases and #purchases or 0)
-				if on_success then on_success(purchases) end
-			end, function(err)
-				log("⚠️ get_purchases failure:", tostring(err))
-				if on_failure then on_failure(err) end
-			end)
-		end)
-		if ok then return end
-	end
-
-	if on_success then on_success({}) end
-end
-
-function M.consume_purchase(purchase_id_or_token, on_success, on_failure)
-	detect_platform()
-	local id = tostring(purchase_id_or_token or "")
-	log("🔄 Consuming purchase:", id)
-
-	if bridge and bridge.payments and bridge.payments.consume_purchase then
-		local ok = pcall(function()
-			bridge.payments.consume_purchase(id, function()
-				log("✅ Purchase consumed via Lua bridge:", id)
-				if on_success then on_success() end
-			end, function(err)
-				log("⚠️ Consume purchase failed via Lua bridge:", tostring(err))
-				if on_failure then on_failure(err) end
-			end)
-		end)
-		if ok then return end
-	end
-
-	if html5 and html5.run then
-		local js = string.format([[
-			(function() {
-				try {
-					var b = window.bridge || window.playgamaBridge;
-					if (b && b.payments && typeof b.payments.consumePurchase === 'function') {
-						b.payments.consumePurchase(%q).then(function() {
-							console.log('[PLAYGAMA SDK] Consumed purchase:', %q);
-						}).catch(function(e){ console.warn('[PLAYGAMA SDK] Consume error:', e); });
-					}
-				} catch(e) {}
-			})();
-		]], id, id)
-		pcall(html5.run, js)
-	end
-
-	if on_success then on_success() end
-end
-
-function M.purchase(id, options, on_success, on_failure)
-	detect_platform()
-
-	if type(options) == "function" then
-		on_failure = on_success
-		on_success = options
-		options = {}
-	end
-	options = options or {}
-	local product_id = tostring(id or "")
-	log("💳 Initiating purchase for:", product_id)
-
-	local function handle_purchase_granted(item_id, purchase_data)
-		log("🎉 Purchase successful for item:", item_id)
-		-- Automatically grant rewards in player_profile
-		local profile_ok, profile = pcall(require, "lua_modules.player_profile")
-		if profile_ok and profile and profile.apply_purchase then
-			profile.apply_purchase(item_id)
+	if is_dev_mock() then
+		for _, p in ipairs(M.DEFAULT_PRODUCTS) do
+			if p.id == id then return p.price end
 		end
+	end
+	return nil
+end
 
-		-- If consumable, auto-consume per Playgama guidelines
-		if item_id ~= "no_ads" then
-			M.consume_purchase(item_id)
+function M.is_permanent(id)
+	return PERMANENT[id] == true
+end
+
+local function google_listener(_, t, err)
+	local p = google_pending
+	if err then
+		google_pending = nil
+		if p then
+			p.done(false, (err.reason == iap.REASON_USER_CANCELED) and "cancelled" or tostring(err.error))
+		end
+		return
+	end
+	if t.state == iap.TRANS_STATE_PURCHASED or t.state == iap.TRANS_STATE_RESTORED then
+		grant(t.ident)
+		-- Google Play: finishing consumes the purchase; a permanent one is only acknowledged, so it
+		-- keeps coming back on every launch (that is the restore). Unacknowledged ones get refunded.
+		if PERMANENT[t.ident] then
+			pcall(iap.acknowledge, t)
 		else
-			if profile_ok and profile and profile.set_no_ads then
-				profile.set_no_ads(true)
-			end
+			pcall(iap.finish, t)
 		end
-
-		if on_success then
-			on_success(purchase_data or { id = item_id })
+		if p and p.id == t.ident then
+			google_pending = nil
+			p.done(true)
 		end
+	elseif t.state == iap.TRANS_STATE_FAILED then
+		google_pending = nil
+		if p then p.done(false, "failed") end
 	end
-
-	-- 1. Defold Lua Bridge
-	if bridge and bridge.payments and bridge.payments.purchase then
-		local ok = pcall(function()
-			bridge.payments.purchase(product_id, options, function(res)
-				handle_purchase_granted(product_id, res)
-			end, function(err)
-				log("❌ Purchase failed or cancelled via Lua bridge:", tostring(err))
-				if on_failure then on_failure(err) end
-			end)
-		end)
-		if ok then return end
-	end
-
-	-- 2. HTML5 Web JS Bridge
-	if html5 and html5.run then
-		local js = string.format([[
-			(function() {
-				window._purchaseStatus = "pending";
-				try {
-					var b = window.bridge || window.playgamaBridge;
-					if (b && b.payments && typeof b.payments.purchase === 'function') {
-						b.payments.purchase({ id: %q }).then(function(res) {
-							window._purchaseStatus = "success";
-							window._lastPurchaseRes = res ? JSON.stringify(res) : "";
-						}).catch(function(err) {
-							window._purchaseStatus = "failed";
-							window._lastPurchaseErr = String(err);
-						});
-						return "1";
-					}
-				} catch(e) {}
-				return "0";
-			})();
-		]], product_id)
-		local ok_eval, res = pcall(html5.run, js)
-		if ok_eval and res == "1" then
-			local poll_timer
-			local elapsed = 0
-			poll_timer = safe_timer_delay(0.2, true, function()
-				elapsed = elapsed + 0.2
-				if not html5 or not html5.run or elapsed > 180 then
-					safe_timer_cancel(poll_timer)
-					if on_failure then on_failure("Purchase timeout") end
-					return
-				end
-				local ok_status, status = pcall(html5.run, "(function() { return window._purchaseStatus || ''; })()")
-				if ok_status and status == "success" then
-					safe_timer_cancel(poll_timer)
-					handle_purchase_granted(product_id, { id = product_id })
-				elseif ok_status and status == "failed" then
-					safe_timer_cancel(poll_timer)
-					if on_failure then on_failure("Purchase failed or cancelled") end
-				end
-			end)
-			return
-		end
-	end
-
-	-- 3. Mock platform fallback (Desktop / Local testing)
-	log("🧪 Mock platform: Auto-approving purchase for testing:", product_id)
-	handle_purchase_granted(product_id, { id = product_id })
 end
 
-function M.check_pending_purchases()
-	if not M.is_payments_supported() then return end
-	M.get_purchases(function(purchases)
-		if type(purchases) == "table" then
-			local profile_ok, profile = pcall(require, "lua_modules.player_profile")
-			for _, item in ipairs(purchases) do
-				local pid = item.id or item.productID or item
-				if pid == "no_ads" then
-					log("💎 Restoring permanent purchase: no_ads")
-					if profile_ok and profile and profile.set_no_ads then
-						profile.set_no_ads(true)
-					end
-				elseif type(pid) == "string" and (pid:match("^coins_") or pid:match("^stars_")) then
-					log("📦 Found unconsumed purchase:", pid)
-					if profile_ok and profile and profile.apply_purchase then
-						profile.apply_purchase(pid)
-					end
-					M.consume_purchase(item.token or pid)
+function M.refresh_catalog(on_done)
+	local function finish()
+		if on_done then on_done() end
+	end
+	if not M.is_payments_supported() then
+		return finish()
+	end
+	local ids = {}
+	for _, p in ipairs(M.DEFAULT_PRODUCTS) do
+		ids[#ids + 1] = p.id
+	end
+	if use_google() then
+		iap.list(ids, function(_, products, err)
+			if not err and products then
+				for key, item in pairs(products) do
+					prices[item.ident or key] = item.price_string
 				end
 			end
+			finish()
+		end)
+	elseif use_bridge() then
+		bridge.payments.get_catalog(function(_, items)
+			for _, item in ipairs(to_table(items) or {}) do
+				if item.id then
+					prices[item.id] = item.price
+						or (item.priceValue and (tostring(item.priceValue) .. " " .. tostring(item.priceCurrencyCode or "")))
+				end
+			end
+			finish()
+		end, finish)
+	else
+		finish()
+	end
+end
+
+-- Call only from a direct player action (store rules). on_success(id) / on_failure(reason)
+function M.purchase(id, on_success, on_failure)
+	local function done(ok, reason)
+		if ok then
+			if on_success then on_success(id) end
+		elseif on_failure then
+			on_failure(reason)
 		end
-	end)
+	end
+	if not M.is_payments_supported() then
+		return done(false, "unsupported")
+	end
+	if use_google() then
+		google_pending = { id = id, done = done }
+		iap.buy(id)
+	elseif use_bridge() then
+		bridge.payments.purchase(id, nil, function()
+			if PERMANENT[id] then
+				grant(id)
+				done(true)
+			else
+				bridge.payments.consume_purchase(id, function()
+					grant(id)
+					done(true)
+				end, function()
+					done(false, "consume") -- stays in getPurchases: granted on the next launch
+				end)
+			end
+		end, function(_, err)
+			done(false, tostring(err))
+		end)
+	else
+		grant(id)
+		done(true)
+	end
+end
+
+-- Restores permanent products and grants purchases paid for but not yet processed (a closed tab or
+-- a lost connection mid-purchase). Runs once the platform SDK is up (M.init) and on Android also
+-- installs the Google Play transaction listener.
+function M.check_pending_purchases()
+	if not M.is_payments_supported() then
+		return
+	end
+	if use_google() then
+		if not M.google_listener_set then
+			M.google_listener_set = true
+			iap.set_listener(google_listener)
+		end
+		if iap.process_pending_transactions then
+			pcall(iap.process_pending_transactions)
+		end
+	elseif use_bridge() then
+		bridge.payments.get_purchases(function(_, list)
+			for _, item in ipairs(to_table(list) or {}) do
+				local id = item.id or item.productId or item.productID
+				if id and PERMANENT[id] then
+					grant(id)
+				elseif id then
+					bridge.payments.consume_purchase(id, function()
+						grant(id)
+					end, function() end)
+				end
+			end
+		end, function() end)
+	end
+	M.refresh_catalog()
 end
 
 return M

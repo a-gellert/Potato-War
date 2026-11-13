@@ -41,6 +41,7 @@ local function on_card(self, slot)
 	else
 		sound_manager.play("tick")
 		message(self, i18n.t("ui_need_coins"))
+		if self.open_store then self.open_store(i18n.t("ui_need_coins")) end
 		return
 	end
 	M.refresh(self)

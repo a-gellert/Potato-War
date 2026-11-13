@@ -59,6 +59,43 @@ function M.show_damage(message)
 	end)
 end
 
+-- Comic-book onomatopoeia over explosions (explosion.script, [potato_war] comic_fx)
+local COMIC_WORDS = {
+	ru = { "БАХ!", "БУМ!", "ТРАХ!", "БДЫЩ!", "БАБАХ!", "КАБУМ!" },
+	en = { "BAM!", "POW!", "WHAM!", "BOOM!", "KA-BOOM!", "KABLAM!" },
+}
+local COMIC_COLORS = {
+	vmath.vector4(1.0, 0.86, 0.20, 1), vmath.vector4(1.0, 0.55, 0.15, 1),
+	vmath.vector4(1.0, 0.32, 0.25, 1), vmath.vector4(1.0, 0.95, 0.55, 1),
+}
+local last_comic = 0
+
+function M.show_comic(message)
+	local r = message.radius or 30
+	-- Cluster bombs and napalm chains: one word at a time, none for tiny pops
+	local now = socket.gettime()
+	if r < 14 or now - last_comic < 0.3 then return end
+	last_comic = now
+
+	local words = (i18n.current_lang == "ru") and COMIC_WORDS.ru or COMIC_WORDS.en
+	-- Big blasts pick from the long words at the end of the list
+	local word = words[(r >= 45) and math.random(4, #words) or math.random(1, 4)]
+	local sx, sy = camera_controller.world_to_screen(message.x or 480, message.y or 270)
+	local node = gui.new_text_node(vmath.vector3(sx, sy + 26, 0), word)
+	gui.set_font(node, "title")
+	gui.set_color(node, COMIC_COLORS[math.random(#COMIC_COLORS)])
+	gui.set_outline(node, vmath.vector4(0.10, 0.04, 0.02, 1))
+	gui.set_shadow(node, vmath.vector4(0, 0, 0, 0.6))
+	gui.set_rotation(node, vmath.vector3(0, 0, (math.random() - 0.5) * 26))
+	local s = math.min(1.0, math.max(0.45, 0.35 + r / 90))
+	gui.set_scale(node, vmath.vector3(s * 0.2, s * 0.2, 1))
+	gui.animate(node, "scale", vmath.vector3(s, s, 1), gui.EASING_OUTBACK, 0.22)
+	gui.animate(node, "position.y", sy + 60, gui.EASING_OUTQUAD, 0.9)
+	gui.animate(node, "color.w", 0, gui.EASING_INQUAD, 0.3, 0.55, function()
+		pcall(gui.delete_node, node)
+	end)
+end
+
 local TOAST_ICONS = {
 	["🎯"] = "ic_radius",
 	["🌊"] = "ic_damage",

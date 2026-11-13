@@ -54,6 +54,9 @@ function M.build(self, handlers)
 	h.xp_text = kit.text(root, "", -333, 236, 11, { font = "label" })
 	h.coins = kit.counter(root, "ic_coin", 200, 246, 136, "0")
 	h.stars = kit.counter(root, "ic_star", 334, 246, 104, "0")
+	-- "+" on the counters opens the store
+	kit.icon_button(self.ui, root, "home_coins_plus", 262, 246, 30, "ic_plus", handlers.store, "round")
+	kit.icon_button(self.ui, root, "home_stars_plus", 380, 246, 30, "ic_plus", handlers.store, "round")
 	kit.icon_button(self.ui, root, "home_settings", 438, 246, 46, "ic_gear", handlers.settings)
 
 	-- Title

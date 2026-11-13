@@ -64,6 +64,7 @@ local function build_slot(self, parent, i)
 		else
 			sound_manager.play("tick")
 			self.status_override = i18n.t("ui_need_stars")
+			open_store_paywall(self)
 			refresh(self)
 		end
 	end })
@@ -162,6 +163,7 @@ function promote(self)
 	else
 		sound_manager.play("tick")
 		self.status_override = i18n.t("ui_need_stars")
+		open_store_paywall(self)
 	end
 	refresh(self)
 end
@@ -270,6 +272,14 @@ function refresh(self)
 		win.promote.set_label(i18n.t("ui_promote") .. "  " .. chosen.cost)
 		win.promote.set_enabled(chosen.rank_ok and stars >= chosen.cost)
 		win.promote.enabled = true -- a tap on a disabled-looking button explains why
+	end
+end
+
+-- Paywall: from the menu, a missing star opens the store over it
+function open_store_paywall(self)
+	if self.notify == "/gui_menu#gui" then
+		close(self)
+		msg.post("/gui_menu#gui", "open_store", { reason = i18n.t("ui_need_stars") })
 	end
 end
 

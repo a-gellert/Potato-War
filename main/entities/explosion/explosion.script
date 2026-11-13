@@ -7,6 +7,9 @@ local debris_fx = require("lua_modules.debris_fx")
 
 go.property("radius", 30)
 
+-- game.project [potato_war] comic_fx = 0 turns off the comic words ("BOOM!") over blasts
+local COMIC_FX = sys.get_config_int("potato_war.comic_fx", 1) == 1
+
 function init(self)
 	constants.log(">>> EXPLOSION INIT RADIUS:", self.radius)
 	local target_scale = (self.radius * 2.25) / 48.0 -- Juicier blast ring expansion
@@ -46,6 +49,9 @@ function init(self)
 	-- Biome-colored flying debris: physical chunks that bounce off the terrain
 	local biome = game_state.current_biome or "grass"
 	local pos = go.get_position()
+	if COMIC_FX then
+		msg.post("/gui_hud#gui", "show_comic", { x = pos.x, y = pos.y, radius = self.radius })
+	end
 	debris_fx.burst("#debris_factory", pos.x, pos.y, self.radius, biome)
 	if self.radius >= 18 then
 		debris_fx.smoke_column("#debris_factory", pos.x, pos.y, self.radius)

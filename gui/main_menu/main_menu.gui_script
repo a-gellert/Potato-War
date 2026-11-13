@@ -11,6 +11,7 @@ local menu_shop = require("gui.main_menu.menu_shop")
 local menu_lobby = require("gui.main_menu.menu_lobby")
 local menu_upgrades = require("gui.main_menu.menu_upgrades")
 local menu_daily = require("gui.main_menu.menu_daily")
+local menu_store = require("gui.main_menu.menu_store")
 local daily_rewards = require("lua_modules.daily_rewards")
 local player_profile = require("lua_modules.player_profile")
 
@@ -20,6 +21,7 @@ local WINDOWS = {
 	lobby = menu_lobby,
 	upgrades = menu_upgrades,
 	daily = menu_daily,
+	store = menu_store,
 }
 
 local function open_window(self, name)
@@ -54,7 +56,19 @@ function init(self)
 		open_window(self, nil)
 		menu_home.refresh(self)
 	end
+	-- Store from anywhere in the menu (counters, paywalls); closing it returns to the window it covered
+	self.open_store = function(reason)
+		if self.window ~= "store" then
+			self.store_return = self.window
+		end
+		open_window(self, "store")
+		if reason then
+			menu_store.paywall(self, reason)
+		end
+	end
+
 	menu_home.build(self, {
+		store = function() self.open_store() end,
 		settings = function() open_window(self, "settings") end,
 		arsenal = function() open_overlay(self, "/gui_arsenal") end,
 		squad = function() open_overlay(self, "/gui_squad") end,
@@ -71,6 +85,12 @@ function init(self)
 	menu_shop.build(self, close)
 	menu_upgrades.build(self, close)
 	menu_daily.build(self, close)
+	menu_store.build(self, function()
+		local back = self.store_return
+		self.store_return = nil
+		open_window(self, back)
+		menu_home.refresh(self)
+	end)
 	menu_lobby.build(self, close, function(config)
 		open_window(self, nil)
 		msg.post(".", "disable")
@@ -105,6 +125,10 @@ function on_message(self, message_id, message, sender)
 		msg.post(".", "enable")
 		menu_home.refresh(self)
 		open_window(self, "shop")
+	elseif message_id == hash("open_store") then
+		msg.post(".", "enable")
+		menu_home.refresh(self)
+		self.open_store(message.reason)
 	elseif message_id == hash("overlay_closed") then
 		menu_home.refresh(self)
 	elseif message_id == hash("refresh") then

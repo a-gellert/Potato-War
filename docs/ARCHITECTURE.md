@@ -207,6 +207,9 @@ Responsibilities:
 - ads: interstitial with a 120 s cooldown, rewarded with callbacks, banners;
 - audio/pause: mute/resume on platform pause, tab hidden or ad display (including Web Audio resume);
 - storage: `storage_get/storage_set` for cloud profiles;
+- payments: `is_payments_supported`, `refresh_catalog`, `get_price`, `purchase`,
+  `check_pending_purchases` over Playgama Bridge payments (web) and extension-iap (Google Play),
+  behind the `[potato_war] iap` flag; see `docs/ECONOMY.md`;
 - language and player identity helpers.
 
 Optional analytics/attribution wrappers (`main/gameanalytics.lua`, `main/adjust.lua`,
@@ -220,7 +223,7 @@ Rubik fonts.
 
 | Screen | Controller | Widgets |
 | --- | --- | --- |
-| Main menu | `gui/main_menu/main_menu.gui_script` | `menu_home`, `menu_settings`, `menu_shop`, `menu_lobby`, `menu_upgrades`, `menu_daily` |
+| Main menu | `gui/main_menu/main_menu.gui_script` | `menu_home`, `menu_settings`, `menu_shop`, `menu_lobby`, `menu_upgrades`, `menu_daily`, `menu_store` |
 | Battle HUD | `gui/hud/hud.gui_script` | `hud_timer`, `hud_weapons`, `hud_indicators`, `hud_tutorial`, `hud_popups`, `hud_pause`, `hud_aim`, `hud_banner`, `hud_fx` |
 | Campaign map | `gui/campaign_map/campaign_map.gui_script` | `camp_view`, `camp_inspector`, `camp_data` |
 | Arsenal | `gui/arsenal/arsenal.gui_script` | weapon cards, upgrade detail panel |

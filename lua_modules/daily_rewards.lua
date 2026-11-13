@@ -109,4 +109,31 @@ function M.double(loot)
 	return extra
 end
 
+-- Free coins for a rewarded ad in the store: a few views a day (state in player_profile.data.ad_coins)
+M.AD_COINS = 75
+M.AD_COINS_PER_DAY = 5
+
+local function ad_state()
+	local d = player_profile.data
+	if type(d.ad_coins) ~= "table" or d.ad_coins.day ~= today() then
+		d.ad_coins = { day = today(), count = 0 }
+	end
+	return d.ad_coins
+end
+
+function M.ad_coins_left()
+	return math.max(0, M.AD_COINS_PER_DAY - ad_state().count)
+end
+
+-- Call after the ad was watched to the end; false once today's views are used up
+function M.grant_ad_coins()
+	local s = ad_state()
+	if s.count >= M.AD_COINS_PER_DAY then
+		return false
+	end
+	s.count = s.count + 1
+	player_profile.add_points(M.AD_COINS) -- saves the profile
+	return true
+end
+
 return M

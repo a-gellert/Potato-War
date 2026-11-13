@@ -199,6 +199,9 @@ function M.load()
 		M.data.stats = loaded.stats or { battles = 0, wins = 0, kills = 0, crates = 0 }
 		M.data.ftue_seen = loaded.ftue_seen or {}
 		M.data.no_ads = (loaded.no_ads == true)
+		M.data.daily = loaded.daily
+		M.data.owned = loaded.owned or {}
+		M.data.ad_coins = loaded.ad_coins
 		M.data.save_seq = tonumber(loaded.save_seq) -- stays nil for saves made before the counter existed
 	else
 		M.has_local_save = false
@@ -232,6 +235,9 @@ function M.load()
 		M.data.stats = { battles = 0, wins = 0, kills = 0, crates = 0 }
 		M.data.ftue_seen = {}
 		M.data.no_ads = false
+		M.data.daily = nil
+		M.data.owned = {}
+		M.data.ad_coins = nil
 		M.data.save_seq = nil
 	end
 	return M.data
@@ -279,6 +285,15 @@ function M.apply_profile_data(loaded)
 	end
 	-- A bought "no ads" is permanent: an older copy without it must not switch the ads back on
 	if loaded.no_ads == true then M.data.no_ads = true end
+	if type(loaded.daily) == "table" then M.data.daily = loaded.daily end
+	if type(loaded.ad_coins) == "table" then M.data.ad_coins = loaded.ad_coins end
+	-- One-time packs stay bought whichever copy wins
+	if type(loaded.owned) == "table" then
+		M.data.owned = M.data.owned or {}
+		for id, v in pairs(loaded.owned) do
+			if v == true then M.data.owned[id] = true end
+		end
+	end
 	if loaded.save_seq ~= nil then M.data.save_seq = tonumber(loaded.save_seq) or M.data.save_seq end
 end
 
@@ -555,6 +570,8 @@ local PURCHASE_REWARDS = {
 	coins_pack_5000 = { points = 5000 },
 	stars_pack_5 = { stars = 5 },
 	stars_pack_20 = { stars = 20 },
+	-- Permanent: restored on every launch, so its currency is granted only the first time
+	starter_pack = { points = 2500, stars = 8, no_ads = true, once = true },
 }
 
 function M.set_no_ads(enabled)
@@ -564,6 +581,14 @@ end
 
 -- Grants a paid product; main/sdk.lua calls it when a purchase succeeds or an unconsumed one is found.
 -- Returns false for an unknown id.
+-- True when a permanent product (no_ads, starter_pack) is already owned
+function M.owns(item_id)
+	if item_id == "no_ads" then
+		return M.data.no_ads == true
+	end
+	return (M.data.owned or {})[item_id] == true
+end
+
 function M.apply_purchase(item_id)
 	if item_id == "no_ads" then
 		M.set_no_ads(true)
@@ -573,6 +598,16 @@ function M.apply_purchase(item_id)
 	if not reward then
 		print("[PROFILE] ⚠️ Unknown purchase id:", tostring(item_id))
 		return false
+	end
+	if reward.once then
+		M.data.owned = M.data.owned or {}
+		if M.data.owned[item_id] then
+			return true
+		end
+		M.data.owned[item_id] = true
+	end
+	if reward.no_ads then
+		M.data.no_ads = true
 	end
 	M.data.points = (M.data.points or 0) + (reward.points or 0)
 	M.data.stars = (M.data.stars or 0) + (reward.stars or 0)

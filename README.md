@@ -30,6 +30,9 @@ terrain and knock the enemy team into the water, lava or a bottomless pit.
 - Map variety: per-seed palette variants (seasons / rock types), time-of-day lighting, a signature
   feature per map and random mirroring, so two battles on the same preset look different.
 - Daily reward: a 7-day login cycle (coins, crates, a star) with a rewarded-ad x2.
+- Store: free coins for rewarded ads, in-app purchases (starter pack, coins, stars, no ads) through
+  Playgama payments and Google Play Billing, soft paywalls. See [`docs/ECONOMY.md`](docs/ECONOMY.md).
+- Comic words over explosions ("BOOM!", "БАХ!").
 - Local hot-seat PvP, quick battles against bots, and 3×3 bot teams.
 - Location-aware SDK layer: Playgama Bridge, Poki, AppLovin MAX (Android/iOS), Firebase Analytics.
 - Local saves plus optional Playgama cloud saves with conflict resolution.
@@ -91,6 +94,9 @@ The bootstrap chain is `game.project` → `/main/main.collection` → `/main/mai
   Never commit keystores, passwords or `google-services.json` to the repository. See
   [`SECURITY.md`](SECURITY.md).
 - **Ad units and app IDs** live in the `[max]` section of `game.project`.
+- **Feature flags** live in `[potato_war]`: `comic_fx` (comic words over blasts) and `iap` (in-app
+  purchases), `1` on / `0` off. The Poki build forces `iap = 0`. Do not add comment lines to
+  `game.project`: bob cannot parse them.
 - The `Playgama/`, `pl/`, `poki/`, `wasm-web/` and `build/` directories contain local export
   artifacts and are not part of the source.
 
