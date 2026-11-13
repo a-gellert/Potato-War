@@ -54,7 +54,7 @@ end
 function M.burst(factory_url, x, y, radius, biome)
 	local pal = PALETTES[biome] or PALETTES.grass
 	-- Crisp, proportional particle count (10-22 max)
-	local count = math.max(10, math.min(22, math.floor(8 + radius * 0.40)))
+	local count = math.max(12, math.min(30, math.floor(10 + radius * 0.55)))
 	local power = 110 + radius * 2.8
 
 	for i = 1, count do
@@ -155,17 +155,17 @@ end
 
 -- Lingering smoke rising from the crater plus slow burning embers
 function M.smoke_column(factory_url, x, y, radius)
-	local puffs = math.min(4, 1 + math.floor(radius / 20))
+	local puffs = math.min(6, 2 + math.floor(radius / 16))
 	for i = 1, puffs do
 		local shade = 0.22 + math.random() * 0.16
 		pcall(factory.create, factory_url, vmath.vector3(x + (math.random() - 0.5) * radius * 0.5, y + radius * 0.15, 0.46), nil, {
 			vx = (math.random() - 0.5) * 18,
 			vy = 16 + math.random() * 20,
-			life = 0.9 + math.random() * 0.6,
+			life = 1.6 + math.random() * 1.0,
 			grav = -0.02,
 			drag = 0.6,
 			size = 0.30 + math.random() * 0.15, -- 7 to 11 px
-			grow = 1.7,
+			grow = 2.4,
 			fade_start = 0.25,
 			spin = (math.random() - 0.5) * 45,
 			anim = hash("smoke"),

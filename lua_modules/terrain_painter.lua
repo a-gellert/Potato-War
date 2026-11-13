@@ -89,6 +89,51 @@ local PALETTES = {
 }
 
 
+-- Seasonal / geological variants: the map seed picks one, so two battles in the same biome
+-- get different turf, sand, ice or rock colours. Keys override the base palette.
+local VARIANTS = {
+	grass = {
+		{},
+		{ cap_hi = { 255, 214, 92 }, cap = { 232, 156, 48 }, cap_lo = { 176, 100, 34 }, outline = { 58, 34, 14 },
+			soil_top = { 168, 100, 60 }, soil_deep = { 84, 44, 32 }, petals = { { 255, 120, 40 }, { 255, 226, 70 }, { 210, 60, 40 } } },
+		{ cap_hi = { 140, 236, 110 }, cap = { 56, 176, 78 }, cap_lo = { 30, 126, 64 }, outline = { 14, 40, 26 },
+			soil_top = { 140, 98, 74 }, soil_deep = { 62, 40, 40 } },
+		{ cap_hi = { 228, 242, 120 }, cap = { 172, 202, 72 }, cap_lo = { 122, 150, 52 },
+			soil_top = { 186, 132, 82 }, soil_deep = { 104, 66, 42 } },
+	},
+	desert = {
+		{},
+		{ cap_hi = { 255, 198, 142 }, cap = { 236, 148, 96 }, cap_lo = { 196, 102, 66 }, outline = { 92, 32, 22 },
+			soil_top = { 198, 92, 62 }, soil_deep = { 112, 42, 36 }, stone = { 210, 140, 100 }, stone_hi = { 246, 196, 150 }, stone_lo = { 130, 64, 44 } },
+		{ cap_hi = { 255, 252, 236 }, cap = { 246, 232, 196 }, cap_lo = { 214, 194, 148 },
+			soil_top = { 214, 178, 128 }, soil_deep = { 148, 108, 78 } },
+	},
+	arctic = {
+		{},
+		{ soil_top = { 108, 212, 226 }, soil_deep = { 38, 118, 160 }, cap_lo = { 160, 226, 240 } },
+		{ soil_top = { 124, 132, 156 }, soil_deep = { 58, 62, 86 }, body = "clods", patch = 0.86,
+			stone = { 168, 176, 196 }, stone_hi = { 220, 226, 240 }, stone_lo = { 86, 92, 116 } },
+	},
+	volcano = {
+		{},
+		{ cap_hi = { 182, 178, 176 }, cap = { 130, 126, 128 }, cap_lo = { 92, 88, 92 }, cap_fleck = { 255, 196, 90 } },
+		{ soil_top = { 98, 40, 44 }, soil_deep = { 40, 14, 18 }, cap = { 104, 52, 56 }, cap_hi = { 156, 92, 90 }, cap_lo = { 66, 30, 36 } },
+	},
+	alien = {
+		{},
+		{ cap_hi = { 240, 255, 140 }, cap = { 196, 238, 62 }, cap_lo = { 136, 186, 40 }, outline = { 30, 40, 10 },
+			soil_top = { 70, 96, 150 }, soil_deep = { 26, 34, 80 } },
+		{ cap_hi = { 255, 186, 214 }, cap = { 255, 110, 164 }, cap_lo = { 196, 58, 120 },
+			soil_top = { 70, 46, 132 }, soil_deep = { 26, 14, 62 } },
+	},
+}
+
+-- Soft sedimentary banding of the soil body (brightness multipliers, looked up by depth)
+local BANDS = {}
+for i = 0, 63 do
+	BANDS[i] = 1 + 0.045 * sin(i / 64 * 6.2832 * 3) + 0.025 * sin(i / 64 * 6.2832 * 7 + 1.3)
+end
+
 local pal = PALETTES.grass
 local seed_off = 0
 local noise_ox, noise_oy = 0, 0
@@ -153,8 +198,14 @@ end
 
 -- Select biome palette and reseed decorations. Call before a full repaint.
 function M.reset(biome, seed)
-	pal = PALETTES[biome] or PALETTES.grass
 	seed = seed or 0
+	local base = PALETTES[biome] or PALETTES.grass
+	local variants = VARIANTS[biome] or { {} }
+	local over = variants[(floor(seed / 7) % #variants) + 1]
+	pal = setmetatable({}, { __index = base })
+	for k, v in pairs(over) do
+		pal[k] = v
+	end
 	seed_off = (seed % 997) * 0.731
 	noise_ox = seed % NOISE_SIZE
 	noise_oy = floor(seed / NOISE_SIZE) % NOISE_SIZE
@@ -347,12 +398,11 @@ local function shade_solid(gx, gy, idx, nd, run, cap_th)
 			if ly - band * 8 < 1 then m = m * 0.82 end
 			r, g, b = r * m, g * m, b * m
 		else
-			local m = 1
-			if n1 > 0.6 then
-				m = P.patch or 0.84
-			elseif n1 > 0.585 then
-				m = (P.patch or 0.84) * 0.9
-			end
+			-- Soft-edged darker patches (a hard threshold here read as pixel blotches) over gentle strata
+			local k = (n1 - 0.55) * 8.0
+			if k < 0 then k = 0 elseif k > 1 then k = 1 end
+			k = k * k * (3 - 2 * k)
+			local m = (1 - (1 - (P.patch or 0.84)) * k) * BANDS[(gy + floor(n2 * 40)) % 64]
 			r, g, b = r * m, g * m, b * m
 		end
 

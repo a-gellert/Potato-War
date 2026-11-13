@@ -23,8 +23,13 @@ terrain and knock the enemy team into the water, lava or a bottomless pit.
 - Bot AI with four personalities and four difficulty profiles.
 - Readability layer: team-coloured glow/rings, team badges, status icons above every fighter,
   predicted blast rings and a live shot-power/angle meter.
-- Juice: impact hit-stop, full-screen hit flashes, turn banners, camera punch/shake, hit sparks.
-- Layered parallax backgrounds (distant ridges, drifting clouds, biome mid-ground islands).
+- Juice: impact hit-stop, full-screen hit flashes, turn banners, camera punch/shake, hit sparks,
+  lingering crater smoke and a fireworks salute on victory.
+- Living parallax backgrounds (sky, distant ridges, drifting clouds, biome mid-ground islands) with
+  bird flocks, aircraft silhouettes and wind-blown biome motes; the same backdrop runs behind the menu.
+- Map variety: per-seed palette variants (seasons / rock types), time-of-day lighting, a signature
+  feature per map and random mirroring, so two battles on the same preset look different.
+- Daily reward: a 7-day login cycle (coins, crates, a star) with a rewarded-ad x2.
 - Local hot-seat PvP, quick battles against bots, and 3×3 bot teams.
 - Location-aware SDK layer: Playgama Bridge, Poki, AppLovin MAX (Android/iOS), Firebase Analytics.
 - Local saves plus optional Playgama cloud saves with conflict resolution.

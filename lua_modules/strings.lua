@@ -138,6 +138,13 @@ return {
 	ui_start_campaign = { ru = "НАЧАТЬ КАМПАНИЮ", en = "START CAMPAIGN", pt = "INICIAR CAMPANHA", fr = "LANCER LA CAMPAGNE", es = "EMPEZAR CAMPAÑA", tr = "SEFERE BAŞLA" },
 	ui_next_battle = { ru = "СЛЕДУЮЩИЙ БОЙ", en = "NEXT BATTLE", pt = "PRÓXIMA BATALHA", fr = "COMBAT SUIVANT", es = "SIGUIENTE BATALLA", tr = "SONRAKİ SAVAŞ" },
 
+	-- daily reward
+	ui_daily = { ru = "ЕЖЕДНЕВНАЯ НАГРАДА", en = "DAILY REWARD", pt = "RECOMPENSA DIÁRIA", fr = "RÉCOMPENSE DU JOUR", es = "RECOMPENSA DIARIA", tr = "GÜNLÜK ÖDÜL" },
+	ui_day_fmt = { ru = "День %d", en = "Day %d", pt = "Dia %d", fr = "Jour %d", es = "Día %d", tr = "Gün %d" },
+	ui_claim = { ru = "ЗАБРАТЬ", en = "CLAIM", pt = "PEGAR", fr = "RÉCUPÉRER", es = "RECLAMAR", tr = "AL" },
+	ui_daily_hint = { ru = "Заходи каждый день: награды растут!", en = "Come back every day: rewards grow!", pt = "Volte todo dia: as recompensas crescem!", fr = "Reviens chaque jour : les récompenses grandissent !", es = "¡Vuelve cada día: las recompensas crecen!", tr = "Her gün gel: ödüller büyüyor!" },
+	ui_daily_next = { ru = "Следующая награда завтра", en = "Next reward tomorrow", pt = "Próxima recompensa amanhã", fr = "Prochaine récompense demain", es = "Próxima recompensa mañana", tr = "Sonraki ödül yarın" },
+
 	-- war map
 	ui_attack = { ru = "В АТАКУ", en = "ATTACK", pt = "ATACAR", fr = "ATTAQUER", es = "ATACAR", tr = "SALDIR" },
 	ui_defend = { ru = "ОБОРОНА", en = "DEFEND", pt = "DEFENDER", fr = "DÉFENDRE", es = "DEFENDER", tr = "SAVUN" },

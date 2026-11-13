@@ -1,7 +1,6 @@
 -- main/entities/terrain/terrain.script
--- Manages destructible terrain texture updates, dynamic biomes and the parallax background
--- sprites for Potato War. (The old procedural "dynamic_bg" texture + bg_battle simulation was
--- never bound to any sprite, yet cost a full 960x480 upload 25x/s; it has been removed.)
+-- Manages destructible terrain texture updates, dynamic biomes, the parallax background layers,
+-- background life (bird flocks, aircraft silhouettes, wind-blown motes) and the victory salute.
 
 local constants = require("lua_modules.constants")
 local game_state = require("lua_modules.game_state")
@@ -9,6 +8,7 @@ local terrain_grid = require("lua_modules.terrain_grid")
 local terrain_painter = require("lua_modules.terrain_painter")
 local camera_controller = require("lua_modules.camera_controller")
 local debris_fx = require("lua_modules.debris_fx")
+local sound_manager = require("lua_modules.sound_manager")
 
 local TEXTURE_PATH = "/dynamic_terrain.texturec"
 local ATLAS_PATH = "/dynamic_terrain.texturesetc"
@@ -51,6 +51,249 @@ local BIOME_THEMES = {
 	},
 }
 
+-- Time of day picked by the map seed, multiplied into the sky and background layers:
+-- the same biome comes back in a different light
+local MOODS = {
+	vmath.vector4(1, 1, 1, 1),
+	vmath.vector4(1.0, 0.84, 0.70, 1), -- golden hour
+	vmath.vector4(0.72, 0.79, 1.0, 1), -- dusk
+	vmath.vector4(0.92, 1.0, 0.95, 1), -- fresh morning
+}
+
+-- Silhouette colour of the birds and planes crossing the sky, per biome
+local LIFE_TINT = {
+	grass = vmath.vector4(0.10, 0.13, 0.13, 0.72),
+	desert = vmath.vector4(0.26, 0.11, 0.12, 0.66),
+	arctic = vmath.vector4(0.09, 0.13, 0.26, 0.66),
+	volcano = vmath.vector4(0.05, 0.03, 0.04, 0.82),
+	alien = vmath.vector4(0.16, 0.05, 0.24, 0.72),
+}
+
+---------------------------------------------------------
+-- Background layers, birds, planes and drifting motes. Each one is its own game object
+-- (bg_layer_factory / bg_mote_factory): a sprite component's "position" cannot be set at
+-- runtime, so the old embedded sprites never moved and the parallax never showed.
+---------------------------------------------------------
+
+local MENU_LIFT = 140 -- menu backdrop: how far above the camera the layers are framed
+local BIRDS = 8
+local MOTES = 14
+local BIRD_PARALLAX = 0.5
+local PLANE_PARALLAX = 0.62
+
+-- The illustrated layers: parallax follow factors (fx, fy) and a fixed offset above the base
+local LAYERS = {
+	{ key = "sky", anim = "bg_sky", z = -0.45, sx = 1.65, sy = 1.45, fx = 0.88, fy = 0.85, oy = 0 },
+	{ key = "distant", anim = "bg_distant", z = -0.35, sx = 2.4, sy = 2.0, fx = 0.55, fy = 0.35, oy = 60 },
+	{ key = "clouds", anim = "bg_clouds", z = -0.32, sx = 2.4, sy = 1.8, fx = 0.40, fy = 0.28, oy = 200 },
+	{ key = "islands", anim = "bg_islands", z = -0.25, sx = 2.2, sy = 2.0, fx = 0.28, fy = 0.18, oy = 20 },
+}
+
+local function spawn_sprite(factory_url, anim, z, sx, sy)
+	local id = factory.create(factory_url, vmath.vector3(0, 0, z), nil, nil, vmath.vector3(sx, sy or sx, 1))
+	local url = msg.url(nil, id, "sprite")
+	if anim then
+		sprite.play_flipbook(url, anim)
+	end
+	return { id = id, url = url }
+end
+
+local function show(item, on)
+	msg.post(item.url, on and "enable" or "disable")
+end
+
+local function life_hide(item)
+	item.active = false
+	show(item, false)
+end
+
+local function bg_init(self)
+	self.layers = {}
+	for _, l in ipairs(LAYERS) do
+		self.layers[l.key] = spawn_sprite("#bg_layer_factory", l.anim, l.z, l.sx, l.sy)
+	end
+	self.birds = {}
+	for i = 1, BIRDS do
+		self.birds[i] = spawn_sprite("#bg_layer_factory", "bird_flap", -0.3, 1)
+		life_hide(self.birds[i])
+	end
+	self.planes = {
+		spawn_sprite("#bg_layer_factory", "plane_fighter", -0.34, 1),
+		spawn_sprite("#bg_layer_factory", "plane_bomber", -0.34, 1),
+	}
+	self.planes[1].speed, self.planes[2].speed = 150, 80
+	for _, p in ipairs(self.planes) do
+		life_hide(p)
+	end
+	self.flock_timer = 1.0
+	self.plane_timer = 5 + math.random() * 6
+
+	-- Biome motes (leaves, snow, embers, spores) drifting on the wind in front of the terrain
+	self.wind_spores = {}
+	self.wind_time = 0
+	for _ = 1, MOTES do
+		local sp = spawn_sprite("#bg_mote_factory", nil, 0.25, 0.3)
+		sp.x = (math.random() - 0.5) * constants.WORLD_WIDTH
+		sp.base_y = math.random(-80, 320)
+		sp.y = sp.base_y
+		sp.speed_mult = 0.65 + math.random() * 0.70
+		sp.flutter_phase = math.random() * 6.28
+		sp.flutter_speed = 1.6 + math.random() * 2.4
+		sp.spin = (math.random() - 0.5) * 3
+		show(sp, false)
+		table.insert(self.wind_spores, sp)
+	end
+end
+
+-- Battle-only pieces (terrain, fryer oil, motes); the sky layers and their birds always stay on
+local function set_battle_visible(self, on)
+	msg.post("#sprite", on and "enable" or "disable")
+	msg.post("#water", on and "enable" or "disable")
+	for _, sp in ipairs(self.wind_spores) do
+		show(sp, on)
+	end
+end
+
+-- Layer-space centre of the view for a parallax factor, plus the view half size in world units
+local function view_of(rel_x, rel_y, f)
+	local z = math.max(0.3, camera_controller.zoom or 1)
+	local hw = (camera_controller.view_w or 960) * 0.5 / z
+	local hh = (camera_controller.view_h or 540) * 0.5 / z
+	return rel_x * (1 - f), rel_y * (1 - f * 0.6), hw, hh
+end
+
+-- A loose V of 3-5 birds entering from one side of the view
+local function spawn_flock(self, tint, rel_x, rel_y)
+	local cx, cy, hw, hh = view_of(rel_x, rel_y, BIRD_PARALLAX)
+	local dir = (math.random() < 0.5) and 1 or -1
+	local y0 = cy + hh * (0.25 + math.random() * 0.45)
+	local speed = 45 + math.random() * 30
+	local n, wanted = 0, math.random(3, 5)
+	for _, b in ipairs(self.birds) do
+		if not b.active and n < wanted then
+			local k = n
+			n = n + 1
+			local depth = 0.75 + math.random() * 0.35
+			b.active, b.dir = true, dir
+			b.x = cx - dir * (hw + 40 + k * 26)
+			b.y = y0 - math.ceil(k / 2) * 12 + ((k % 2 == 0) and 6 or -6) + (math.random() - 0.5) * 6
+			b.vx = dir * speed * depth
+			b.t, b.ph = 0, math.random() * 6.28
+			show(b, true)
+			go.set_scale(vmath.vector3(depth, depth, 1), b.id)
+			go.set(b.url, "tint", vmath.vector4(tint.x, tint.y, tint.z, tint.w * depth))
+			go.set(b.url, "playback_rate", 0.8 + math.random() * 0.5)
+			go.set(b.url, "cursor", math.random())
+		end
+	end
+end
+
+local function spawn_plane(self, tint, rel_x, rel_y)
+	local free = {}
+	for _, p in ipairs(self.planes) do
+		if not p.active then free[#free + 1] = p end
+	end
+	if #free == 0 then return end
+	local cx, cy, hw, hh = view_of(rel_x, rel_y, PLANE_PARALLAX)
+	local p = free[math.random(#free)]
+	local dir = (math.random() < 0.5) and 1 or -1
+	local s = 0.7 + math.random() * 0.4
+	p.active, p.dir = true, dir
+	p.x = cx - dir * (hw + 90)
+	p.y = cy + hh * (0.5 + math.random() * 0.35)
+	p.vx = dir * p.speed * (0.85 + math.random() * 0.3)
+	p.t = 0
+	show(p, true)
+	-- The art faces right: mirror it for a right-to-left pass
+	sprite.set_hflip(p.url, dir < 0)
+	go.set_scale(vmath.vector3(s, s, 1), p.id)
+	-- Hazier than the birds: they fly far behind the clouds
+	go.set(p.url, "tint", vmath.vector4(tint.x, tint.y, tint.z, tint.w * 0.7))
+end
+
+local SALUTE_COLORS = {
+	vmath.vector4(2.2, 0.9, 0.3, 1), vmath.vector4(0.5, 1.5, 2.4, 1), vmath.vector4(2.2, 2.0, 0.6, 1),
+	vmath.vector4(2.2, 0.5, 1.6, 1), vmath.vector4(0.7, 2.2, 0.8, 1),
+}
+
+local function firework(x, y)
+	local c = SALUTE_COLORS[math.random(#SALUTE_COLORS)]
+	local n = 34
+	for i = 1, n do
+		local a = i / n * 6.283 + math.random() * 0.2
+		local v = 150 + math.random() * 90
+		pcall(factory.create, "#debris_factory", vmath.vector3(x, y, 0.5), nil, {
+			vx = math.cos(a) * v, vy = math.sin(a) * v,
+			life = 1.0 + math.random() * 0.6, grav = 0.12, drag = 1.5,
+			size = 0.9 + math.random() * 0.5, grow = 0.5, fade_start = 0.45,
+			anim = hash("spark"), tint = c,
+		})
+	end
+	sound_manager.play("pop", { vary = 0.15 })
+end
+
+-- bx, by: world point the layers are framed on; rel: camera offset from it
+local function life_update(self, dt, bx, by, rel_x, rel_y)
+	local tint = LIFE_TINT[self.current_biome] or LIFE_TINT.grass
+	self.flock_timer = self.flock_timer - dt
+	if self.flock_timer <= 0 then
+		self.flock_timer = 7 + math.random() * 8
+		spawn_flock(self, tint, rel_x, rel_y)
+	end
+	-- No aircraft inside the volcano cavern
+	if self.current_preset ~= "cavern" or not self.battle_active then
+		self.plane_timer = self.plane_timer - dt
+		if self.plane_timer <= 0 then
+			self.plane_timer = 16 + math.random() * 16
+			spawn_plane(self, tint, rel_x, rel_y)
+		end
+	end
+
+	local bcx, _, bhw = view_of(rel_x, rel_y, BIRD_PARALLAX)
+	for _, b in ipairs(self.birds) do
+		if b.active then
+			b.x = b.x + b.vx * dt
+			b.t = b.t + dt
+			local y = b.y + math.sin(b.t * 1.7 + b.ph) * 6
+			go.set_position(vmath.vector3(bx + rel_x * BIRD_PARALLAX + b.x, by + rel_y * BIRD_PARALLAX * 0.6 + y, -0.3), b.id)
+			if (b.x - bcx) * b.dir > bhw + 260 or b.t > 90 then life_hide(b) end
+		end
+	end
+	local pcx, _, phw = view_of(rel_x, rel_y, PLANE_PARALLAX)
+	for _, p in ipairs(self.planes) do
+		if p.active then
+			p.x = p.x + p.vx * dt
+			p.t = p.t + dt
+			local y = p.y + math.sin(p.t * 0.8) * 5
+			go.set_position(vmath.vector3(bx + rel_x * PLANE_PARALLAX + p.x, by + rel_y * PLANE_PARALLAX * 0.6 + y, -0.34), p.id)
+			if (p.x - pcx) * p.dir > phw + 200 or p.t > 90 then life_hide(p) end
+		end
+	end
+end
+
+local function motes_update(self, dt, bx, by)
+	local wind = (game_state.wind_vector and game_state.wind_vector.x) or 8.0
+	local wind_speed = wind * 4.0
+	if math.abs(wind_speed) < 15.0 then
+		wind_speed = (wind_speed >= 0) and 15.0 or -15.0
+	end
+	self.wind_time = self.wind_time + dt
+	local half_w = constants.WORLD_WIDTH * 0.5 + 80
+	for _, sp in ipairs(self.wind_spores) do
+		sp.x = sp.x + wind_speed * sp.speed_mult * dt
+		sp.y = sp.base_y + math.sin(self.wind_time * sp.flutter_speed + sp.flutter_phase) * 18.0
+		if sp.x > half_w then
+			sp.x = -half_w
+			sp.base_y = math.random(-80, 320)
+		elseif sp.x < -half_w then
+			sp.x = half_w
+			sp.base_y = math.random(-80, 320)
+		end
+		go.set_position(vmath.vector3(bx + sp.x, by + sp.y, 0.25), sp.id)
+		go.set_rotation(vmath.quat_rotation_z(self.wind_time * sp.spin), sp.id)
+	end
+end
+
 ---------------------------------------------------------
 -- Hybrid-casual terrain shading (see lua_modules/terrain_painter.lua)
 ---------------------------------------------------------
@@ -65,53 +308,45 @@ local function fill_full_stream(self)
 	paint_region(self, 0, 0, self.w - 1, self.h - 1)
 end
 
+-- Atmospheric biome motes drifting on the wind (64 px art scaled to small flecks)
+local VFX = {
+	arctic = { anim = "vfx_snow", tint = vmath.vector4(0.95, 0.98, 1.0, 0.95), scale = 0.26 },
+	volcano = { anim = "vfx_ember", tint = vmath.vector4(1.6, 0.75, 0.2, 0.95), scale = 0.24 },
+	alien = { anim = "vfx_spore", tint = vmath.vector4(0.25, 0.98, 0.88, 0.95), scale = 0.26 },
+	grass = { anim = "vfx_leaf", tint = vmath.vector4(0.92, 1.0, 0.65, 0.90), scale = 0.24 },
+	desert = { anim = "spore", tint = vmath.vector4(0.95, 0.80, 0.50, 0.85), scale = 0.5 },
+}
+
 local function apply_biome_environment(self, biome)
 	self.current_biome = biome or "grass"
 	game_state.current_biome = self.current_biome
 	local theme = BIOME_THEMES[self.current_biome] or BIOME_THEMES.grass
+	local mood = self.battle_active and MOODS[(math.floor((terrain_grid.seed or 0) / 3) % #MOODS) + 1] or MOODS[1]
+	local function lit(c, fallback)
+		return vmath.mul_per_elem(c or fallback, mood)
+	end
+	local L = self.layers
 
-	pcall(function()
-		go.set("#water", "tint", theme.water)
-		if theme.sky_clear then
-			msg.post("@render:", "clear_color", { color = theme.sky_clear })
-		end
-		-- Dynamic Biome Illustrated Sky (Nano Banana assets) with depth tinting
-		local sky_anim = "bg_sky_" .. self.current_biome
-		sprite.play_flipbook("#sky", sky_anim)
-		if theme.sky_tint then
-			go.set("#sky", "tint", theme.sky_tint)
-		else
-			go.set("#sky", "tint", vmath.vector4(1, 1, 1, 1))
-		end
-		msg.post("#bg_islands", "enable")
-		msg.post("#bg_distant", "enable")
-		msg.post("#bg_clouds", "enable")
-		sprite.play_flipbook("#bg_islands", "bg_islands_" .. self.current_biome)
-		go.set("#bg_distant", "tint", theme.distant_tint or vmath.vector4(1, 1, 1, 0.8))
-		go.set("#bg_clouds", "tint", theme.cloud_tint or vmath.vector4(1, 1, 1, 0.45))
-		go.set("#bg_islands", "tint", vmath.vector4(1, 1, 1, 1))
-	end)
+	go.set("#water", "tint", theme.water)
+	if theme.sky_clear then
+		msg.post("@render:", "clear_color", { color = theme.sky_clear })
+	end
+	-- Biome illustrated sky and mid-ground islands, tinted for depth and the map's time of day
+	sprite.play_flipbook(L.sky.url, "bg_sky_" .. self.current_biome)
+	sprite.play_flipbook(L.islands.url, "bg_islands_" .. self.current_biome)
+	go.set(L.sky.url, "tint", lit(theme.sky_tint, vmath.vector4(1, 1, 1, 1)))
+	go.set(L.distant.url, "tint", lit(theme.distant_tint, vmath.vector4(1, 1, 1, 0.8)))
+	go.set(L.clouds.url, "tint", lit(theme.cloud_tint, vmath.vector4(1, 1, 1, 0.45)))
+	go.set(L.islands.url, "tint", lit(nil, vmath.vector4(1, 1, 1, 1)))
 
-	-- Atmospheric Biome VFX particles drifting on the wind
-	local vfx_map = {
-		arctic = { anim = "vfx_snow", tint = vmath.vector4(0.95, 0.98, 1.0, 0.95), scale = 1.0 },
-		volcano = { anim = "vfx_ember", tint = vmath.vector4(1.0, 0.55, 0.15, 0.95), scale = 1.1 },
-		alien = { anim = "vfx_spore", tint = vmath.vector4(0.25, 0.98, 0.88, 0.95), scale = 1.1 },
-		grass = { anim = "vfx_leaf", tint = vmath.vector4(0.92, 1.0, 0.65, 0.90), scale = 0.9 },
-		desert = { anim = "spore", tint = vmath.vector4(0.95, 0.80, 0.50, 0.85), scale = 1.3 },
-	}
-	local vfx = vfx_map[self.current_biome] or vfx_map.grass
-	if self.wind_spores then
-		for _, sp in ipairs(self.wind_spores) do
-			pcall(function()
-				sprite.play_flipbook(sp.id, vfx.anim)
-				go.set(sp.id, "tint", vfx.tint)
-				go.set(sp.id, "scale", vmath.vector3(vfx.scale, vfx.scale, 1.0))
-			end)
-		end
+	local vfx = VFX[self.current_biome] or VFX.grass
+	for _, sp in ipairs(self.wind_spores) do
+		sprite.play_flipbook(sp.url, vfx.anim)
+		go.set(sp.url, "tint", vfx.tint)
+		local s = vfx.scale * (0.7 + math.random() * 0.6)
+		go.set_scale(vmath.vector3(s, s, 1), sp.id)
 	end
 end
-
 
 local function update_full_texture(self)
 	fill_full_stream(self)
@@ -141,11 +376,9 @@ function init(self)
 	self.is_initialized = false
 	self.current_biome = "grass"
 	self.current_preset = "hills"
+	self.battle_active = false
 
-	-- Water shimmer animation (calm gentle wave)
-	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
-
-	-- Apply initial environment
+	bg_init(self)
 	apply_biome_environment(self, "grass")
 
 	-- 1. Create pixel buffer for foreground terrain
@@ -156,7 +389,6 @@ function init(self)
 
 	-- Lazy loading: initialize lightweight grid structure on boot; defer heavy rasterization until match starts
 	terrain_grid.init(constants.TERRAIN_WIDTH, self.h, constants.TERRAIN_SCALE)
-	self.battle_active = false
 
 	-- 2. Create dynamic texture and atlas for Foreground Terrain (960x270 base quad)
 	local t_params = {
@@ -166,32 +398,14 @@ function init(self)
 		format = graphics.TEXTURE_FORMAT_RGBA,
 		num_mip_maps = 1
 	}
-	local ok_t, tex_res = pcall(resource.create_texture, TEXTURE_PATH, t_params, self.tex_buffer)
+	pcall(resource.create_texture, TEXTURE_PATH, t_params, self.tex_buffer)
 
 	local atlas_params = {
 		texture = TEXTURE_PATH,
 		animations = {
-			{
-				id = "terrain",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			},
-			{
-				id = "terrain_pvp",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			},
-			{
-				id = "terrain_campaign",
-				width = self.w,
-				height = self.h,
-				frame_start = 1,
-				frame_end = 2
-			}
+			{ id = "terrain", width = self.w, height = self.h, frame_start = 1, frame_end = 2 },
+			{ id = "terrain_pvp", width = self.w, height = self.h, frame_start = 1, frame_end = 2 },
+			{ id = "terrain_campaign", width = self.w, height = self.h, frame_start = 1, frame_end = 2 },
 		},
 		geometries = {
 			{
@@ -207,126 +421,50 @@ function init(self)
 		}
 	}
 	local ok_a, atlas_res = pcall(resource.create_atlas, ATLAS_PATH, atlas_params)
-
 	if ok_a and atlas_res then
 		self.atlas_id = atlas_res
 		go.set("#sprite", "image", atlas_res)
 		sprite.play_flipbook("#sprite", "terrain")
-		self.is_initialized = true
 		pcall(function()
 			go.set("#sprite", "terrain_params", vmath.vector4(self.w, self.h, 1.4, 0.0))
 		end)
 	end
-
 	self.is_initialized = true
 	constants.log(">>> TERRAIN INITIALIZED WITH HIGH-RES ILLUSTRATED BIOME SKIES & ISLANDS!")
 
-	-- Atmospheric Wind Spores drifting on the breeze
-	self.wind_spores = {}
-	self.wind_time = 0
-	for i = 1, 8 do
-		table.insert(self.wind_spores, {
-			id = "#spore" .. i,
-			x = (math.random() - 0.5) * constants.WORLD_WIDTH,
-			y = math.random(-80, 320),
-			base_y = math.random(-80, 320),
-			speed_mult = 0.65 + math.random() * 0.70,
-			flutter_phase = math.random() * 6.28,
-			flutter_speed = 1.6 + math.random() * 2.4,
-		})
-	end
+	-- The battle world is 1920x960; the terrain quad sits at its centre
+	go.set_position(vmath.vector3(constants.WORLD_WIDTH * 0.5, constants.WORLD_HEIGHT * 0.5, 0))
+	go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
+	-- Water shimmer animation (calm gentle wave)
+	go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
 
-	-- Initial setup for expanded 1920x960 world
-	local cx = constants.WORLD_WIDTH * 0.5
-	local cy = constants.WORLD_HEIGHT * 0.5
-	go.set_position(vmath.vector3(cx, cy, 0))
-	pcall(function()
-		go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
-		go.set("#sky", "scale", vmath.vector3(1.65, 1.45, 1.0))
-		go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-		msg.post("#bg_distant", "disable")
-		msg.post("#bg_islands", "disable")
-		msg.post("#bg_clouds", "disable")
-
-		-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
-		go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
-		go.set("#water", "scale.x", 2.5)
-		go.set("#water", "scale.y", 2.5)
-		go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
-	end)
-
-	-- Initially disable battle layers for main menu
-	pcall(function()
-		msg.post("#sprite", "disable")
-		msg.post("#water", "disable")
-		msg.post("#bg_distant", "disable")
-		msg.post("#bg_islands", "disable")
-		msg.post("#bg_clouds", "disable")
-		for i = 1, 8 do
-			msg.post("#spore" .. i, "disable")
-		end
-	end)
+	-- Main menu first: no battlefield, but the sky stays alive behind the menu
+	set_battle_visible(self, false)
 end
 
 function update(self, dt)
-	-- Multi-plane Parallax based on Camera Controller
-	if camera_controller and camera_controller.pos then
-		local cx = constants.WORLD_WIDTH * 0.5
-		local cy = constants.WORLD_HEIGHT * 0.5
-		local rel_x = camera_controller.pos.x - cx
-		local rel_y = camera_controller.pos.y - cy
-
-		-- 1. Sky Gradient: moves very slowly with camera (0.88 follow)
-		pcall(function()
-			go.set("#sky", "position", vmath.vector3(rel_x * 0.88, rel_y * 0.85, -0.45))
-		end)
-
-		-- 2. Layer 1 (Distant mountains & farm ridges): deep slow parallax (0.55 follow)
-		pcall(function()
-			go.set("#bg_distant", "position", vmath.vector3(rel_x * 0.55, rel_y * 0.35 + 60, -0.35))
-		end)
-
-		-- 3. Layer 2 (Mid-ground floating islands): mid parallax (0.28 follow)
-		pcall(function()
-			go.set("#bg_islands", "position", vmath.vector3(rel_x * 0.28, rel_y * 0.18 + 20, -0.25))
-		end)
-
-		-- 4. Layer 3 (Clouds): slow drift + soft parallax between the islands and the sky
-		self.cloud_time = (self.cloud_time or 0) + dt
-		local cloud_drift = math.sin(self.cloud_time * 0.06) * 70
-		pcall(function()
-			go.set("#bg_clouds", "position", vmath.vector3(rel_x * 0.40 + cloud_drift, rel_y * 0.28 + 200, -0.32))
-		end)
+	if not (camera_controller and camera_controller.pos) then return end
+	local cam = camera_controller.pos
+	local cx, cy = constants.WORLD_WIDTH * 0.5, constants.WORLD_HEIGHT * 0.5
+	local bx, by, rel_x, rel_y
+	if self.battle_active then
+		bx, by, rel_x, rel_y = cx, cy, cam.x - cx, cam.y - cy
+	else
+		-- Menu backdrop: framed around wherever the camera rests, slightly skyward
+		bx, by, rel_x, rel_y = cam.x, cam.y - MENU_LIFT, 0, MENU_LIFT
 	end
 
-	-- Atmospheric Wind Spores drifting on the wind
-	if self.wind_spores then
-		local wind = (game_state.wind_vector and game_state.wind_vector.x) or 8.0
-		local wind_speed = wind * 4.0
-		if math.abs(wind_speed) < 15.0 then
-			wind_speed = (wind_speed >= 0) and 15.0 or -15.0
-		end
+	-- Multi-plane parallax: farther layers follow the camera more, so they seem to scroll slower
+	self.cloud_time = (self.cloud_time or 0) + dt
+	local drift = math.sin(self.cloud_time * 0.06) * 70
+	for _, l in ipairs(LAYERS) do
+		local x = bx + rel_x * l.fx + ((l.key == "clouds") and drift or 0)
+		go.set_position(vmath.vector3(x, by + rel_y * l.fy + l.oy, l.z), self.layers[l.key].id)
+	end
 
-		self.wind_time = (self.wind_time or 0) + dt
-		local half_w = constants.WORLD_WIDTH * 0.5 + 80
-
-		for _, sp in ipairs(self.wind_spores) do
-			sp.x = sp.x + wind_speed * sp.speed_mult * dt
-			local flutter = math.sin(self.wind_time * sp.flutter_speed + sp.flutter_phase) * 18.0
-			sp.y = sp.base_y + flutter
-
-			if sp.x > half_w then
-				sp.x = -half_w
-				sp.base_y = math.random(-80, 320)
-			elseif sp.x < -half_w then
-				sp.x = half_w
-				sp.base_y = math.random(-80, 320)
-			end
-
-			pcall(function()
-				go.set(sp.id, "position", vmath.vector3(sp.x, sp.y, 0.25))
-			end)
-		end
+	life_update(self, dt, bx, by, rel_x, rel_y)
+	if self.battle_active then
+		motes_update(self, dt, bx, by)
 	end
 end
 
@@ -335,7 +473,7 @@ function on_message(self, message_id, message, sender)
 		local preset = message.preset or "hills"
 		local biome = message.biome
 		if not biome then
-			if preset == "canyon" or preset == "canyon_bridge" or preset == "bunkers" then
+			if preset == "canyon" or preset == "canyon_bridge" or preset == "bunkers" or preset == "crater_field" then
 				biome = "desert"
 			elseif preset == "floating_islands" then
 				biome = "arctic"
@@ -343,89 +481,37 @@ function on_message(self, message_id, message, sender)
 				biome = "volcano"
 			elseif preset == "swiss_cheese" then
 				biome = "alien"
-			elseif preset == "crater_field" then
-				biome = "desert"
-			elseif preset == "mushroom_grove" then
-				biome = "grass"
 			else
 				biome = "grass"
 			end
 		end
 
 		self.mode = message.mode
-
-		-- Enable foreground terrain, parallax layers, deep fryer oil, and wind spores
-		pcall(function()
-			msg.post("#sprite", "enable")
-			msg.post("#water", "enable")
-			msg.post("#bg_distant", "enable")
-			msg.post("#bg_islands", "enable")
-			msg.post("#bg_clouds", "enable")
-			for i = 1, 8 do
-				msg.post("#spore" .. i, "enable")
-			end
-		end)
-
-		-- Expanded 1920x960 Worms Armageddon Battlefield
-		local cx = constants.WORLD_WIDTH * 0.5
-		local cy = constants.WORLD_HEIGHT * 0.5
-		go.set_position(vmath.vector3(cx, cy, 0))
-		pcall(function()
-			go.set("#sprite", "scale", vmath.vector3(constants.TERRAIN_SCALE, constants.TERRAIN_SCALE, 1.0))
-			go.set("#sky", "scale", vmath.vector3(1.65, 1.45, 1.0))
-			go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-
-			-- Deep boiling fryer oil: sits at WATER_LEVEL and extends 300+ px below screen!
-			go.set("#water", "position", vmath.vector3(0, constants.WATER_LEVEL - cy - 200, 0.4))
-			go.set("#water", "scale.x", 2.5)
-			go.set("#water", "scale.y", 2.5)
-			go.animate("#water", "scale.y", go.PLAYBACK_LOOP_PINGPONG, 2.525, go.EASING_INOUTSINE, 3.5)
-		end)
-
 		self.battle_active = true
 		self.current_preset = preset
 		self.current_biome = biome
+		set_battle_visible(self, true)
 		constants.log(">>> TERRAIN ON_MESSAGE GENERATE_TERRAIN:", preset, "biome:", biome, "mode:", message.mode)
-		apply_biome_environment(self, biome)
-
 		if not message.already_generated then
 			terrain_grid.generate(preset, message.campaign_level)
 		end
+		apply_biome_environment(self, biome) -- after generation: the mood comes from the new seed
 		update_full_texture(self)
 
 	elseif message_id == hash("set_menu_mode") then
 		local is_menu = (message.is_menu ~= false)
 		self.battle_active = not is_menu
-		if is_menu then
-			pcall(function()
-				msg.post("#sprite", "disable")
-				msg.post("#water", "disable")
-				msg.post("#bg_distant", "disable")
-				msg.post("#bg_islands", "disable")
-				msg.post("#bg_clouds", "disable")
-				for i = 1, 8 do
-					msg.post("#spore" .. i, "disable")
-				end
-				go.set("#sky", "scale", vmath.vector3(4.5, 3.5, 1.0))
-				go.set("#sky", "position", vmath.vector3(0, 0, -0.45))
-				go.set_position(vmath.vector3(960, 480, 0))
-			end)
-		else
-			pcall(function()
-				msg.post("#sprite", "enable")
-				msg.post("#water", "enable")
-				msg.post("#bg_distant", "enable")
-				msg.post("#bg_islands", "enable")
-				msg.post("#bg_clouds", "enable")
-				for i = 1, 8 do
-					msg.post("#spore" .. i, "enable")
-				end
-			end)
-		end
+		set_battle_visible(self, not is_menu)
 
 	elseif message_id == hash("victory_salute") then
-		-- No-op: the fireworks were drawn into the unbound dynamic_bg texture and never showed.
-		-- Kept so main.script's message stays valid; add a visible effect here if wanted.
+		-- Fireworks over the battlefield: staggered spark bursts in the upper half of the view
+		for k = 1, 7 do
+			timer.delay(0.2 + k * 0.38, false, function()
+				local cam = camera_controller.pos
+				local _, _, hw, hh = view_of(0, 0, 0)
+				firework(cam.x + (math.random() - 0.5) * hw * 1.4, cam.y + hh * (0.1 + math.random() * 0.35))
+			end)
+		end
 
 	elseif message_id == hash("carve_crater") then
 		local cx = message.x or 0

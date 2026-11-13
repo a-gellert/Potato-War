@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 
 DEFOLD=${DEFOLD:-"C:/Program Files (x86)/Defold"}
 [ -d "$DEFOLD" ] || DEFOLD="C:/Defold"
-JAVA=$(ls -d "$DEFOLD"/packages/jdk-*/bin/java* 2>/dev/null | head -1)
+JAVA=$(ls -d "$DEFOLD"/packages/jdk-*/bin/java "$DEFOLD"/packages/jdk-*/bin/java.exe 2>/dev/null | head -1)
 JAR=$(ls "$DEFOLD"/packages/defold-*.jar | head -1)
 [ -n "$JAVA" ] && [ -n "$JAR" ] || { echo "Defold not found in $DEFOLD (set DEFOLD=...)"; exit 1; }
 

@@ -10,12 +10,16 @@ local menu_settings = require("gui.main_menu.menu_settings")
 local menu_shop = require("gui.main_menu.menu_shop")
 local menu_lobby = require("gui.main_menu.menu_lobby")
 local menu_upgrades = require("gui.main_menu.menu_upgrades")
+local menu_daily = require("gui.main_menu.menu_daily")
+local daily_rewards = require("lua_modules.daily_rewards")
+local player_profile = require("lua_modules.player_profile")
 
 local WINDOWS = {
 	settings = menu_settings,
 	shop = menu_shop,
 	lobby = menu_lobby,
 	upgrades = menu_upgrades,
+	daily = menu_daily,
 }
 
 local function open_window(self, name)
@@ -25,6 +29,13 @@ local function open_window(self, name)
 	self.window = name
 	if name then
 		sound_manager.play("whoosh")
+	end
+end
+
+-- The daily reward pops up by itself the first time the home screen shows on a new day
+local function maybe_daily(self)
+	if not self.window and player_profile.is_tutorial_completed() and daily_rewards.can_claim() then
+		open_window(self, "daily")
 	end
 end
 
@@ -59,6 +70,7 @@ function init(self)
 	menu_settings.build(self, close)
 	menu_shop.build(self, close)
 	menu_upgrades.build(self, close)
+	menu_daily.build(self, close)
 	menu_lobby.build(self, close, function(config)
 		open_window(self, nil)
 		msg.post(".", "disable")
@@ -88,6 +100,7 @@ function on_message(self, message_id, message, sender)
 		msg.post(".", "enable")
 		open_window(self, nil)
 		menu_home.refresh(self)
+		maybe_daily(self)
 	elseif message_id == hash("open_shop") then
 		msg.post(".", "enable")
 		menu_home.refresh(self)
@@ -97,6 +110,7 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("refresh") then
 		menu_home.refresh(self)
 		menu_settings.refresh(self)
+		maybe_daily(self)
 	elseif message_id == hash("hide") then
 		msg.post(".", "disable")
 	elseif message_id == hash("escape_pressed") then

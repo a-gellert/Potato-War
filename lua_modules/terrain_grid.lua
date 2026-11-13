@@ -1129,6 +1129,37 @@ function M.generate(preset_type, campaign_level, is_defense)
 		end
 	end
 
+	-- Per-map variety on top of the preset layout: an extra signature feature and a coin-flip mirror,
+	-- so the same preset rarely repeats its silhouette. The flat training ground stays untouched.
+	if preset_type ~= "tutorial" and preset_type ~= "flat" then
+		if preset_type ~= "hills" then
+			local r = seed_rand(seed, 500)
+			local gx = math.floor(w * (0.30 + seed_rand(seed, 501) * 0.40))
+			if r < 0.4 then
+				-- Rubble field
+				for k = 1, 2 + math.floor(seed_rand(seed, 502) * 3) do
+					add_surface_boulder(gx + (k - 2) * 12 + math.floor(seed_rand(seed, 510 + k) * 6), 2 + math.floor(seed_rand(seed, 520 + k) * 3), seed + k * 37)
+				end
+			elseif r < 0.75 then
+				-- Fresh shell crater
+				add_crater(gx, 11 + math.floor(seed_rand(seed, 503) * 10), seed + 505)
+			elseif preset_type ~= "cavern" and preset_type ~= "swiss_cheese" and preset_type ~= "floating_islands" then
+				-- Rock outcrop hanging above the field (open-sky presets only)
+				add_island(gx, math.floor(h * (0.66 + seed_rand(seed, 506) * 0.06)), math.floor(w * (0.035 + seed_rand(seed, 507) * 0.02)), math.floor(h * 0.03), seed + 508, true)
+			end
+		end
+		if seed_rand(seed, 600) < 0.5 then
+			local g = M.grid
+			for gy = 0, h - 1 do
+				local row = gy * w + 1
+				for gx = 0, math.floor(w / 2) - 1 do
+					local a, b = row + gx, row + w - 1 - gx
+					g[a], g[b] = g[b], g[a]
+				end
+			end
+		end
+	end
+
 	if is_defense then
 		M.defense_spawn_points = {}
 		M.apply_defense_fortifications()

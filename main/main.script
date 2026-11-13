@@ -350,6 +350,9 @@ end
 
 function init(self)
 	constants.log(">>> MAIN SCRIPT INIT STARTED")
+	-- Without a seed every session replays the same maps, winds and loot rolls
+	math.randomseed(os.time())
+	math.random(); math.random()
 	msg.post(".", "acquire_input_focus")
 	constants.log(">>> INIT STEP 1: sound_manager.init()")
 	sound_manager.init()

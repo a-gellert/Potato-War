@@ -36,7 +36,7 @@ function M.build(self, handlers)
 	local h = self.home
 
 	-- Fullscreen dark graphite backdrop and vignette covering any widescreen mobile aspect ratio
-	h.backdrop = kit.box(root, "white", 0, 0, 4000, 3000, vmath.vector4(0.06, 0.08, 0.11, 1.0))
+	h.backdrop = kit.box(root, "white", 0, 0, 4000, 3000, vmath.vector4(0.06, 0.08, 0.11, 0.42)) -- the living sky (terrain.script) shows through
 	gui.set_adjust_mode(h.backdrop, gui.ADJUST_STRETCH)
 
 	h.vignette = kit.box(root, "vignette", 0, 0, 3200, 2200, vmath.vector4(0, 0, 0, 0.75))

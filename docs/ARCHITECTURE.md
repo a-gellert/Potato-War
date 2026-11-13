@@ -99,26 +99,38 @@ Turn rules:
 
 | Module | Responsibility |
 | --- | --- |
-| `lua_modules/terrain_grid.lua` | 960×480 destructible grid (2 px/cell), generation, craters, ground queries |
-| `lua_modules/terrain_painter.lua` | Paints biome shading, outlines, props and charred crater rims into the texture |
-| `main/entities/terrain` | Uploads the grid to a dynamic texture, biome palettes, layered background, victory salute |
-| `lua_modules/bg_battle.lua` | Low-cost ambient background warfare (pixel soldiers, aircraft, searchlights) |
+| `lua_modules/terrain_grid.lua` | 960×480 destructible grid (2 px/cell), generation, craters, ground queries; per-seed signature feature and mirror |
+| `lua_modules/terrain_painter.lua` | Paints biome shading, outlines, props and charred crater rims; per-seed palette variants |
+| `main/entities/terrain` | Uploads the grid to a dynamic texture, biome palettes, parallax layers, background life, victory salute |
+| `main/entities/bg_layer` | Sprite-only prototypes spawned by `terrain.script` for the layers, birds, planes and motes |
 | `lua_modules/debris_fx.lua` | Small particle/debris effects |
 | `main/game.render_script` | Orthographic world pass + fixed GUI pass, aspect handling, buffer clears |
 | `tools/gen_juice_assets.py` | Generates glow/ring/status/parallax sprites (Pillow) |
+| `tools/gen_bg_life.js` | Generates the bird and plane silhouettes (Node, no dependencies) |
 
-Background layers (all disabled in the main menu, enabled in battle):
+Background layers. Each one is its own game object (`bg_layer_factory`), because a sprite
+component's position cannot be changed at runtime. They stay on in the main menu as its living
+backdrop (framed around the camera); the terrain, the fryer oil and the motes show only in battle.
 
 ```text
-dynamic sky (bg_sky_<biome>)          z = -0.45
-  → distant ridge (bg_distant)        z = -0.35   parallax 0.55
-  → drifting clouds (bg_clouds)       z = -0.32   parallax 0.40 + sine drift
-  → mid-ground biome islands          z = -0.25   parallax 0.28
+dynamic sky (bg_sky_<biome>)          z = -0.45   follows the camera 0.88
+  → distant ridge (bg_distant)        z = -0.35   follows 0.55
+  → aircraft silhouettes              z = -0.34   follows 0.62, one pass every 16–32 s
+  → drifting clouds (bg_clouds)       z = -0.32   follows 0.40 + sine drift
+  → bird flocks (V of 3–5)            z = -0.30   follows 0.50, one flock every 7–15 s
+  → mid-ground biome islands          z = -0.25   follows 0.28
   → destructible terrain              z = -0.10
+  → wind-blown biome motes            z = +0.25   (leaves, snow, embers, spores)
 ```
 
-Each biome supplies `distant_tint` and `cloud_tint` in `BIOME_THEMES`; the mid-ground islands use
-`bg_islands_<biome>` from `terrain.atlas`.
+Each biome supplies `distant_tint` and `cloud_tint` in `BIOME_THEMES` and a silhouette colour in
+`LIFE_TINT`; the mid-ground islands use `bg_islands_<biome>` from `terrain.atlas`. The map seed
+also picks a time of day (`MOODS`) multiplied into the sky layers.
+
+Map variety: the seed picks a palette variant per biome (`VARIANTS` in `terrain_painter.lua`:
+for example summer, autumn, lush and meadow grass), adds one signature feature to every preset
+except `hills` (rubble, a shell crater or a hanging outcrop), and mirrors the map half the time.
+`main.script` seeds `math.random` at boot so sessions do not replay the same maps.
 
 Terrain pipeline:
 
@@ -150,6 +162,7 @@ wind awareness, weapon candidates, target count, walking range and drowning atte
 | `lua_modules/inventory_manager.lua` | Per-potato inventories, ammo, 5-slot loadout, class skills |
 | `lua_modules/cards.lua` | Two-card bonus choice between campaign levels |
 | `lua_modules/achievements.lua` | Micro-achievements and toast payloads |
+| `lua_modules/daily_rewards.lua` | 7-day daily login reward cycle; shown by `gui/main_menu/menu_daily.lua` |
 | `lua_modules/strategic_campaign.lua` | War-map phases, income, attacks, AI counter-attacks, battle resolution |
 | `lua_modules/territory_map.lua` | 18 sectors, 4 regions, ownership graph, income, victory/defeat |
 | `lua_modules/level_config.lua` | 18 campaign level definitions, quick-match presets, biome/terrain mapping |
@@ -207,7 +220,7 @@ Rubik fonts.
 
 | Screen | Controller | Widgets |
 | --- | --- | --- |
-| Main menu | `gui/main_menu/main_menu.gui_script` | `menu_home`, `menu_settings`, `menu_shop`, `menu_lobby`, `menu_upgrades` |
+| Main menu | `gui/main_menu/main_menu.gui_script` | `menu_home`, `menu_settings`, `menu_shop`, `menu_lobby`, `menu_upgrades`, `menu_daily` |
 | Battle HUD | `gui/hud/hud.gui_script` | `hud_timer`, `hud_weapons`, `hud_indicators`, `hud_tutorial`, `hud_popups`, `hud_pause`, `hud_aim`, `hud_banner`, `hud_fx` |
 | Campaign map | `gui/campaign_map/campaign_map.gui_script` | `camp_view`, `camp_inspector`, `camp_data` |
 | Arsenal | `gui/arsenal/arsenal.gui_script` | weapon cards, upgrade detail panel |

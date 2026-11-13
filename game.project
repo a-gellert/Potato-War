@@ -20,7 +20,7 @@ app_icon_72x72 = /main/assets/logo2 (1).png
 app_icon_48x48 = /main/assets/logo2 (1).png
 app_icon_36x36 = /main/assets/logo2 (1).png
 package = com.turnbased.artillery.potato.war
-version_code = 3
+version_code = 4
 
 [html5]
 scale_mode = stretch
@@ -31,7 +31,7 @@ htmlfile = /bridge/engine_template.html
 
 [project]
 title = Great Potato War
-version = 1.1.0
+version = 1.2.0
 bundle_resources = /res
 dependencies#0 = https://github.com/Playgama/bridge-defold/archive/refs/tags/v2.3.0.zip
 dependencies#1 = https://github.com/Insality/druid/archive/master.zip
